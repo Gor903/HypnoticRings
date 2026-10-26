@@ -1,0 +1,27 @@
+{
+    "name": "HR.Editor",
+    "rootNamespace": "HR.Editor",
+    "references": [
+        "HR.Core",
+        "HR.Gameplay",
+        "HR.Input",
+        "HR.Themes",
+        "HR.Save",
+        "HR.Audio",
+        "HR.UI",
+        "Unity.RenderPipelines.Core.Runtime",
+        "Unity.RenderPipelines.Universal.Runtime",
+        "Unity.RenderPipelines.Universal.2D.Runtime"
+    ],
+    "includePlatforms": [
+        "Editor"
+    ],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

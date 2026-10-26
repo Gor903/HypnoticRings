@@ -17,18 +17,19 @@
 - [x] Unity-проект создан (`-createProject`, выход 0 — лицензия работает)
 - [x] `docs/` по раскладке скилла, исходники скопированы в `docs/design/` без правок
 - [x] `docs/CONTRACT.md` — механика, числа, строки, архитектура, 14 закрытых пробелов
-- [x] `docs/DECISIONS.md` — необратимые пять + исследование названия + 7 решений фазы 0
-- [x] `CLAUDE.md`, `docs/PROGRESS.md`, `docs/BACKLOG.md`, `docs/README.md`
-- [ ] `Packages/manifest.json`: Input System, URP, Test Framework, uGUI/TMP
-- [ ] URP-ассеты (2D Renderer) созданы Editor-скриптом и назначены
-- [ ] Assembly Definitions всех десяти сборок
-- [ ] `GameConfig`, `DifficultyCurve`, `ThemeData` — типы и стартовые ассеты
-- [ ] `HR.Editor.SceneBuilder` + пустые сцены `Boot`, `Main`
-- [ ] `tools/preflight.sh`, `tools/run_tests.sh`, `tools/build_android.sh`
-- [ ] **Гейт:** `preflight.sh` возвращает 0
+- [x] `docs/DECISIONS.md` — необратимые пять + исследование названия + 10 решений фазы 0
+- [x] `CLAUDE.md`, `docs/PROGRESS.md`, `docs/BACKLOG.md`, `docs/README.md`, `docs/MECHANIC.md`
+- [x] `ProjectSetup.Apply` + `ProjectSetup.Verify` — настройки читаются обратно, `CIBootstrap` падает на расхождении (D-010)
+- [x] `Packages/manifest.json`: Input System 1.20.0, URP 17.6.0, Test Framework 1.8.0, uGUI 2.6.0
+- [x] URP-ассеты (2D Renderer + pipeline) созданы Editor-скриптом и назначены в Graphics и во всех уровнях качества
+- [x] Assembly Definitions всех десяти сборок
+- [ ] `GameConfig`, `DifficultyCurve`, `ThemeData` — типы и стартовые ассеты (перенесено в фазу 1: числа нужны вместе с первым кодом, который их читает)
+- [x] `HR.Editor.SceneBuilder` + сцены `Boot`, `Main`, порядок в build list проверен
+- [x] `tools/`: `preflight.sh`, `bootstrap.sh`, `run_tests.sh`, `build_android.sh`, `audit.sh`
+- [x] **Гейт:** `preflight.sh` возвращает 0 — 16 проверок, все ok
 - [ ] **Гейт:** пустой проект собирается в Android APK одной командой
-- [ ] **Гейт:** `run_tests.sh` прогоняет пример и возвращает 0
-- [ ] **Гейт:** `HR.Core` компилируется без единой ссылки на UnityEngine
+- [x] **Гейт:** `run_tests.sh edit` — 34/34 зелёных, 0 ошибок компиляции
+- [x] **Гейт:** `HR.Core` компилируется без ссылок на UnityEngine — проверено тестом `CoreIsolationTests`, не только флагом asmdef
 - [ ] Тег `phase-0-done`
 
 ## Фаза 1 — Физический прототип
@@ -123,6 +124,8 @@
 - [ ] Полный прогон EditMode + PlayMode, расширение покрытия
 - [ ] 60 FPS на упрощённом профиле, 0 `GC.Alloc` в игровом кадре
 - [ ] Размер AAB < 40 МБ, чистка пакетов, стриппинг
+- [ ] Убрать `com.unity.test-framework.performance` — он пишет JSON в `Assets/Resources/`, а оттуда всё попадает в бандл независимо от того, грузит ли это кто-нибудь. Приехал транзитивной зависимостью при bootstrap фазы 0
+- [ ] `Assets/Resources/` пуст перед релизной сборкой
 - [ ] Фуззинг ввода 10 минут, soak-тест 30 минут
 - [ ] Устойчивость: быстрый рестарт, поворот, сворачивание, спам паузы, `dt` = 0 и огромный
 - [ ] **Гейт:** все тесты зелёные, `docs/PERF_REPORT.md`, нет предупреждений сборки

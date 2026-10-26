@@ -1,19 +1,25 @@
-# Publishing — {{GAME}}
+# Публикация — Hypnotic Rings
 
-> Template. Replace every `{{TOKEN}}`, delete every line that is not true
-> of this game, and write the prose in the language of the design
-> documents. `check-listing.py` fails while any token survives — a
-> half-filled template reads as a finished document, which is worse than
-> no document.
+Единственное место, где отвечают на вопрос «можно ли уже отправлять».
+Держится в актуальном состоянии.
 
-The one place to answer "can we ship yet". Keep it true.
+**Текущий ответ: нет, и близко.** Проект в фазе 0 из 12: окружение
+проверено, Unity-проект создан, контракт и решения записаны, игрового кода
+ещё нет. Собирать и отправлять нечего.
 
-**Current answer: {{SHIP_ANSWER}}.** Everything outstanding is under
-[Left before upload](#left-before-upload).
+Ниже по файлу уцелели `{{TOKEN}}` — это **намеренно**. Каждый из них
+заполняется цифрой, прочитанной из артефакта или из вывода команды, и до
+фазы 11 таких цифр не существует. Вписать их сейчас означало бы выдумать.
+`check-listing.py` падает, пока хоть один токен жив, — это и есть защита от
+того, чтобы наполовину заполненный шаблон прочитали как готовый документ.
 
-Last verified end to end on {{DATE}}: {{EDIT_TESTS}} edit-mode and
-{{PLAY_TESTS}} play-mode tests green, bundle manifest re-dumped, policy
-URL re-fetched.
+| Что подтверждено | Чем |
+|---|---|
+| окружение пригодно | `tools/preflight.sh` → 0 |
+| необратимые пять выбраны и обоснованы | `../DECISIONS.md`, часть A |
+| название не конфликтует (стор), реестр знаков НЕ проверялся | `../DECISIONS.md`, часть A |
+
+Прогресс по фазам — в [`../PROGRESS.md`](../PROGRESS.md).
 
 ## Automation
 

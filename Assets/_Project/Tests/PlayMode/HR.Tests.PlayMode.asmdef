@@ -1,0 +1,30 @@
+{
+    "name": "HR.Tests.PlayMode",
+    "rootNamespace": "HR.Tests.PlayMode",
+    "references": [
+        "UnityEngine.TestRunner",
+        "UnityEditor.TestRunner",
+        "HR.Core",
+        "HR.Gameplay",
+        "HR.Input",
+        "HR.Themes",
+        "HR.Save",
+        "HR.Audio",
+        "HR.UI",
+        "Unity.InputSystem",
+        "Unity.InputSystem.TestFramework"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": true,
+    "precompiledReferences": [
+        "nunit.framework.dll"
+    ],
+    "autoReferenced": false,
+    "defineConstraints": [
+        "UNITY_INCLUDE_TESTS"
+    ],
+    "versionDefines": [],
+    "noEngineReferences": false
+}
