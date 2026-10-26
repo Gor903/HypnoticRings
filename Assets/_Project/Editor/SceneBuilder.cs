@@ -16,6 +16,10 @@ namespace HR.Editor
         public const string BootScene = ScenesDir + "/Boot.unity";
         public const string MainScene = ScenesDir + "/Main.unity";
 
+        // Deliberately absent from the build list: the sandbox is a workbench, and a stray scene
+        // in a shipping build is exactly what ProjectSetup.Verify is there to catch.
+        public const string SandboxScene = ScenesDir + "/Sandbox.unity";
+
         // CONTRACT.md G-10: the camera is static, and the tunnel centre O sits at 46% of screen
         // height from the bottom. Screen centre is 50%, so O is 4% of the full height below it.
         public const float OrthoSize = 7.5f;
@@ -27,9 +31,10 @@ namespace HR.Editor
             Directory.CreateDirectory(ScenesDir);
             BuildBoot();
             BuildMain();
+            BuildSandbox();
             RegisterInBuildSettings();
             AssetDatabase.SaveAssets();
-            Debug.Log($"[HR] Scenes rebuilt: {BootScene}, {MainScene}");
+            Debug.Log($"[HR] Scenes rebuilt: {BootScene}, {MainScene}, {SandboxScene}");
         }
 
         static void BuildBoot()
@@ -52,6 +57,23 @@ namespace HR.Editor
             new GameObject("Systems");
 
             EditorSceneManager.SaveScene(scene, MainScene);
+        }
+
+        static void BuildSandbox()
+        {
+            var scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
+            CreateCamera("Sandbox Camera");
+
+            var go = new GameObject("Sandbox");
+            var bootstrap = go.AddComponent<HR.Gameplay.SandboxBootstrap>();
+
+            // Wired here rather than by hand, so regenerating the scene cannot lose the link.
+            var config = ConfigBuilder.EnsureGameConfig();
+            var serialized = new SerializedObject(bootstrap);
+            serialized.FindProperty("config").objectReferenceValue = config;
+            serialized.ApplyModifiedPropertiesWithoutUndo();
+
+            EditorSceneManager.SaveScene(scene, SandboxScene);
         }
 
         static Camera CreateCamera(string name)

@@ -1,0 +1,37 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 6112baaa6132f3a23ac64e7581d2cc90, type: 3}
+  m_Name: GameConfig
+  m_EditorClassIdentifier: HR.Gameplay::HR.Gameplay.GameConfig
+  thickness: 0.3
+  clearance: 1.25
+  targetRadius: 3
+  vanishRadius: 0.9
+  ringsAhead: 3
+  ballRadius: 0.5
+  maxBallSpeed: 12
+  ballFriction: 0.25
+  ballBounce: 0.2
+  ringFriction: 0.25
+  ringBounce: 0
+  passMargin: 0.3
+  crushMargin: 0.05
+  baseCompressionSpeed: 0.15
+  pullToCentre: 3
+  maxCompressionSpeed: 4
+  minGapWidth: 1.5
+  comfortSpinDeg: 200
+  maxArcStepDeg: 7.5
+  maxSegmentSweepDeg: 120
+  capPoints: 4
+  compressionMode: 2
+  rebuildThreshold: 0.02
