@@ -6,7 +6,7 @@
 
 Обозначения: `[ ]` не начато · `[~]` в работе · `[x]` сделано и доказано.
 
-**Текущая фаза: 0.**
+**Текущая фаза: 1.** Фаза 0 закрыта 27 октября 2026, все гейты с доказательствами.
 
 ---
 
@@ -27,10 +27,11 @@
 - [x] `HR.Editor.SceneBuilder` + сцены `Boot`, `Main`, порядок в build list проверен
 - [x] `tools/`: `preflight.sh`, `bootstrap.sh`, `run_tests.sh`, `build_android.sh`, `audit.sh`
 - [x] **Гейт:** `preflight.sh` возвращает 0 — 16 проверок, все ok
-- [ ] **Гейт:** пустой проект собирается в Android APK одной командой
-- [x] **Гейт:** `run_tests.sh edit` — 34/34 зелёных, 0 ошибок компиляции
+- [x] **Гейт:** `tools/build_android.sh dev` даёт APK одной командой. Прочитано из артефакта (`aapt2 dump badging`), а не из лога: `com.gor903.hypnoticrings`, versionCode 1, versionName 1.0.0, minSdk 26, targetSdk 36, `arm64-v8a`, ярлык `Hypnotic Rings`, 41 894 024 байт
+- [x] **Гейт:** `run_tests.sh both` — 38/38 зелёных (34 EditMode + 4 PlayMode), 0 ошибок компиляции
+- [x] `tools/audit.sh` чист на проекте и ловит подсаженную ошибку — проверен в обе стороны
 - [x] **Гейт:** `HR.Core` компилируется без ссылок на UnityEngine — проверено тестом `CoreIsolationTests`, не только флагом asmdef
-- [ ] Тег `phase-0-done`
+- [x] Тег `phase-0-done`
 
 ## Фаза 1 — Физический прототип
 
