@@ -20,6 +20,7 @@ namespace HR.Editor
             Run(() =>
             {
                 ProjectSetup.ApplyAll();
+                ConfigBuilder.EnsureAll();
                 SceneBuilder.BuildAll();
                 AssetDatabase.SaveAssets();
 
