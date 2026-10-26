@@ -1,0 +1,16 @@
+{
+    "name": "HR.Audio",
+    "rootNamespace": "HR.Audio",
+    "references": [
+        "HR.Core"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}
