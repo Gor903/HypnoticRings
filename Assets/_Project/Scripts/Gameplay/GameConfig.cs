@@ -61,6 +61,16 @@ namespace HR.Gameplay
         [Tooltip("Angular speed a player can comfortably sustain.")]
         public float comfortSpinDeg = 200f;
 
+        [Header("Gesture")]
+        [Tooltip("Finger turns 90 degrees, rings turn 90 degrees times this.")]
+        [Range(0.6f, 1.6f)] public float sensitivity = 1.0f;
+        [Tooltip("Ceiling on how fast a gesture may turn the tunnel.")]
+        public float maxUserAngularSpeedDeg = 540f;
+        [Tooltip("Exponential decay of leftover spin once the finger lifts.")]
+        public float inertiaDecay = 5.0f;
+        [Tooltip("Touches closer to the centre than this are ignored — there a pixel is a huge angle.")]
+        public float deadZoneRadius = 0.6f;
+
         [Header("Tessellation")]
         [Tooltip("Finest angular step used to approximate an arc.")]
         public float maxArcStepDeg = 7.5f;
@@ -73,6 +83,9 @@ namespace HR.Gameplay
         public CompressionMode compressionMode = CompressionMode.RebuildOnThreshold;
         [Tooltip("Radius change that triggers a rebuild in RebuildOnThreshold mode.")]
         public float rebuildThreshold = 0.02f;
+
+        public GestureSettings ToGestureSettings(bool inverted = false) => new GestureSettings(
+            sensitivity, maxUserAngularSpeedDeg, inertiaDecay, deadZoneRadius, inverted);
 
         public TunnelSettings ToSettings() => new TunnelSettings(
             thickness, clearance, targetRadius, vanishRadius, ballRadius, crushMargin,
