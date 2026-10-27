@@ -1,0 +1,26 @@
+{
+    "name": "HR.App",
+    "rootNamespace": "HR.App",
+    "references": [
+        "HR.Core",
+        "HR.Gameplay",
+        "HR.Input",
+        "HR.Themes",
+        "HR.Save",
+        "HR.Audio",
+        "HR.UI",
+        "Unity.InputSystem",
+        "UnityEngine.UI",
+        "Unity.RenderPipelines.Core.Runtime",
+        "Unity.RenderPipelines.Universal.Runtime"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

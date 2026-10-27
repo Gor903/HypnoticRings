@@ -217,28 +217,42 @@ namespace HR.Tests.PlayMode
             int allowed = inside + 1 + _settings.RingsAhead + 1;
 
             int peak = 0;
-            int earlyPeak = 0;
             const int steps = 60000;   // ~11 minutes of play; enough to settle, short of NUnit's default timeout
+            const int window = steps / 10;
+
+            long earlySum = 0;
+            long lateSum = 0;
 
             for (int i = 0; i < steps; i++)
             {
                 StepOnce(bot);
                 int live = _tunnel.ActiveRingCount;
                 if (live > peak) peak = live;
-                if (i < steps / 10 && live > earlyPeak) earlyPeak = live;
+
+                if (i < window) earlySum += live;
+                else if (i >= steps - window) lateSum += live;
 
                 Assert.LessOrEqual(live, allowed, $"{live} rings live at step {i}, allowed {allowed}");
                 if (i % 40000 == 0) yield return null;
             }
 
-            // A ceiling alone would not catch a slow leak that stays under it. The shape of the
-            // run has to be flat too: as busy at the end as it was at the start.
-            Assert.LessOrEqual(peak, earlyPeak,
-                $"live rings crept from a peak of {earlyPeak} early to {peak} later");
+            // A ceiling alone would not catch a slow leak that stays under it, so the shape of
+            // the run is checked too — but by its average, not by its maximum.
+            //
+            // This compared peaks until it failed with "crept from a peak of 7 early to 8
+            // later". Nothing had crept: the live count simply oscillates between six and eight,
+            // and demanding that the highest of sixty thousand samples fall inside the first six
+            // thousand is a coin toss, not an invariant. The hard ceiling above never fired once.
+            // A leak moves the average; weather does not.
+            double early = earlySum / (double)window;
+            double late = lateSum / (double)window;
+
+            Assert.LessOrEqual(late, early + 0.5,
+                $"live rings averaged {early:F2} early and {late:F2} late, which is a leak");
 
             Assert.Greater(_tunnel.PassedCount, 10, "the run did not actually progress");
-            Debug.Log($"[HR] ring budget: peak {peak} live (early peak {earlyPeak}), "
-                      + $"allowed {allowed}, {_tunnel.PassedCount} passes");
+            Debug.Log($"[HR] ring budget: peak {peak} live, average {early:F2} early "
+                      + $"and {late:F2} late, allowed {allowed}, {_tunnel.PassedCount} passes");
         }
 
         [UnityTest]

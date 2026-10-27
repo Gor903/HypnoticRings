@@ -67,6 +67,7 @@ namespace HR.Gameplay
         {
             _seed = seed;
             RunCount++;
+            _grace = 0.0;
 
             _score.BeginRun();
             _appliedDifficultyForScore = -1;
@@ -80,8 +81,29 @@ namespace HR.Gameplay
             else if (_states.State == GameState.Menu) _states.Fire(GameTrigger.Play);
         }
 
+        /// <summary>CONTRACT.md G-02 and G-08: the grace a player gets back instead of a countdown.</summary>
+        public const double ResumeGraceSeconds = 0.3;
+
+        double _grace;
+
+        /// <summary>True while the run has resumed but the tunnel is still held still.</summary>
+        public bool IsWarmingUp => _grace > 0.0;
+
         public bool Pause() => _states.Fire(GameTrigger.Pause);
-        public bool Resume() => _states.Fire(GameTrigger.Resume);
+
+        /// <summary>
+        /// Resumes, but holds the tunnel still for a moment first.
+        ///
+        /// Without it the first step after a pause lands on a player whose finger is not back on
+        /// the glass yet, and a tunnel that was mid-squeeze kills them for it. The contract rules
+        /// out a 3-2-1 countdown, so the grace is silent and the physics simply does not advance.
+        /// </summary>
+        public bool Resume()
+        {
+            bool resumed = _states.Fire(GameTrigger.Resume);
+            if (resumed) _grace = ResumeGraceSeconds;
+            return resumed;
+        }
         public bool GoHome() => _states.Fire(GameTrigger.Home);
         public bool Back() => _states.Fire(GameTrigger.Back);
 
@@ -104,6 +126,14 @@ namespace HR.Gameplay
             // Everything outside Playing freezes the tunnel. That is what makes a pause a pause
             // and what stops a crush being registered on the game-over screen.
             if (!_states.TunnelRuns) return;
+
+            // The grace runs on the clock but nothing else does, so an instant death on the first
+            // frame back is impossible by construction rather than by being unlikely.
+            if (_grace > 0.0)
+            {
+                _grace -= dt;
+                return;
+            }
 
             _tunnel.UserAngleDeg = userAngleDeg;
             _tunnel.Step(dt);

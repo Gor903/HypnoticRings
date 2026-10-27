@@ -14,7 +14,11 @@ import sys
 EDITOR_SYMBOLS = ("UNITY_EDITOR", "UNITY_INCLUDE_TESTS")
 
 RULES = [
-    ("debug logging", re.compile(r"\bDebug\.Log(Warning|Error|Format)?\s*\(")),
+    # Chatter only. Debug.LogError and Debug.LogWarning are deliberately allowed: they report
+    # faults a player's device log should carry, and the one place that matters is a tester
+    # saying "it just doesn't start" with nothing in logcat to say why. Debug.Log and
+    # Debug.LogFormat have no such defence and stay banned.
+    ("debug logging", re.compile(r"\bDebug\.Log(Format)?\s*\(")),
     ("scaffolding marker", re.compile(r"(?<![A-Za-z])(TODO|FIXME|HACK|XXX)(?![A-Za-z])")),
     ("commented-out code", re.compile(r"^\s*//\s*(if|for|while|return|var|public|private|void)\s")),
 ]

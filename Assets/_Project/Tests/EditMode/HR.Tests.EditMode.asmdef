@@ -8,7 +8,10 @@
         "HR.Gameplay",
         "HR.Themes",
         "HR.Save",
-        "HR.Audio"
+        "HR.Audio",
+        "HR.App",
+        "HR.UI",
+        "HR.Editor"
     ],
     "includePlatforms": [
         "Editor"

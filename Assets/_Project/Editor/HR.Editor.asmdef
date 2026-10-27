@@ -2,6 +2,7 @@
     "name": "HR.Editor",
     "rootNamespace": "HR.Editor",
     "references": [
+        "HR.App",
         "HR.Core",
         "HR.Gameplay",
         "HR.Input",
