@@ -1,4 +1,5 @@
 using System.Collections;
+using HR.Core;
 using NUnit.Framework;
 using UnityEngine;
 using UnityEngine.SceneManagement;
@@ -24,11 +25,21 @@ namespace HR.Tests.PlayMode
         }
 
         [UnityTest]
-        public IEnumerator Main_scene_has_the_roots_every_generator_appends_to()
+        public IEnumerator Main_scene_carries_the_bootstrap_that_raises_the_game()
         {
+            // This used to check for three empty roots named Tunnel, UI and Systems, left as
+            // placeholders in phase 0. GameBootstrap now builds that whole hierarchy under
+            // itself at run time, so the placeholders described a second, imaginary structure.
+            // What the scene actually owes the player is one object that starts the game.
             yield return LoadScene("Main");
-            foreach (string root in new[] { "Tunnel", "UI", "Systems" })
-                Assert.IsNotNull(GameObject.Find(root), $"Main is missing the '{root}' root");
+
+            var bootstrap = Object.FindAnyObjectByType<HR.App.GameBootstrap>();
+            Assert.IsNotNull(bootstrap, "Main has no GameBootstrap, so it would load to nothing");
+
+            yield return null;
+            Assert.IsNotNull(bootstrap.Game, "the bootstrap did not raise the game");
+            Assert.IsNotNull(bootstrap.Ui, "the bootstrap did not raise the interface");
+            Assert.AreEqual(GameState.Menu, bootstrap.Game.State, "a fresh scene opens in the menu");
         }
 
         [UnityTest]

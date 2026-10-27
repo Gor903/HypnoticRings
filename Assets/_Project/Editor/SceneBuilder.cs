@@ -41,7 +41,10 @@ namespace HR.Editor
         {
             var scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
             CreateCamera("Boot Camera");
-            new GameObject("Bootstrap");
+
+            var go = new GameObject("Bootstrap");
+            go.AddComponent<HR.App.BootLoader>();
+
             EditorSceneManager.SaveScene(scene, BootScene);
         }
 
@@ -50,11 +53,16 @@ namespace HR.Editor
             var scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
             CreateCamera("Main Camera");
 
-            // Roots only. Phase 1 fills Tunnel, phase 6 fills UI; naming them now keeps every
-            // later generator appending to a known place instead of inventing its own.
-            new GameObject("Tunnel");
-            new GameObject("UI");
-            new GameObject("Systems");
+            // One object. GameBootstrap raises the tunnel, the input, the themes and the
+            // interface underneath itself at runtime, so empty roots waiting here would only be
+            // a second place for the same hierarchy to be described.
+            var go = new GameObject("Game");
+            var bootstrap = go.AddComponent<HR.App.GameBootstrap>();
+
+            var config = ConfigBuilder.EnsureGameConfig();
+            var serialized = new SerializedObject(bootstrap);
+            serialized.FindProperty("config").objectReferenceValue = config;
+            serialized.ApplyModifiedPropertiesWithoutUndo();
 
             EditorSceneManager.SaveScene(scene, MainScene);
         }

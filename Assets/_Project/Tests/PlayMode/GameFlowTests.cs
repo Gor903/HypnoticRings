@@ -44,6 +44,56 @@ namespace HR.Tests.PlayMode
             if (_config != null) UnityEngine.Object.DestroyImmediate(_config);
         }
 
+        [UnityTest]
+        public IEnumerator Resuming_holds_the_tunnel_still_for_the_grace_period()
+        {
+            // CONTRACT.md G-02 and G-08. The contract rules out a countdown, so the only thing
+            // standing between a returning player and a tunnel caught mid-squeeze is this.
+            Build();
+            _game.StartRun(99);
+            for (int i = 0; i < 10; i++) _game.Tick(Dt, 0.0);
+
+            _game.Pause();
+            Assert.IsTrue(_game.Resume(), "resume was refused");
+            Assert.IsTrue(_game.IsWarmingUp, "resume gave no grace at all");
+
+            double radiusAtResume = _tunnel.Rings[0].Radius;
+
+            // Just short of the grace: the clock has moved, the tunnel has not.
+            int steps = Mathf.FloorToInt((float)(GameManager.ResumeGraceSeconds / Dt)) - 1;
+            for (int i = 0; i < steps; i++) _game.Tick(Dt, 0.0);
+
+            Assert.AreEqual(radiusAtResume, _tunnel.Rings[0].Radius, 1e-9,
+                "the tunnel advanced during the grace period");
+            Assert.AreEqual(GameState.Playing, _game.State);
+
+            // Past it, the game moves again.
+            for (int i = 0; i < 4; i++) _game.Tick(Dt, 0.0);
+            Assert.IsFalse(_game.IsWarmingUp, "the grace never ended");
+
+            for (int i = 0; i < 20; i++) _game.Tick(Dt, 0.0);
+            Assert.AreNotEqual(radiusAtResume, _tunnel.Rings[0].Radius,
+                "the tunnel never resumed moving");
+            yield return null;
+        }
+
+        [UnityTest]
+        public IEnumerator A_retry_gets_no_leftover_grace()
+        {
+            // The grace belongs to a resume. Carried into a fresh run it would be a free moment
+            // at the start of every retry, which is a different game.
+            Build();
+            _game.StartRun(1);
+            for (int i = 0; i < 5; i++) _game.Tick(Dt, 0.0);
+            _game.Pause();
+            _game.Resume();
+            Assert.IsTrue(_game.IsWarmingUp);
+
+            _game.StartRun(2);
+            Assert.IsFalse(_game.IsWarmingUp, "a retry inherited the resume grace");
+            yield return null;
+        }
+
         void Build(int best = 0)
         {
             _root = new GameObject("FlowRoot");
