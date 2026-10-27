@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Goes at Assets/Plugins/Android/AndroidManifest.xml, with
+  useCustomMainManifest enabled.
+
+  Deleting this file silently restores the permissions removed below, with no
+  warning from anywhere. ReleaseTool's preflight checks that it exists for that
+  reason, and fails the build when it does not.
+
+  This file replaces unityLibrary's manifest rather than adding to it, so the
+  launcher activity below has to be declared here — without it the app installs
+  with no icon and no way to start.
+-->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+          xmlns:tools="http://schemas.android.com/tools">
+
+    <!-- Unity adds these itself even though the game never opens a socket. -->
+    <uses-permission android:name="android.permission.INTERNET" tools:node="remove" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" tools:node="remove" />
+
+    <!-- Haptics. Drop this line if the game has no vibration. -->
+    <uses-permission android:name="android.permission.VIBRATE" />
+
+    <!-- Keeps native libraries compressed in place rather than unpacked at install. -->
+    <application android:extractNativeLibs="false">
+
+        <!-- Class and lib name follow the GameActivity application entry; both change together. -->
+        <!-- screenOrientation must agree with ReleaseSettings.Orientation:
+             "portrait", "landscape", or drop the line entirely for Auto. -->
+        <activity android:name="com.unity3d.player.UnityPlayerGameActivity"
+                  android:theme="@style/BaseUnityGameActivityTheme"
+                  android:screenOrientation="portrait"
+                  android:launchMode="singleTask"
+                  android:configChanges="mcc|mnc|locale|touchscreen|keyboard|keyboardHidden|navigation|orientation|screenLayout|uiMode|screenSize|smallestScreenSize|fontScale|layoutDirection|density"
+                  android:hardwareAccelerated="false"
+                  android:resizeableActivity="false"
+                  android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+            <meta-data android:name="unityplayer.UnityActivity" android:value="true" />
+            <meta-data android:name="android.app.lib_name" android:value="game" />
+        </activity>
+    </application>
+</manifest>

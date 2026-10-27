@@ -19,7 +19,11 @@ from pathlib import Path
 # Where the art lives, relative to this file.
 ICON = "art/store-icon-512.png"
 FEATURE = "art/feature-graphic-1024x500.png"
-SCREENSHOT_GLOB = "art/screenshots/**/*.png"
+# Only the frames that go to the store. The much larger art/screenshots/ tree is the
+# UI review set — eight screens at five shapes, including 9:20 and 9:21, which are
+# correct for a phone and rejected by the store's 2:1 ceiling. Sweeping both together
+# reported eleven failures about files nobody was ever going to upload.
+SCREENSHOT_GLOB = "art/store-screenshots/*.png"
 
 # Privacy pages to check, relative to this file. One per locale.
 PRIVACY_PAGES = ["privacy/index.html"]

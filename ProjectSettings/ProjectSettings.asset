@@ -76,7 +76,7 @@ PlayerSettings:
   androidSystemBarsBehavior: 2
   androidDisplayOptions: 1
   androidBlitType: 0
-  androidResizeableActivity: 1
+  androidResizeableActivity: 0
   androidDefaultWindowWidth: 1920
   androidDefaultWindowHeight: 1080
   androidMinimumWindowWidth: 400
@@ -273,8 +273,8 @@ PlayerSettings:
   AndroidTargetArchitectures: 2
   AndroidSplashScreenScale: 0
   androidSplashScreen: {fileID: 0}
-  AndroidKeystoreName: 
-  AndroidKeyaliasName: 
+  AndroidKeystoreName: /home/gor/keystores/hypnoticrings.keystore
+  AndroidKeyaliasName: hypnoticrings
   AndroidEnableArmv9SecurityFeatures: 0
   AndroidEnableArm64MTE: 0
   AndroidBuildApkPerCpuArchitecture: 0
@@ -286,7 +286,7 @@ PlayerSettings:
   AndroidEnableTango: 0
   androidEnableBanner: 1
   androidUseLowAccuracyLocation: 0
-  androidUseCustomKeystore: 0
+  androidUseCustomKeystore: 1
   m_AndroidBanners:
   - width: 320
     height: 180
@@ -302,32 +302,44 @@ PlayerSettings:
   m_BuildTargetPlatformIcons:
   - m_BuildTarget: Android
     m_Icons:
-    - m_Textures: []
+    - m_Textures:
+      - {fileID: 2800000, guid: c9e70aae55337b07eb9337f2e9ec0d35, type: 3}
+      - {fileID: 2800000, guid: 6ee0d6ab56fa98373a4d385c33652f01, type: 3}
       m_Width: 432
       m_Height: 432
       m_Kind: 2
       m_SubKind: 
-    - m_Textures: []
+    - m_Textures:
+      - {fileID: 2800000, guid: c9e70aae55337b07eb9337f2e9ec0d35, type: 3}
+      - {fileID: 2800000, guid: 6ee0d6ab56fa98373a4d385c33652f01, type: 3}
       m_Width: 324
       m_Height: 324
       m_Kind: 2
       m_SubKind: 
-    - m_Textures: []
+    - m_Textures:
+      - {fileID: 2800000, guid: c9e70aae55337b07eb9337f2e9ec0d35, type: 3}
+      - {fileID: 2800000, guid: 6ee0d6ab56fa98373a4d385c33652f01, type: 3}
       m_Width: 216
       m_Height: 216
       m_Kind: 2
       m_SubKind: 
-    - m_Textures: []
+    - m_Textures:
+      - {fileID: 2800000, guid: c9e70aae55337b07eb9337f2e9ec0d35, type: 3}
+      - {fileID: 2800000, guid: 6ee0d6ab56fa98373a4d385c33652f01, type: 3}
       m_Width: 162
       m_Height: 162
       m_Kind: 2
       m_SubKind: 
-    - m_Textures: []
+    - m_Textures:
+      - {fileID: 2800000, guid: c9e70aae55337b07eb9337f2e9ec0d35, type: 3}
+      - {fileID: 2800000, guid: 6ee0d6ab56fa98373a4d385c33652f01, type: 3}
       m_Width: 108
       m_Height: 108
       m_Kind: 2
       m_SubKind: 
-    - m_Textures: []
+    - m_Textures:
+      - {fileID: 2800000, guid: c9e70aae55337b07eb9337f2e9ec0d35, type: 3}
+      - {fileID: 2800000, guid: 6ee0d6ab56fa98373a4d385c33652f01, type: 3}
       m_Width: 81
       m_Height: 81
       m_Kind: 2
@@ -336,7 +348,10 @@ PlayerSettings:
   m_BuildTargetShaderSettings: []
   m_BuildTargetGraphicsJobs: []
   m_BuildTargetGraphicsJobMode: []
-  m_BuildTargetGraphicsAPIs: []
+  m_BuildTargetGraphicsAPIs:
+  - m_BuildTarget: AndroidPlayer
+    m_APIs: 150000000b000000i
+    m_Automatic: 0
   m_DefaultShaderChunkSizeInMB: 16
   m_DefaultShaderChunkCount: 0
   openGLRequireES31: 0

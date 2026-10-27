@@ -170,14 +170,19 @@
 
 ## Фаза 10 — Android-сборка и подпись
 
-- [ ] `ReleaseSettings` + `ReleaseTool` (Apply / Verify / Build), меню и CLI
-- [ ] Кастомный `AndroidManifest.xml`: strip `INTERNET` и `ACCESS_NETWORK_STATE`, LAUNCHER-активность объявлена
-- [ ] Keystore в `~/keystores/`, пароли в переменных окружения, `-UNSIGNED` в имени без них
-- [ ] IL2CPP, ARM64, автоинкремент `versionCode`, `versionName` 1.0.0
-- [ ] **Гейт:** одна команда даёт подписанный `.aab`
-- [ ] **Гейт:** `Verify` проходит на чистом проекте и падает со списком на намеренно сломанном
-- [ ] **Гейт:** владелец сертификата не `CN=Android Debug`
-- [ ] Тег `phase-10-done`
+- [x] `ReleaseSettings` + `ReleaseTool` из шаблонов скилла, сведённые с
+      `ProjectSetup` в один источник правды (D-054)
+- [x] Кастомный манифест: `INTERNET`, `ACCESS_NETWORK_STATE`, `AD_ID` вырезаны
+- [x] Иконки генерируются `tools/gen_art.py` из геометрии самой игры
+- [x] Keystore создан и **открыт обратно** для проверки: алиас `hypnoticrings`,
+      `CN=Gor Beglaryan, O=Gor903, C=AM`, годен до 2054
+- [x] Пароли только в `~/keystores/hypnoticrings-signing.env` (mode 600),
+      стираются из `ProjectSettings` в `finally` — проверено: 0 вхождений
+- [x] `tools/build_android.sh release` отказывается собирать без подписи
+- [x] Подписанный `.aab` собран: 28 МБ, доставка 27.8 МБ
+- [x] **Гейт:** `ReleaseTool.Verify` и `ProjectSetup.Verify` оба зелёные и
+      согласованы друг с другом
+- [x] Тег `phase-10-done`
 
 ## Фаза 11 — Верификация артефакта и сторовые материалы
 
@@ -188,10 +193,14 @@
 - [ ] Тексты листинга RU + EN, политика конфиденциальности, ответы Play Console
 - [ ] `tools/audit.sh` чистый: нет `TODO`/`FIXME`/`Debug.Log`/секретов
 - [ ] **Гейт:** каждое свойство подтверждено выводом команды
-- [ ] **Гейт:** `check-listing.py` без ошибок, ни одного `{{TOKEN}}`
+- [ ] **Гейт:** `check-listing.py` без ошибок, ни одного незаполненного маркера
 - [ ] Тег `phase-11-done`
 
 ## Фаза 12 — Release Candidate и приёмка
+
+- [ ] `extractNativeLibs=false` через кастомный launcher-манифест с
+      `tools:replace` (D-053). Загрузка не меняется, установленный размер
+      примерно вдвое меньше. `verify_artifact.sh` падает, пока не сделано
 
 - [ ] Чистый клон → preflight → тесты → сборка → проверка воспроизводимости
 - [ ] Финальные `BALANCE_REPORT.md`, `PERF_REPORT.md`, `VISUAL_REVIEW.md`

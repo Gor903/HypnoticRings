@@ -1,6 +1,6 @@
 # Store listing
 
-> Template. The fenced blocks below are the **only** copy of this text.
+> The fenced blocks below are the **only** copy of this text.
 > `check-listing.py` finds them by the `### Heading` immediately above a
 > fence, so keep that shape — rename a heading and the check silently
 > stops measuring that field.
@@ -32,20 +32,20 @@ they move.
 
 - `art/store-icon-512.png` — 512×512
 - `art/feature-graphic-1024x500.png` — 1024×500
-- `art/screenshots/` — {{SHOT_COUNT}} frames, {{SHOT_SIZE}} each
+- `art/store-screenshots/` — 5 frames, 1080×1920 (the review set lives in `art/screenshots/`) each
 
-## Default locale — {{LOCALE}}
+## Default locale — en-US
 
 ### App name
 
 ```
-{{STORE_NAME}}
+Hypnotic Rings
 ```
 
 ### Short description
 
 ```
-{{SHORT_DESCRIPTION}}
+Turn the rings, slip the ball through the gaps, keep the tunnel from closing.
 ```
 
 > One line: what the player does, plus the one thing that sets it apart.
@@ -53,7 +53,26 @@ they move.
 ### Full description
 
 ```
-{{FULL_DESCRIPTION}}
+Concentric rings close in on you. A ball rests on the one below it. Every ring has a gap, and your finger turns them all.
+
+Swipe in a circle to bring a gap under the ball. It drops through, you score, and the next ring is already tightening. Miss, and the tunnel keeps shrinking until there is nowhere left to stand.
+
+That is the whole game. No tutorial, no currency, no timers — one gesture you learn in four seconds and spend much longer getting good at.
+
+WHAT IT ASKS OF YOU
+One thumb. A few minutes, or an hour.
+
+WHAT IT DOES NOT DO
+No ads. No purchases. No accounts, no sign-in, no data collected, nothing sent anywhere — the game has no internet permission at all, so it cannot phone home even by accident. Your best score lives on your phone and nowhere else.
+
+AS YOU GET BETTER
+The tunnel compresses faster, the gaps narrow, and the rings begin to turn against you. Five visual themes unlock as your record climbs, from stark black-and-white to neon and deep midnight blue.
+
+MADE TO BE PLAYED ANYWHERE
+Works offline, always. Under two hundred kilobytes of sound, no streaming, no downloads after install. English and Russian, picked up from your phone's language.
+
+ACCESSIBILITY
+Rotation can be inverted, gesture sensitivity adjusts, and every effect can be turned down if motion bothers you. Sound and music have separate switches and separate volumes.
 ```
 
 > Shape that has worked twice: what the game is in plain words; how it
@@ -67,7 +86,7 @@ they move.
 > well-known game's name through a listing is what triggers impersonation
 > takedowns, and `KEYWORD_CAPS` in `check-listing.py` counts it.
 
-## Release notes — {{LOCALE}}, {{VERSION_NAME}} ({{VERSION_CODE}})
+## Release notes — en-US, 1.0.0 (1)
 
 The console presents this field already wrapped in `<en-US>` tags. Paste
 the text between them and leave the tags alone; they are how the console
@@ -79,7 +98,9 @@ app.
 ### Release notes
 
 ```
-{{RELEASE_NOTES}}
+First release.
+
+Endless tunnel, five unlockable themes, English and Russian. Plays offline with no ads, no purchases and no data collection.
 ```
 
 No version number in the text. The console shows it beside the notes
@@ -91,18 +112,22 @@ Uploaded in this order:
 
 | File | What is on the frame |
 | --- | --- |
-| `{{SHOT_FILE}}` | {{SHOT_DESCRIPTION}} |
+| `store-screenshots/monochrome-9x16.png` | The default theme — black rings on white, mid-run |
+| `store-screenshots/midnight-9x16.png` | Midnight: the first theme a record unlocks |
+| `store-screenshots/neon-9x16.png` | Neon — four ring colours in rotation |
+| `store-screenshots/earth-9x16.png` | Earth, the last unlock, at a higher difficulty |
+| `store-screenshots/menu-9x16.png` | The menu, showing the record and the theme in use |
 
 Captured by code through the editor seams in `ScreenshotTool.cs`, not
 played by hand. Each frame is a seeded game driven by real moves, so
 every position shown is one the rules can actually produce. Regenerate
-the whole set with **{{GAME_MENU}} → Art → Capture Screenshots**, or
-headlessly with `-executeMethod {{NAMESPACE}}.Editor.ScreenshotTool.CI`.
+the whole set with **Hypnotic Rings → Art → Capture Screenshots**, or
+headlessly with `-executeMethod HR.Editor.ScreenshotTool.CI`.
 
 Seeds and move counts are defined at the top of `CaptureAll()` — edit
 there, not in the images.
 
-**What the set does not show:** {{SHOTS_OMITTED}}. Store screenshots of
+**What the set does not show:** the settings and About screens, and the pause and game-over cards. They are interface, not play, and a store listing that leads with a settings screen is selling the wrong thing. Store screenshots of
 menus sell nothing.
 
 Editor captures have no status bar, no cutout and no gesture bar. That
@@ -118,10 +143,10 @@ run in Phase 13.
 
 ## Countries and languages
 
-Default listing language **{{LOCALE}}**. The interface picks its language
-from the system locale at startup and falls back to {{LANGUAGE}} for
+Default listing language **en-US**. The interface picks its language
+from the system locale at startup and falls back to English for
 anything not shipped, so releasing to all countries is safe — a player
 on any locale gets a working interface rather than missing text.
 
 Android does not localise the launcher label. It reads
-**{{LAUNCHER_LABEL}}** in every locale, which is intended, not a bug.
+**Hypnotic Rings** in every locale, which is intended, not a bug.
