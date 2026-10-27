@@ -41,10 +41,20 @@ run_suite() {
   local xml="$results_dir/$lower.xml"
   rm -f "$xml"
 
+  # The endurance tests are ten thousand passes and sixty thousand steps — forty-five minutes
+  # between them, against about four for everything else. Run every time, they are the reason a
+  # regression stops being run at all, so they are opt-in: HR_ENDURANCE=1 at a phase boundary
+  # and before any release. Left out, the suite stays cheap enough to run on every change.
+  local skip=()
+  if [ "${HR_ENDURANCE:-0}" != "1" ] && [ "$platform" = "PlayMode" ]; then
+    skip=(-testCategory "!Endurance")
+    echo "  (endurance tests skipped; HR_ENDURANCE=1 to include them)"
+  fi
+
   # -nographics is safe here: tests do not need a rendering device, and asking for one on a
   # headless run is how a suite hangs instead of failing.
   run_unity "tests-$lower" -nographics -runTests -testPlatform "$platform" \
-            -testResults "$xml" -batchmode || true
+            "${skip[@]}" -testResults "$xml" -batchmode || true
 
   summarise "$platform" "$xml" || failed=1
 }

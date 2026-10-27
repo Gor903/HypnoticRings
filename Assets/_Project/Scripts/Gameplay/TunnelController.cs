@@ -139,9 +139,20 @@ namespace HR.Gameplay
         }
 
         /// <summary>One step of the tunnel. Public so tests can drive it deterministically.</summary>
+        /// <summary>CONTRACT.md G-14: the longest frame the game will believe.</summary>
+        public const double MaxStepSeconds = 0.1;
+
         public void Step(double dt)
         {
             if (_rings.Count == 0) return;
+
+            // Both ends of this arrive in practice. A frame of zero comes on the step after a
+            // resume; a frame of a second comes when the OS stalls the app, and taken at face
+            // value it compresses the tunnel by a second's worth in one go and kills a player
+            // who did nothing. A negative one should be impossible and is refused rather than
+            // run backwards, because running the compression in reverse is not a recovery.
+            if (double.IsNaN(dt) || dt <= 0.0) return;
+            if (dt > MaxStepSeconds) dt = MaxStepSeconds;
 
             // Resolved once and threaded through. It used to be recomputed by each stage, which
             // is five scans of the ring list per step for an answer that cannot change mid-step.
