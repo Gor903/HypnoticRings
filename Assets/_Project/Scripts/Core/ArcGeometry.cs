@@ -59,11 +59,15 @@ namespace HR.Core
                 vertices[2 * i + 1] = new Point2((float)(outer * cos), (float)(outer * sin));
             }
 
+            // Wound so the face points at a camera looking along +Z, which is where the camera
+            // is. The opposite order is back-face culled: the mesh is built, has the right
+            // bounds, reports itself visible, and draws absolutely nothing — with no error to
+            // say so. Signed area of each triangle is negative; see the winding test.
             for (int i = 0, t = 0; i < steps; i++, t += 6)
             {
                 int b = 2 * i;
-                triangles[t] = b; triangles[t + 1] = b + 1; triangles[t + 2] = b + 3;
-                triangles[t + 3] = b; triangles[t + 4] = b + 3; triangles[t + 5] = b + 2;
+                triangles[t] = b; triangles[t + 1] = b + 3; triangles[t + 2] = b + 1;
+                triangles[t + 3] = b; triangles[t + 4] = b + 2; triangles[t + 5] = b + 3;
             }
         }
 
