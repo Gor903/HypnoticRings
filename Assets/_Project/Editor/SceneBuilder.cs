@@ -62,6 +62,8 @@ namespace HR.Editor
             var config = ConfigBuilder.EnsureGameConfig();
             var serialized = new SerializedObject(bootstrap);
             serialized.FindProperty("config").objectReferenceValue = config;
+            serialized.FindProperty("audioBank").objectReferenceValue =
+                AssetDatabase.LoadAssetAtPath<HR.Audio.AudioBank>(AudioBankBuilder.BankPath);
             serialized.ApplyModifiedPropertiesWithoutUndo();
 
             EditorSceneManager.SaveScene(scene, MainScene);

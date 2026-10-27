@@ -1,3 +1,4 @@
+using HR.Audio;
 using HR.Core;
 using HR.Gameplay;
 using HR.Input;
@@ -21,6 +22,7 @@ namespace HR.App
     public sealed class GameBootstrap : MonoBehaviour
     {
         [SerializeField] GameConfig config;
+        [SerializeField] AudioBank audioBank;
         [SerializeField] int seed;
 
         SaveService _saves;
@@ -31,6 +33,7 @@ namespace HR.App
         InputController _input;
         ThemeApplier _themes;
         GameUi _ui;
+        AudioManager _audio;
         Camera _camera;
 
         public GameManager Game => _game;
@@ -39,6 +42,7 @@ namespace HR.App
         public InputController Input => _input;
         public ThemeApplier Themes => _themes;
         public SaveData Settings => _settings;
+        public AudioManager Audio => _audio;
 
         bool _built;
 
@@ -126,6 +130,11 @@ namespace HR.App
             _themes.Initialise(_camera, _tunnel, _ball.GetComponent<Renderer>(),
                 _ball.transform.Find("BallOutline")?.GetComponent<Renderer>());
 
+            var audioGo = new GameObject("Audio");
+            audioGo.transform.SetParent(transform, false);
+            _audio = audioGo.AddComponent<AudioManager>();
+            _audio.Initialise(audioBank, _settings);
+
             var uiGo = new GameObject("Interface");
             uiGo.transform.SetParent(transform, false);
             _ui = uiGo.AddComponent<GameUi>();
@@ -151,6 +160,8 @@ namespace HR.App
             _ui.SettingsPressed += () => { _game.States.Fire(GameTrigger.OpenSettings); _ui.Show(_game.State); };
             _ui.BackPressed += () => { _game.Back(); _ui.Show(_game.State); };
 
+            _ui.Clicked += () => _audio.PlayClick();
+
             _ui.ThemeChosen += theme =>
             {
                 if (!_game.ScoreKeeper.IsUnlocked(theme)) return;
@@ -162,6 +173,7 @@ namespace HR.App
 
             _ui.SettingsChanged += () =>
             {
+                _audio.ApplySettings();
                 Strings.Apply(_settings.Language, DeviceLanguage());
                 _input.Initialise(config.ToGestureSettings(_settings.invertRotation), _camera);
                 Persist();
@@ -177,8 +189,11 @@ namespace HR.App
                 _ui.RefreshStrings();
             };
 
+            _ball.Struck += _ => _audio.PlayKnock();
+
             _game.Scored += score =>
             {
+                _audio.PlayPass(Time.timeAsDouble);
                 _ui.SetScore(score);
                 if (!_settings.hintSeen) { _settings.hintSeen = true; _ui.ShowHint(false); Persist(); }
             };
@@ -187,7 +202,8 @@ namespace HR.App
             {
                 _ui.Show(to);
                 ShowWorld(to);
-                if (to == GameState.GameOver) Persist();
+                if (to == GameState.Paused) _audio.ResetStreak();
+                if (to == GameState.GameOver) { _audio.PlayLose(); Persist(); }
             };
         }
 

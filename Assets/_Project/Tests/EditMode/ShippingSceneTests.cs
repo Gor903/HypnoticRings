@@ -77,6 +77,12 @@ namespace HR.Tests.EditMode
             Assert.IsNotNull(serialized.FindProperty("config").objectReferenceValue,
                 "GameBootstrap has no GameConfig assigned");
 
+            // Same reasoning as the config: a null bank does not crash, it plays nothing — and
+            // silence is the one failure nobody files a bug about.
+            var bank = serialized.FindProperty("audioBank").objectReferenceValue as HR.Audio.AudioBank;
+            Assert.IsNotNull(bank, "GameBootstrap has no AudioBank assigned");
+            Assert.IsTrue(bank.IsComplete, "the audio bank is missing clips");
+
             var camera = scene.GetRootGameObjects()
                 .Select(go => go.GetComponentInChildren<Camera>(true))
                 .FirstOrDefault(c => c != null);

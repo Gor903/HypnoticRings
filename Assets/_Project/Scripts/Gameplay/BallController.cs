@@ -13,6 +13,17 @@ namespace HR.Gameplay
     [RequireComponent(typeof(Rigidbody2D), typeof(CircleCollider2D))]
     public sealed class BallController : MonoBehaviour
     {
+        /// <summary>Raised when the ball strikes a ring, with the impact speed.</summary>
+        public event System.Action<float> Struck;
+
+        void OnCollisionEnter2D(Collision2D collision)
+        {
+            // Speed, not just the fact of a touch: a ball resting against a wall produces a
+            // contact every step, and a knock on every one of them is a buzz, not a knock.
+            float speed = collision.relativeVelocity.magnitude;
+            if (speed > 0.6f) Struck?.Invoke(speed);
+        }
+
         Rigidbody2D _body;
         CircleCollider2D _collider;
         float _maxSpeed;
