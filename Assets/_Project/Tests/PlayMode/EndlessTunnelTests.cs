@@ -106,7 +106,7 @@ namespace HR.Tests.PlayMode
 
         [UnityTest]
         [Timeout(2_700_000)]
-        [Category("Slow")]
+        [Category("Endurance")]
         public IEnumerator Ten_thousand_passes_leave_the_scene_exactly_as_big_as_it_started()
         {
             // The gate. A strong bot is used deliberately: this measures leaks, not skill, and a
@@ -200,6 +200,7 @@ namespace HR.Tests.PlayMode
         }
 
         [UnityTest]
+        [Category("Endurance")]
         public IEnumerator The_number_of_live_rings_stays_bounded_and_does_not_creep()
         {
             Build(seed: 7);

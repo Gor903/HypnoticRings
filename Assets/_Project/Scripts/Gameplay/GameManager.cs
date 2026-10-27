@@ -127,6 +127,11 @@ namespace HR.Gameplay
             // and what stops a crush being registered on the game-over screen.
             if (!_states.TunnelRuns) return;
 
+            // Clamped here as well as in the tunnel: the grace below counts down in seconds, and
+            // one stalled frame would otherwise spend all of it at once.
+            if (double.IsNaN(dt) || dt <= 0.0) return;
+            if (dt > TunnelController.MaxStepSeconds) dt = TunnelController.MaxStepSeconds;
+
             // The grace runs on the clock but nothing else does, so an instant death on the first
             // frame back is impossible by construction rather than by being unlikely.
             if (_grace > 0.0)

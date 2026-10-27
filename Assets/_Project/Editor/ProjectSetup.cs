@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.IO;
 using UnityEditor;
 using UnityEditor.Build;
@@ -43,6 +44,7 @@ namespace HR.Editor
         {
             ApplyRenderPipeline();
             ApplyPlayerSettings();
+            ApplyStripping();
             ApplyPhysicsAndTime();
             AssetDatabase.SaveAssets();
             Debug.Log("[HR] Project settings applied.");
@@ -89,6 +91,30 @@ namespace HR.Editor
                 // Order matters, not just membership: the first enabled scene is the one that loads.
                 Expect(scenes[0].path == SceneBuilder.BootScene && scenes[0].enabled, "Boot is not the first enabled scene");
                 Expect(scenes[1].path == SceneBuilder.MainScene && scenes[1].enabled, "Main is not the second enabled scene");
+            }
+
+            Expect(PlayerSettings.stripEngineCode, "engine code stripping is off");
+            Expect(PlayerSettings.stripUnusedMeshComponents, "unused mesh components are kept");
+            Expect(PlayerSettings.GetManagedStrippingLevel(NamedBuildTarget.Android)
+                       == ManagedStrippingLevel.High,
+                   $"managed stripping is {PlayerSettings.GetManagedStrippingLevel(NamedBuildTarget.Android)}");
+            Expect(PlayerSettings.GetIl2CppCompilerConfiguration(NamedBuildTarget.Android)
+                       == Il2CppCompilerConfiguration.Master,
+                   "IL2CPP is not building in Master configuration");
+
+            // Everything under a Resources folder goes into the build whole, whether or not a
+            // line of code ever loads it. The project has none and must keep it that way: the
+            // performance test framework writes its results into Assets/Resources when it runs,
+            // and it is in the tree transitively through URP's core package, so it cannot simply
+            // be removed. Its runtime assembly is gated on UNITY_TESTS_FRAMEWORK and so never
+            // reaches a player — but the folder it would leave behind would.
+            foreach (string directory in Directory.GetDirectories("Assets", "Resources",
+                                                                  SearchOption.AllDirectories))
+            {
+                var files = Directory.GetFiles(directory, "*", SearchOption.AllDirectories)
+                                     .Where(f => !f.EndsWith(".meta")).ToArray();
+                Expect(files.Length == 0,
+                       $"{directory} holds {files.Length} file(s); everything there ships");
             }
 
             return problems;
@@ -162,6 +188,24 @@ namespace HR.Editor
 
             PlayerSettings.Android.renderOutsideSafeArea = true;
             PlayerSettings.Android.startInFullscreen = true;
+        }
+
+        /// <summary>
+        /// Stripping. Settings are code here like everything else, because this is exactly the
+        /// kind of checkbox that is set once, works, and is silently reset by an editor upgrade
+        /// or a fresh clone — and the only symptom is a bundle twice the size it should be.
+        /// </summary>
+        public static void ApplyStripping()
+        {
+            var android = NamedBuildTarget.Android;
+
+            // High, not Medium: the game reflects over nothing at run time. The one place it
+            // could have — JsonUtility for the save — works on concrete serialised fields and
+            // survives stripping, and SaveAndStringsTests would say so immediately if it did not.
+            PlayerSettings.SetManagedStrippingLevel(android, ManagedStrippingLevel.High);
+            PlayerSettings.SetIl2CppCompilerConfiguration(android, Il2CppCompilerConfiguration.Master);
+            PlayerSettings.stripEngineCode = true;
+            PlayerSettings.stripUnusedMeshComponents = true;
         }
 
         public static void ApplyPhysicsAndTime()
