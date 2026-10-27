@@ -30,6 +30,9 @@ namespace HR.UI
         public event Action<Theme> ThemeChosen;
         public event Action SettingsChanged;
 
+        /// <summary>Raised by any button, so the app can give it a sound.</summary>
+        public event Action Clicked;
+
         readonly Dictionary<GameState, RectTransform> _screens = new Dictionary<GameState, RectTransform>();
         readonly List<Action> _stringRefreshers = new List<Action>();
         readonly List<Graphic> _tinted = new List<Graphic>();
@@ -322,7 +325,8 @@ namespace HR.UI
             {
                 var captured = theme;
                 var card = UiBuilder.CreateButton($"Theme{theme}", carousel.content,
-                    string.Empty, () => ThemeChosen?.Invoke(captured), 700f);
+                    string.Empty,
+                    () => { Clicked?.Invoke(); ThemeChosen?.Invoke(captured); }, 700f);
 
                 var cardRect = (RectTransform)card.transform;
                 cardRect.sizeDelta = new Vector2(540f, 700f);
@@ -567,7 +571,8 @@ namespace HR.UI
 
         Button Button(Transform parent, string key, Action onClick, float height = UiBuilder.TouchTarget)
         {
-            var button = UiBuilder.CreateButton(key, parent, Strings.Get(key), onClick, height);
+            var button = UiBuilder.CreateButton(key, parent, Strings.Get(key),
+                () => { Clicked?.Invoke(); onClick?.Invoke(); }, height);
             var label = button.GetComponentInChildren<Text>();
             _stringRefreshers.Add(() => label.text = Strings.Get(key));
             Track(label);

@@ -1,0 +1,25 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 6780ce4b0b8770bcb9bb2c6f01e96b20, type: 3}
+  m_Name: AudioBank
+  m_EditorClassIdentifier: HR.Audio::HR.Audio.AudioBank
+  ambient: {fileID: 8300000, guid: 38aa8fb6c9eab19c591d300114c4e6c8, type: 3}
+  knock: {fileID: 8300000, guid: 10f11568fdd58fb0c98b057baa73e176, type: 3}
+  lose: {fileID: 8300000, guid: f5589b9621b3660aa91e2c29f0737f40, type: 3}
+  click: {fileID: 8300000, guid: df34c62226667163c8090983b9fd266c, type: 3}
+  passTones:
+  - {fileID: 8300000, guid: 3b9d1c1a238dee0348125a5b07737580, type: 3}
+  - {fileID: 8300000, guid: 88b74f7ac080d91eabcb8ad78c8e5fcc, type: 3}
+  - {fileID: 8300000, guid: 5e2e9d8ca9e4d01cda77879f22378aa9, type: 3}
+  - {fileID: 8300000, guid: 854616d90f093b6349a4a4c0c9912a5d, type: 3}
+  - {fileID: 8300000, guid: 4d4e7734a58c9e9e9972fa7b946a4027, type: 3}
+  - {fileID: 8300000, guid: 99db9ae8e0f15a92c846af7e450ab90b, type: 3}

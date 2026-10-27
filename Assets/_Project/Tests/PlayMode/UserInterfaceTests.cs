@@ -268,6 +268,37 @@ namespace HR.Tests.PlayMode
                 "About survived a screen change and would reappear over Settings");
         }
 
+        [UnityTest]
+        public IEnumerator Sound_and_music_are_switched_and_levelled_independently_and_persist()
+        {
+            // Phase 7's gate, taken literally: independent, and still independent after a reload.
+            var settings = _boot.Ui.ScreenFor(GameState.Settings);
+
+            Toggle sound = null;
+            foreach (var toggle in settings.GetComponentsInChildren<Toggle>(includeInactive: true))
+                if (toggle.name == "set.sound") sound = toggle;
+            Assert.IsNotNull(sound, "no sound switch on the settings screen");
+
+            Slider musicLevel = null;
+            foreach (var slider in settings.GetComponentsInChildren<Slider>(includeInactive: true))
+                if (slider.name == "set.music.level") musicLevel = slider;
+            Assert.IsNotNull(musicLevel, "no music level on the settings screen");
+
+            sound.isOn = false;
+            musicLevel.value = 0.25f;
+            yield return null;
+
+            Assert.IsFalse(_boot.Settings.soundEnabled);
+            Assert.IsTrue(_boot.Settings.musicEnabled, "turning sound off also turned music off");
+            Assert.AreEqual(0.25f, _boot.Settings.musicVolume, 0.001f);
+
+            var reloaded = new SaveService(Path.Combine(_directory, SaveService.FileName)).Load();
+            Assert.IsFalse(reloaded.soundEnabled, "the sound switch did not survive a reload");
+            Assert.IsTrue(reloaded.musicEnabled);
+            Assert.AreEqual(0.25f, reloaded.musicVolume, 0.001f,
+                "the music level did not survive a reload");
+        }
+
         static RectTransform FindByName(RectTransform parent, string name)
         {
             foreach (var child in parent.GetComponentsInChildren<RectTransform>(includeInactive: true))
