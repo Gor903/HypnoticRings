@@ -97,7 +97,17 @@ namespace HR.Gameplay
             ApplyShading(_ballRing);
         }
 
-        void FixedUpdate() => Step(Time.fixedDeltaTime);
+        /// <summary>
+        /// Whether the component advances itself from FixedUpdate. On in the game; off in tests,
+        /// which step explicitly — leaving both on means the tunnel advances twice per frame
+        /// boundary and nothing says so.
+        /// </summary>
+        public bool AutoStep { get; set; } = true;
+
+        void FixedUpdate()
+        {
+            if (AutoStep) Step(Time.fixedDeltaTime);
+        }
 
         /// <summary>One step of the tunnel. Public so tests can drive it deterministically.</summary>
         public void Step(double dt)

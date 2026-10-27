@@ -69,6 +69,7 @@ namespace HR.Tests.PlayMode
             tunnelGo.transform.SetParent(root.transform, false);
             _tunnel = tunnelGo.AddComponent<TunnelController>();
             _tunnel.Initialise(_config, _ball);
+            _tunnel.AutoStep = false;   // this fixture steps explicitly
             _tunnel.CompressionEnabled = compress;
 
             _ring = TunnelFactory.CreateRing(_config, tunnelGo.transform, material, 0);

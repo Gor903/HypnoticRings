@@ -132,5 +132,25 @@ namespace HR.Core
             if (available <= 0.0) return false;
             return Math.Abs(NormalizeDeg(deltaDeg)) / available <= 0.6 * timeBudget;
         }
+
+        /// <summary>
+        /// Fastest a ring may spin and still be catchable from the worst starting position.
+        ///
+        /// Solving the reachability rule for the spin rather than testing a particular gap is
+        /// what makes the guarantee unconditional: a ring under this limit can be caught wherever
+        /// its gap happens to be, so the generator never has to know where the ball will be when
+        /// the ball finally gets there — which, several passes after the ring was made, it cannot.
+        ///
+        /// Returns zero when even a still ring could not be caught in time; that is a statement
+        /// about the difficulty settings, not about this ring.
+        /// </summary>
+        public static double MaxReachableSpinDeg(double comfortSpinDeg, double timeBudget,
+                                                 double worstCaseDeltaDeg = 180.0)
+        {
+            if (timeBudget <= 0.0) return 0.0;
+            double needed = Math.Abs(worstCaseDeltaDeg) / (0.6 * timeBudget);
+            double allowed = comfortSpinDeg - needed;
+            return allowed > 0.0 ? allowed : 0.0;
+        }
     }
 }

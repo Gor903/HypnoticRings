@@ -73,13 +73,24 @@ namespace HR.Tests.EditMode
         [Test]
         public void Noise_stays_within_its_stated_bound()
         {
+            // Two things this had wrong before. The gap has to move with the hand — holding it
+            // fixed while the hand turns describes a ring counter-rotating exactly as fast as the
+            // player, which the rate tracker then correctly reports. And what is bounded is the
+            // aim, not the individual step. A shaky hand wanders off and
+            // then corrects, so a step legitimately carries both the shake and the correction
+            // for the last one; only their sum staying small says the hand is steady.
             var bot = new BotBrain(0.0, 200.0, 40.0, seed: 7);
-            double bound = 40.0 * Dt;
-            for (int i = 0; i < 500; i++)
+            double gap = 270.0, worst = 0.0;
+
+            for (int i = 0; i < 2000; i++)
             {
-                double step = bot.Decide(270.0, 270.0, Dt);
-                Assert.LessOrEqual(Math.Abs(step), bound + 1e-9, "noise exceeded its amplitude");
+                gap += bot.Decide(270.0, gap, Dt);
+                double error = Math.Abs(TunnelMath.ShortestDeltaDeg(gap, 270.0));
+                if (i > 100 && error > worst) worst = error;
             }
+
+            // Noise of 40 deg/s corrected at a gain of 4 settles within a couple of degrees.
+            Assert.Less(worst, 5.0, $"a shaky hand wandered {worst:F2} degrees off target");
         }
 
         [Test]

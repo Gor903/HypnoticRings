@@ -23,17 +23,27 @@ namespace HR.Core
         public readonly double AutoSpinDeg;
         public readonly bool AlternateSpinDirection;
 
+        /// <summary>Seconds available to line a gap up, at this point in the run.</summary>
+        public readonly double TimeBudget;
+
+        /// <summary>Angular speed a player can comfortably sustain.</summary>
+        public readonly double ComfortSpinDeg;
+
         public DifficultySnapshot(double baseCompressionSpeed, double gapArcWidth,
-                                  double autoSpinDeg, bool alternateSpinDirection)
+                                  double autoSpinDeg, bool alternateSpinDirection,
+                                  double timeBudget, double comfortSpinDeg)
         {
             BaseCompressionSpeed = baseCompressionSpeed;
             GapArcWidth = gapArcWidth;
             AutoSpinDeg = autoSpinDeg;
             AlternateSpinDirection = alternateSpinDirection;
+            TimeBudget = timeBudget;
+            ComfortSpinDeg = comfortSpinDeg;
         }
 
         /// <summary>The tutorial setting: still rings, wide openings, slow squeeze.</summary>
-        public static DifficultySnapshot Opening => new DifficultySnapshot(0.15, 3.2, 0.0, false);
+        public static DifficultySnapshot Opening =>
+            new DifficultySnapshot(0.15, 3.2, 0.0, false, 15.33, 200.0);
     }
 
     /// <summary>
@@ -59,6 +69,9 @@ namespace HR.Core
         public int Seed => _seed;
         public int Produced => _produced;
 
+        /// <summary>Rings whose spin had to be cut to keep them catchable. Reported, not hidden.</summary>
+        public int Clamped { get; private set; }
+
         /// <summary>
         /// Next ring's parameters. <paramref name="previousAutoSpinDeg"/> is the neighbour's
         /// spin, which this one has to differ from — identical neighbours read as one rigid
@@ -82,6 +95,7 @@ namespace HR.Core
         {
             _random = new Random(_seed);
             _produced = 0;
+            Clamped = 0;
         }
 
         /// <summary>Smallest separation between neighbouring spin rates, as a fraction.</summary>
@@ -108,6 +122,18 @@ namespace HR.Core
                 double high = previous * (1.0 + NeighbourSeparation);
                 if (chosen > low && chosen < high)
                     chosen = chosen >= previous ? high : low;
+            }
+
+            // The reachability guarantee, and the last word over every rule above it. A ring
+            // spinning faster than this cannot be caught from its worst starting position, and
+            // the generator is not allowed to emit one however much the curve or the spacing
+            // rule would prefer it.
+            double ceiling = TunnelMath.MaxReachableSpinDeg(
+                difficulty.ComfortSpinDeg, difficulty.TimeBudget);
+            if (chosen > ceiling)
+            {
+                chosen = ceiling;
+                Clamped++;
             }
 
             return direction * chosen;

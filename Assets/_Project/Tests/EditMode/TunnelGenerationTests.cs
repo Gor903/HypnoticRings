@@ -6,8 +6,10 @@ namespace HR.Tests.EditMode
 {
     public class RingGeneratorTests
     {
+        // A generous time budget so these tests exercise the spacing and direction rules rather
+        // than tripping over the reachability ceiling, which has its own tests below.
         static DifficultySnapshot Spinning(double spin, bool alternate = false)
-            => new DifficultySnapshot(0.3, 2.2, spin, alternate);
+            => new DifficultySnapshot(0.3, 2.2, spin, alternate, 20.0, 200.0);
 
         [Test]
         public void The_same_seed_produces_the_same_tunnel()
@@ -117,7 +119,7 @@ namespace HR.Tests.EditMode
         public void Gap_width_comes_straight_from_difficulty()
         {
             var generator = new RingGenerator(3);
-            var difficulty = new DifficultySnapshot(0.3, 2.2, 0.0, false);
+            var difficulty = new DifficultySnapshot(0.3, 2.2, 0.0, false, 20.0, 200.0);
             for (int i = 0; i < 10; i++)
                 Assert.AreEqual(2.2, generator.Next(difficulty, 0.0).GapArcWidth, 1e-12);
         }

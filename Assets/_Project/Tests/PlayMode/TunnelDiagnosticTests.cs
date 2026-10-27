@@ -59,6 +59,7 @@ namespace HR.Tests.PlayMode
             _tunnel = tunnelGo.AddComponent<TunnelController>();
             _pool = new RingPool(_config, tunnelGo.transform, material);
             _tunnel.Initialise(_config, _ball, _pool);
+            _tunnel.AutoStep = false;   // this fixture steps explicitly
             _tunnel.BeginRun(99);
 
             foreach (var ring in _tunnel.Rings)
