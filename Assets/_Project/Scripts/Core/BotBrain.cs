@@ -20,6 +20,12 @@ namespace HR.Core
         public readonly double MaxGestureSpeedDeg;
         public readonly double NoiseDegPerSecond;
 
+        /// <summary>
+        /// How hard the hand corrects, per second of error. Low enough to settle instead of
+        /// oscillating; high enough that a half-turn still saturates the speed limit.
+        /// </summary>
+        public const double ProportionalGain = 4.0;
+
         readonly Random _random;
 
         // Ring buffer of what the bot could have seen, so it can act on a stale view.
@@ -58,13 +64,19 @@ namespace HR.Core
         /// <summary>
         /// How far the finger should sweep this step, in degrees. Positive turns the tunnel the
         /// way angles increase.
+        ///
+        /// <paramref name="targetAngleDeg"/> is where the gap has to end up, which is the bottom
+        /// of the tunnel (<see cref="TunnelMath.BottomAngleDeg"/>) — not wherever the ball
+        /// happens to be this instant. Chasing the ball's live angle is a feedback loop: the
+        /// correction drags the ball round by friction, and the hand then chases the ball it
+        /// just moved. Aiming at a fixed point lets the ball settle and drop.
         /// </summary>
-        public double Decide(double ballAngleDeg, double gapWorldAngleDeg, double dt)
+        public double Decide(double targetAngleDeg, double gapWorldAngleDeg, double dt)
         {
             if (dt <= 0.0) return 0.0;
 
             _clock += dt;
-            Record(_clock, ballAngleDeg, gapWorldAngleDeg);
+            Record(_clock, targetAngleDeg, gapWorldAngleDeg);
 
             int index = SampleAt(_clock - ReactionDelay);
 
@@ -73,10 +85,15 @@ namespace HR.Core
             double error = TunnelMath.ShortestDeltaDeg(_gap[index], _ball[index]);
             LastPerceivedErrorDeg = error;
 
-            double step = error;
-            double limit = MaxGestureSpeedDeg * dt;
-            if (step > limit) step = limit;
-            else if (step < -limit) step = -limit;
+            // Proportional, not all-or-nothing. Turning at full speed for any error at all makes
+            // the hand drag the ball round by friction and then chase the ball it just moved —
+            // a runaway that whips the ball to the top of the tunnel and never lets it settle.
+            // Easing off near the target is both stable and what a person actually does.
+            double rate = error * ProportionalGain;
+            if (rate > MaxGestureSpeedDeg) rate = MaxGestureSpeedDeg;
+            else if (rate < -MaxGestureSpeedDeg) rate = -MaxGestureSpeedDeg;
+
+            double step = rate * dt;
 
             if (NoiseDegPerSecond > 0.0)
                 step += (_random.NextDouble() * 2.0 - 1.0) * NoiseDegPerSecond * dt;

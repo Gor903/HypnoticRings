@@ -15,6 +15,8 @@ namespace HR.Gameplay
         [SerializeField] GameConfig config;
         [SerializeField] bool compress = true;
         [SerializeField] bool rotate = true;
+        [Tooltip("Same seed replays the same tunnel — for reproducing a sighting.")]
+        [SerializeField] int seed = 0;
 
         public TunnelController Tunnel { get; private set; }
         public BallController Ball { get; private set; }
@@ -28,7 +30,7 @@ namespace HR.Gameplay
                 return;
             }
 
-            Tunnel = TunnelFactory.Build(config, transform, out BallController ball);
+            Tunnel = TunnelFactory.Build(config, transform, out BallController ball, seed);
             Ball = ball;
             Tunnel.CompressionEnabled = compress;
             Tunnel.RotationEnabled = rotate;

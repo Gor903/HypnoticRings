@@ -13,7 +13,15 @@ namespace HR.Gameplay
     [RequireComponent(typeof(Rigidbody2D))]
     public sealed class RingController : MonoBehaviour
     {
+        static readonly int BaseColorId = Shader.PropertyToID("_BaseColor");
+        static readonly int ColorId = Shader.PropertyToID("_Color");
+
+        const float ColourEpsilon = 1f / 255f;
+
         Rigidbody2D _body;
+        MaterialPropertyBlock _block;
+        Color _lastColour;
+        bool _shaded;
         RingSegment[] _segments;
         ArcSpan[] _spans;
         Gap[] _gaps;
@@ -31,6 +39,13 @@ namespace HR.Gameplay
         double _spinDeg;
 
         public int Id { get; private set; }
+
+        /// <summary>
+        /// Which ring this is in the run. Reassigned every time the pool hands it out, so it
+        /// identifies the ring the ball just cleared rather than the reused GameObject.
+        /// </summary>
+        public int SpawnIndex { get; set; }
+
         public double Radius => _radius;
 
         /// <summary>
@@ -90,6 +105,7 @@ namespace HR.Gameplay
             _radius = radius;
             _baseRadius = radius;
             _spinDeg = 0.0;
+            _shaded = false;
 
             RebuildGeometry(radius);
             ApplyRotation(0.0);
@@ -108,6 +124,7 @@ namespace HR.Gameplay
             _radius = radius;
             _baseRadius = radius;
             _spinDeg = 0.0;
+            _shaded = false;
 
             RebuildGeometry(radius);
             ApplyRotation(0.0);
@@ -184,6 +201,35 @@ namespace HR.Gameplay
 
         public int ActiveSegmentCount => _activeSegments;
         public RingSegment SegmentAt(int index) => _segments[index];
+
+        /// <summary>
+        /// Depth cue. Written through a MaterialPropertyBlock rather than by touching the
+        /// material: every ring shares one material, and assigning to renderer.material would
+        /// clone it per ring and leak a material for every ring the pool ever hands out.
+        /// </summary>
+        public void ApplyShading(Color colour)
+        {
+            // Rewriting a property block every step for a colour that has not visibly changed is
+            // pure cost: alpha moves by a fraction of a 255th between steps, and the block write
+            // was the single most expensive thing in the tunnel loop.
+            if (_shaded && ColourIsIndistinguishable(colour, _lastColour)) return;
+            _lastColour = colour;
+            _shaded = true;
+
+            _block ??= new MaterialPropertyBlock();
+            for (int i = 0; i < _activeSegments; i++)
+            {
+                var renderer = _segments[i].Renderer;
+                renderer.GetPropertyBlock(_block);
+                _block.SetColor(BaseColorId, colour);
+                _block.SetColor(ColorId, colour);
+                renderer.SetPropertyBlock(_block);
+            }
+        }
+
+        static bool ColourIsIndistinguishable(in Color a, in Color b) =>
+            Mathf.Abs(a.r - b.r) < ColourEpsilon && Mathf.Abs(a.g - b.g) < ColourEpsilon
+            && Mathf.Abs(a.b - b.b) < ColourEpsilon && Mathf.Abs(a.a - b.a) < ColourEpsilon;
 
         /// <summary>
         /// Thickness measured from the collider that physics actually uses, in world space.

@@ -64,6 +64,13 @@ run_unity() {
 
   assert_no_other_unity || return 1
 
+  # A killed editor leaves its lock behind, and the next run then refuses to start for a
+  # reason that has nothing to do with what is being run. Safe to clear: nothing is running.
+  if [ -f "$PROJECT_ROOT/Temp/UnityLockfile" ]; then
+    say "clearing a stale project lock left by a killed editor"
+    rm -f "$PROJECT_ROOT/Temp/UnityLockfile"
+  fi
+
   local scope=(systemd-run --user --scope -q
                -p "MemoryHigh=$MEM_HIGH" -p "MemoryMax=$MEM_MAX" -p "CPUQuota=$CPU_QUOTA"
                nice -n 10)
@@ -82,27 +89,55 @@ run_unity() {
 }
 
 # Samples while the run proceeds and aborts on the resource rules rather than asking.
+#
+# STALL_LIMIT exists because a hung editor looks exactly like a working one from the outside:
+# the process is alive, memory is fine, swap is empty, and nothing is happening. A run once sat
+# like that for five hours with its log untouched the whole time. Memory is not progress.
+STALL_LIMIT="${STALL_LIMIT:-600}"     # seconds with no new log output before giving up
+RUN_LIMIT="${RUN_LIMIT:-5400}"        # hard ceiling on any single engine run
+
 watch_run() {
   local pid="$1" log_file="$2" rising=0 prev_swap=0 ticks=0
+  local last_size=-1 stalled=0 elapsed=0
+
   while kill -0 "$pid" 2>/dev/null; do
     sleep 20
     ticks=$((ticks + 1))
-    local avail swap disk
+    elapsed=$((elapsed + 20))
+
+    local avail swap disk size
     avail=$(free -m | awk '/^Mem:/ {print $7}')
     swap=$(free -m | awk '/^Swap:/ {print $3}')
     disk=$(df -BG --output=avail "$PROJECT_ROOT" | tail -1 | tr -dc '0-9')
+    size=$(stat -c %s "$log_file" 2>/dev/null || echo 0)
+
+    if [ "$size" -eq "$last_size" ]; then stalled=$((stalled + 20)); else stalled=0; fi
+    last_size="$size"
 
     if [ "$swap" -gt "$prev_swap" ]; then rising=$((rising + 1)); else rising=0; fi
     prev_swap="$swap"
+
+    if [ "$stalled" -ge "$STALL_LIMIT" ]; then
+      fail "no log output for ${stalled}s — the editor is hung, not working. Aborting."
+      kill "$pid" 2>/dev/null; sleep 5; kill -9 "$pid" 2>/dev/null || true
+      return 1
+    fi
+
+    if [ "$elapsed" -ge "$RUN_LIMIT" ]; then
+      fail "run exceeded ${RUN_LIMIT}s — aborting rather than letting it sit"
+      kill "$pid" 2>/dev/null; sleep 5; kill -9 "$pid" 2>/dev/null || true
+      return 1
+    fi
 
     if [ "$avail" -lt 1024 ] || [ "$rising" -ge 3 ] || [ "$disk" -lt 5 ]; then
       fail "resource rule hit (avail ${avail}M, swap ${swap}M, disk ${disk}G) — aborting"
       kill "$pid" 2>/dev/null || true
       return 1
     fi
-    # Every two minutes, so a long build leaves a trace of how it behaved.
+
+    # Every two minutes, so a long run leaves a trace of how it behaved.
     if [ $((ticks % 6)) -eq 0 ]; then
-      say "  ... avail ${avail}M, swap ${swap}M, $(wc -l < "$log_file") log lines"
+      say "  ... ${elapsed}s, avail ${avail}M, swap ${swap}M, $(wc -l < "$log_file" 2>/dev/null) log lines"
     fi
   done
 }
