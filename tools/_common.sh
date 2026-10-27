@@ -129,7 +129,13 @@ watch_run() {
       return 1
     fi
 
-    if [ "$avail" -lt 1024 ] || [ "$rising" -ge 3 ] || [ "$disk" -lt 5 ]; then
+    # Rising swap on its own is not thrashing. This machine runs a browser and a chat
+    # client that between them sit on two gigabytes of swap before anything starts, so any
+    # build that touches swap at all looked like an emergency — the IL2CPP conversion was
+    # killed with 4.3 GB still free and 188 GB of disk. Thrashing is swap climbing *while*
+    # memory is nearly gone, which is what the pair of conditions says now. The hard floor
+    # is unchanged: below a gigabyte available, stop regardless.
+    if [ "$avail" -lt 1024 ] || { [ "$rising" -ge 3 ] && [ "$avail" -lt 2048 ]; } || [ "$disk" -lt 5 ]; then
       fail "resource rule hit (avail ${avail}M, swap ${swap}M, disk ${disk}G) — aborting"
       kill "$pid" 2>/dev/null || true
       return 1
