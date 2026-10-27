@@ -60,6 +60,9 @@ namespace HR.UI
 
         public Canvas Canvas => _canvas;
 
+        /// <summary>The score, so the juice can make it swell on a pass.</summary>
+        public Text ScoreLabel => _scoreLabel;
+
         public GameState Current { get; private set; } = GameState.Boot;
 
         /// <summary>

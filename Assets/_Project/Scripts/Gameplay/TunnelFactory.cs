@@ -111,7 +111,8 @@ namespace HR.Gameplay
             return new Vector2(0f, (float)-distance);
         }
 
-        static Mesh BuildDiscMesh(float radius, int sides)
+        /// <summary>Public so the effects reuse this disc instead of growing a second one.</summary>
+        public static Mesh BuildDiscMesh(float radius, int sides)
         {
             var vertices = new Vector3[sides + 1];
             var triangles = new int[sides * 3];

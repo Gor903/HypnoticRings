@@ -20,7 +20,11 @@ RULES = [
     # Debug.LogFormat have no such defence and stay banned.
     ("debug logging", re.compile(r"\bDebug\.Log(Format)?\s*\(")),
     ("scaffolding marker", re.compile(r"(?<![A-Za-z])(TODO|FIXME|HACK|XXX)(?![A-Za-z])")),
-    ("commented-out code", re.compile(r"^\s*//\s*(if|for|while|return|var|public|private|void)\s")),
+    # A keyword alone is not enough: "// for a device that reports something unexpected."
+    # is a sentence, and flagging it taught me only to reword comments around the linter.
+    # Commented-out code ends in code punctuation; prose ends in a full stop.
+    ("commented-out code",
+     re.compile(r"^\s*//\s*(if|for|while|return|var|public|private|void|new)\b.*[(){};=]\s*$")),
 ]
 
 

@@ -79,6 +79,26 @@ namespace HR.Gameplay
         [Tooltip("Points per rounded end cap. Zero gives square ends the ball can catch on.")]
         public int capPoints = 4;
 
+        [Header("Effects — spec 11.4, every one off when Reduce effects is on")]
+        [Tooltip("Points in the ball's trail; the spec asks for six to eight")]
+        [Range(0, 12)] public int trailPoints = 8;
+        [Tooltip("Seconds a trail point takes to fade out")]
+        public float trailFadeSeconds = 0.22f;
+        [Tooltip("Flash at the hole when a ring is passed")]
+        public float passFlashSeconds = 0.12f;
+        [Tooltip("Score pulse: 1.0 to this and back")]
+        public float scorePulseScale = 1.15f;
+        public float scorePulseSeconds = 0.15f;
+        [Tooltip("Camera shake on a crush, in world units")]
+        public float crushShakeAmplitude = 0.08f;
+        public float crushSeconds = 0.4f;
+        [Tooltip("Fade between menu and game")]
+        public float transitionSeconds = 0.35f;
+
+        [Header("Vibration — spec 11.4")]
+        public int vibratePassMs = 20;
+        public int vibrateLoseMs = 60;
+
         [Header("Compression strategy — chosen by the phase 1 benchmark")]
         public CompressionMode compressionMode = CompressionMode.RebuildOnThreshold;
         [Tooltip("Radius change that triggers a rebuild in RebuildOnThreshold mode.")]
