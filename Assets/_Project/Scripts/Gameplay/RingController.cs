@@ -207,6 +207,9 @@ namespace HR.Gameplay
         /// material: every ring shares one material, and assigning to renderer.material would
         /// clone it per ring and leak a material for every ring the pool ever hands out.
         /// </summary>
+        /// <summary>Forgets the cached colour, so the next shading pass actually writes.</summary>
+        public void InvalidateShading() => _shaded = false;
+
         public void ApplyShading(Color colour)
         {
             // Rewriting a property block every step for a colour that has not visibly changed is

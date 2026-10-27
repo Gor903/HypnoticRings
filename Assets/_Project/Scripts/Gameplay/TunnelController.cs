@@ -30,7 +30,12 @@ namespace HR.Gameplay
         int _pendingIndex = -1;
         double _pendingRadius;
         int _lastPassedIndex = -1;
-        Color _ringColour = Color.white;
+        Color[] _ringColours = { Color.white };
+
+        // Depth is carried by fading toward the background rather than by alpha: the unlit
+        // shader is opaque and ignores alpha entirely, and making it transparent would buy
+        // sorting artefacts between overlapping rings for no visible gain on a solid backdrop.
+        Color _fadeToward = Color.black;
 
         /// <summary>Fires once per ring cleared, with that ring's spawn index.</summary>
         public event Action<int> RingPassed;
@@ -58,7 +63,31 @@ namespace HR.Gameplay
             _difficulty = DifficultySnapshot.Opening;
         }
 
-        public void SetRingColour(Color colour) => _ringColour = colour;
+        /// <summary>
+        /// The colour cycle rings are drawn in. Indexed by spawn order, so a ring keeps its
+        /// colour for its whole life and neighbours differ — the depth read in spec §11.2.
+        /// </summary>
+        public void SetRingColours(IReadOnlyList<Color> colours)
+        {
+            if (colours == null || colours.Count == 0) return;
+            if (_ringColours.Length != colours.Count) _ringColours = new Color[colours.Count];
+            for (int i = 0; i < colours.Count; i++) _ringColours[i] = colours[i];
+            ForceReshade();
+        }
+
+        /// <summary>The colour distant rings fade into — the theme's background.</summary>
+        public void SetFadeColour(Color colour)
+        {
+            _fadeToward = colour;
+            ForceReshade();
+        }
+
+        /// <summary>Makes every ring re-read its colour, after a theme change.</summary>
+        public void ForceReshade()
+        {
+            for (int i = 0; i < _rings.Count; i++) _rings[i].InvalidateShading();
+            ApplyShading(ResolveBallRing());
+        }
         public void SetDifficulty(in DifficultySnapshot difficulty) => _difficulty = difficulty;
 
         /// <summary>Used by the phase 1 and 2 fixtures, which arrange rings by hand.</summary>
@@ -286,8 +315,10 @@ namespace HR.Gameplay
                 var ring = _rings[i];
                 double alpha = DepthShading.AlphaFor(ring.Radius, reference, _settings.VanishRadius,
                                                      _settings.Step, _settings.RingsAhead);
-                var colour = _ringColour;
-                colour.a = (float)alpha;
+                int slot = ((ring.SpawnIndex % _ringColours.Length) + _ringColours.Length)
+                           % _ringColours.Length;
+                var colour = Color.Lerp(_fadeToward, _ringColours[slot], (float)alpha);
+                colour.a = 1f;
                 ring.ApplyShading(colour);
             }
         }

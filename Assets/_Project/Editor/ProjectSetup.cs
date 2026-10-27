@@ -32,7 +32,7 @@ namespace HR.Editor
         public const int PhysicsHz = 90;
 
         const string RenderingDir = "Assets/_Project/Config/Rendering";
-        const string RendererPath = RenderingDir + "/Renderer2D.asset";
+        const string RendererPath = RenderingDir + "/UniversalRenderer.asset";
         const string PipelinePath = RenderingDir + "/URP-HypnoticRings.asset";
 
         const string Physics2DAsset = "ProjectSettings/Physics2DSettings.asset";
@@ -106,10 +106,15 @@ namespace HR.Editor
         {
             Directory.CreateDirectory(RenderingDir);
 
-            var renderer = AssetDatabase.LoadAssetAtPath<Renderer2DData>(RendererPath);
+            // The Universal renderer, not the 2D one. The game is 2D geometry, but it uses no
+            // 2D lights, no 2D shadows and no sprite masks — the whole of what the 2D renderer
+            // adds. What it takes away is the ordinary tint path: its mesh shader has no
+            // _BaseColor at all, so themes and the depth fade write colours nowhere and every
+            // ring renders fully transparent. Nothing warns; the screen is simply empty.
+            var renderer = AssetDatabase.LoadAssetAtPath<UniversalRendererData>(RendererPath);
             if (renderer == null)
             {
-                renderer = ScriptableObject.CreateInstance<Renderer2DData>();
+                renderer = ScriptableObject.CreateInstance<UniversalRendererData>();
                 AssetDatabase.CreateAsset(renderer, RendererPath);
             }
 

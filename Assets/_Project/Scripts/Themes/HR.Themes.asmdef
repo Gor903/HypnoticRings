@@ -2,7 +2,8 @@
     "name": "HR.Themes",
     "rootNamespace": "HR.Themes",
     "references": [
-        "HR.Core"
+        "HR.Core",
+        "HR.Gameplay"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],

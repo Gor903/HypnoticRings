@@ -57,19 +57,23 @@ namespace HR.Tests.EditMode
         }
 
         [Test]
-        public void Band_triangles_all_wind_the_same_way()
+        public void Band_triangles_all_face_the_camera()
         {
             int steps = ArcGeometry.StepsFor(120.0, MaxStep);
             var verts = new Point2[ArcGeometry.BandVertexCount(steps)];
             var tris = new int[ArcGeometry.BandIndexCount(steps)];
             ArcGeometry.FillBand(Mid, T, 0.0, 120.0, steps, verts, tris);
 
-            // A flipped triangle is invisible from the camera and nothing else reports it.
+            // Negative, not merely consistent. The camera looks along +Z, and a triangle wound
+            // the other way is back-face culled: the mesh exists, its bounds are right, the
+            // renderer reports itself visible, and nothing appears. This test used to demand
+            // the opposite sign, so it passed happily while every ring was invisible — nothing
+            // rendered anything until the screenshot gate, and that is what finally caught it.
             for (int t = 0; t < tris.Length; t += 3)
             {
                 Point2 a = verts[tris[t]], b = verts[tris[t + 1]], c = verts[tris[t + 2]];
                 double cross = (b.X - a.X) * (c.Y - a.Y) - (b.Y - a.Y) * (c.X - a.X);
-                Assert.Greater(cross, 0.0, $"triangle at index {t} is wound backwards");
+                Assert.Less(cross, 0.0, $"triangle at index {t} faces away from the camera");
             }
         }
 

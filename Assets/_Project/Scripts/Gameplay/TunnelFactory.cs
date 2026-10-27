@@ -9,7 +9,14 @@ namespace HR.Gameplay
     /// </summary>
     public static class TunnelFactory
     {
-        /// <summary>Flat unlit material. Themes replace this properly in phase 5.</summary>
+        /// <summary>
+        /// Flat unlit material for the procedural ring and ball meshes.
+        ///
+        /// URP/Unlit is chosen for one concrete reason: it has a _BaseColor the renderer can
+        /// tint per object. The 2D renderer's mesh shader has no colour property whatsoever,
+        /// so every colour written by a theme or by the depth fade goes nowhere and the ring
+        /// draws fully transparent — with no error, no warning and no magenta to hint at it.
+        /// </summary>
         public static Material CreateUnlitMaterial(Color colour)
         {
             Shader shader = Shader.Find("Universal Render Pipeline/Unlit")
@@ -23,6 +30,9 @@ namespace HR.Gameplay
             if (material.HasProperty("_Color")) material.SetColor("_Color", colour);
             return material;
         }
+
+        /// <summary>Spec §11.3: the outline is 0.06u wide.</summary>
+        public const float BallOutlineWidth = 0.06f;
 
         public static PhysicsMaterial2D CreatePhysicsMaterial(string name, float friction, float bounciness)
             => new PhysicsMaterial2D(name) { friction = friction, bounciness = bounciness };
@@ -51,7 +61,7 @@ namespace HR.Gameplay
             pool.Prewarm(settings.RingsAhead + 3);
 
             tunnel.Initialise(config, ball, pool);
-            tunnel.SetRingColour(Color.white);
+            tunnel.SetRingColours(new[] { Color.white });
             tunnel.BeginRun(seed);
 
             return tunnel;
@@ -77,6 +87,17 @@ namespace HR.Gameplay
             go.GetComponent<MeshRenderer>().sharedMaterial = material;
             go.GetComponent<MeshFilter>().sharedMesh = BuildDiscMesh(config.ballRadius, 24);
 
+            // A ring of background colour behind the ball. Not decoration: in Monochrome the
+            // ball and the rings are deliberately the same ink, and this outline is the only
+            // thing that keeps them apart (CONTRACT.md §2.11, spec §11.3).
+            var outline = new GameObject("BallOutline", typeof(MeshFilter), typeof(MeshRenderer));
+            outline.transform.SetParent(go.transform, false);
+            // Pushed away from the camera so the ball always wins the depth test against it.
+            outline.transform.localPosition = new Vector3(0f, 0f, 0.01f);
+            outline.GetComponent<MeshRenderer>().sharedMaterial = material;
+            outline.GetComponent<MeshFilter>().sharedMesh =
+                BuildDiscMesh(config.ballRadius + BallOutlineWidth, 24);
+
             var ball = go.GetComponent<BallController>();
             ball.Initialise(config, physics);
             ball.Place(RestingPosition(settings));
@@ -100,9 +121,10 @@ namespace HR.Gameplay
             {
                 float a = Mathf.PI * 2f * i / sides;
                 vertices[i + 1] = new Vector3(Mathf.Cos(a) * radius, Mathf.Sin(a) * radius, 0f);
+                // Same winding rule as the ring band: faces toward the camera, not away.
                 triangles[i * 3] = 0;
-                triangles[i * 3 + 1] = i + 1;
-                triangles[i * 3 + 2] = i + 2 > sides ? 1 : i + 2;
+                triangles[i * 3 + 1] = i + 2 > sides ? 1 : i + 2;
+                triangles[i * 3 + 2] = i + 1;
             }
 
             var mesh = new Mesh { name = "Ball" };
