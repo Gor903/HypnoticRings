@@ -1,0 +1,116 @@
+using System;
+
+namespace HR.Core
+{
+    /// <summary>Everything that distinguishes one ring from the next.</summary>
+    public struct RingSpec
+    {
+        public double GapCentreDeg;
+        public double GapArcWidth;
+        public double AutoSpinDeg;
+        public int ColourIndex;
+    }
+
+    /// <summary>
+    /// What difficulty asks of the next ring. A plain snapshot rather than a reference to a
+    /// curve, so the generator can be driven from a test with fixed numbers and phase 4 can
+    /// change how the numbers are produced without touching generation.
+    /// </summary>
+    public readonly struct DifficultySnapshot
+    {
+        public readonly double BaseCompressionSpeed;
+        public readonly double GapArcWidth;
+        public readonly double AutoSpinDeg;
+        public readonly bool AlternateSpinDirection;
+
+        public DifficultySnapshot(double baseCompressionSpeed, double gapArcWidth,
+                                  double autoSpinDeg, bool alternateSpinDirection)
+        {
+            BaseCompressionSpeed = baseCompressionSpeed;
+            GapArcWidth = gapArcWidth;
+            AutoSpinDeg = autoSpinDeg;
+            AlternateSpinDirection = alternateSpinDirection;
+        }
+
+        /// <summary>The tutorial setting: still rings, wide openings, slow squeeze.</summary>
+        public static DifficultySnapshot Opening => new DifficultySnapshot(0.15, 3.2, 0.0, false);
+    }
+
+    /// <summary>
+    /// Decides where each new ring's gap goes. Seeded and deterministic: a balance report that
+    /// cannot be replayed cannot be told apart from luck, and a bug report without a seed is a
+    /// bug nobody can reproduce.
+    ///
+    /// Reachability — the rule that stops it emitting a ring no hand could catch — arrives in
+    /// phase 4 along with the difficulty curve. The seam for it is here.
+    /// </summary>
+    public sealed class RingGenerator
+    {
+        readonly int _seed;
+        Random _random;
+        int _produced;
+
+        public RingGenerator(int seed)
+        {
+            _seed = seed;
+            _random = new Random(seed);
+        }
+
+        public int Seed => _seed;
+        public int Produced => _produced;
+
+        /// <summary>
+        /// Next ring's parameters. <paramref name="previousAutoSpinDeg"/> is the neighbour's
+        /// spin, which this one has to differ from — identical neighbours read as one rigid
+        /// object rather than a tunnel.
+        /// </summary>
+        public RingSpec Next(in DifficultySnapshot difficulty, double previousAutoSpinDeg)
+        {
+            var spec = new RingSpec
+            {
+                GapCentreDeg = _random.NextDouble() * 360.0,
+                GapArcWidth = difficulty.GapArcWidth,
+                AutoSpinDeg = SpinFor(difficulty, previousAutoSpinDeg),
+                ColourIndex = _produced,
+            };
+
+            _produced++;
+            return spec;
+        }
+
+        public void Reset()
+        {
+            _random = new Random(_seed);
+            _produced = 0;
+        }
+
+        /// <summary>Smallest separation between neighbouring spin rates, as a fraction.</summary>
+        public const double NeighbourSeparation = 0.2;
+
+        double SpinFor(in DifficultySnapshot difficulty, double previousAutoSpinDeg)
+        {
+            double magnitude = difficulty.AutoSpinDeg;
+            if (magnitude <= 0.0) return 0.0;
+
+            double direction = difficulty.AlternateSpinDirection
+                ? (previousAutoSpinDeg >= 0.0 ? -1.0 : 1.0)
+                : (_random.NextDouble() < 0.5 ? -1.0 : 1.0);
+
+            double chosen = magnitude * (0.75 + _random.NextDouble() * 0.5);
+
+            // CONTRACT.md §2.8: neighbours differ by at least a fifth. Two rings turning at the
+            // same rate read as one rigid object rather than as a tunnel of separate rings, and
+            // the effect is strong enough that it is worth forcing rather than hoping for.
+            double previous = Math.Abs(previousAutoSpinDeg);
+            if (previous > 1e-6)
+            {
+                double low = previous * (1.0 - NeighbourSeparation);
+                double high = previous * (1.0 + NeighbourSeparation);
+                if (chosen > low && chosen < high)
+                    chosen = chosen >= previous ? high : low;
+            }
+
+            return direction * chosen;
+        }
+    }
+}

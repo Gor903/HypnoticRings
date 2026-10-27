@@ -31,7 +31,7 @@ namespace HR.Gameplay
         /// Builds the starting arrangement from CONTRACT.md §2.4: the ball resting on a ring at
         /// the equilibrium radius, one ring inside it, and RingsAhead rings outside.
         /// </summary>
-        public static TunnelController Build(GameConfig config, Transform parent, out BallController ball)
+        public static TunnelController Build(GameConfig config, Transform parent, out BallController ball, int seed = 0)
         {
             var settings = config.ToSettings();
 
@@ -44,21 +44,15 @@ namespace HR.Gameplay
             var tunnel = tunnelGo.AddComponent<TunnelController>();
 
             ball = CreateBall(config, parent, ballPhysics, ringMaterial, settings);
-            tunnel.Initialise(config, ball);
 
-            // One ring inside the ball, then the ball's own ring, then the ones ahead.
-            int id = 0;
-            for (int i = -1; i <= settings.RingsAhead; i++)
-            {
-                double radius = settings.TargetRadius + settings.Step * i;
-                if (radius <= settings.Thickness) continue;
+            // The pooled path is the one that ships, so the sandbox uses it too rather than a
+            // hand-placed arrangement that could drift from what a real run does.
+            var pool = new RingPool(config, tunnelGo.transform, ringMaterial);
+            pool.Prewarm(settings.RingsAhead + 3);
 
-                var ring = CreateRing(config, tunnelGo.transform, ringMaterial, id);
-                // Gap under the ball to start with: the first rings are the tutorial ones.
-                ring.Configure(radius, 270.0, settings.MinGapWidth * 2.0, 0.0);
-                tunnel.Register(ring);
-                id++;
-            }
+            tunnel.Initialise(config, ball, pool);
+            tunnel.SetRingColour(Color.white);
+            tunnel.BeginRun(seed);
 
             return tunnel;
         }

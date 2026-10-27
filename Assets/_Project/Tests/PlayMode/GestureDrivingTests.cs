@@ -102,7 +102,7 @@ namespace HR.Tests.PlayMode
             int steps = Mathf.RoundToInt(seconds / Dt);
             for (int i = 0; i < steps; i++)
             {
-                double step = bot.Decide(_ball.AngleDeg, _ring.GapCentreWorldDeg, Dt);
+                double step = bot.Decide(TunnelMath.BottomAngleDeg, _ring.GapCentreWorldDeg, Dt);
                 fingerAngle += step;
 
                 // Everything the bot does goes through the gesture layer, speed cap and all.

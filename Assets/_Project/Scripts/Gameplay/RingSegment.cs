@@ -15,6 +15,7 @@ namespace HR.Gameplay
     public sealed class RingSegment : MonoBehaviour
     {
         MeshFilter _filter;
+        MeshRenderer _renderer;
         PolygonCollider2D _collider;
         Mesh _mesh;
 
@@ -41,6 +42,7 @@ namespace HR.Gameplay
             if (_ready) return;
 
             _filter = GetComponent<MeshFilter>();
+            _renderer = GetComponent<MeshRenderer>();
             _collider = GetComponent<PolygonCollider2D>();
 
             _steps = ArcGeometry.StepsFor(settings.MaxSegmentSweepDeg, settings.MaxArcStepDeg);
@@ -107,6 +109,7 @@ namespace HR.Gameplay
         }
 
         public Mesh Mesh => _mesh;
+        public MeshRenderer Renderer => _renderer;
         public PolygonCollider2D Collider => _collider;
 
         void OnDestroy()

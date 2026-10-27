@@ -11,6 +11,16 @@ namespace HR.Core
     {
         public const double DegPerRad = 180.0 / Math.PI;
 
+        /// <summary>
+        /// The bottom of the tunnel, and the only place a gap is a way out.
+        ///
+        /// Gravity pulls towards -y, and the tunnel centre is above the ball, so "down" and
+        /// "outward through a ring" only coincide here. A gap brought level with the ball while
+        /// the ball is rolling up a side wall is not an exit — the ball slides along it and
+        /// stays in. Anything aiming a gap aims at this.
+        /// </summary>
+        public const double BottomAngleDeg = -90.0;
+
         /// <summary>Folds any angle into (-180, 180].</summary>
         public static double NormalizeDeg(double deg)
         {
