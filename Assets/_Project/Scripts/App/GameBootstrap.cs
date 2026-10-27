@@ -34,6 +34,9 @@ namespace HR.App
         ThemeApplier _themes;
         GameUi _ui;
         AudioManager _audio;
+        Effects _effects;
+        ScreenJuice _juice;
+        Haptics _haptics;
         Camera _camera;
 
         public GameManager Game => _game;
@@ -43,6 +46,9 @@ namespace HR.App
         public ThemeApplier Themes => _themes;
         public SaveData Settings => _settings;
         public AudioManager Audio => _audio;
+        public Effects Effects => _effects;
+        public ScreenJuice Juice => _juice;
+        public Haptics Haptics => _haptics;
 
         bool _built;
 
@@ -130,6 +136,13 @@ namespace HR.App
             _themes.Initialise(_camera, _tunnel, _ball.GetComponent<Renderer>(),
                 _ball.transform.Find("BallOutline")?.GetComponent<Renderer>());
 
+            var effectsGo = new GameObject("Effects");
+            effectsGo.transform.SetParent(transform, false);
+            _effects = effectsGo.AddComponent<Effects>();
+            _effects.Initialise(config, _camera, _ball.transform, material);
+
+            _haptics = new Haptics(config.vibratePassMs, config.vibrateLoseMs);
+
             var audioGo = new GameObject("Audio");
             audioGo.transform.SetParent(transform, false);
             _audio = audioGo.AddComponent<AudioManager>();
@@ -140,9 +153,16 @@ namespace HR.App
             _ui = uiGo.AddComponent<GameUi>();
             _ui.Initialise(_settings, _game.ScoreKeeper, _camera);
 
+            _juice = uiGo.AddComponent<ScreenJuice>();
+            _juice.Initialise(_ui.ScoreLabel, (RectTransform)_ui.Canvas.transform,
+                config.scorePulseScale, config.scorePulseSeconds, config.transitionSeconds);
+
+            ApplyEffectSettings();
+
             Wire();
             _themes.Apply(_settings.Theme);
             _ui.ApplyTheme(_themes.Palette);
+            ApplyThemeToEffects();
             _ui.Show(GameState.Menu);
             ShowWorld(GameState.Menu);
         }
@@ -168,12 +188,14 @@ namespace HR.App
                 _settings.Theme = theme;
                 _themes.Apply(theme);
                 _ui.ApplyTheme(_themes.Palette);
+                ApplyThemeToEffects();
                 Persist();
             };
 
             _ui.SettingsChanged += () =>
             {
                 _audio.ApplySettings();
+                ApplyEffectSettings();
                 Strings.Apply(_settings.Language, DeviceLanguage());
                 _input.Initialise(config.ToGestureSettings(_settings.invertRotation), _camera);
                 Persist();
@@ -194,6 +216,9 @@ namespace HR.App
             _game.Scored += score =>
             {
                 _audio.PlayPass(Time.timeAsDouble);
+                _effects.Flash(_ball.transform.position, _effects.TrailColour);
+                _juice.Pulse();
+                _haptics.Pass();
                 _ui.SetScore(score);
                 if (!_settings.hintSeen) { _settings.hintSeen = true; _ui.ShowHint(false); Persist(); }
             };
@@ -203,7 +228,18 @@ namespace HR.App
                 _ui.Show(to);
                 ShowWorld(to);
                 if (to == GameState.Paused) _audio.ResetStreak();
-                if (to == GameState.GameOver) { _audio.PlayLose(); Persist(); }
+                if (to == GameState.GameOver)
+                {
+                    _audio.PlayLose();
+                    _effects.Shake();
+                    _effects.Collapse(_tunnel.transform, _ball.transform.position);
+                    _haptics.Lose();
+                    Persist();
+                }
+
+                // The curtain closes on the way out of a run and opens on the way in, which is
+                // the whole of spec 11.4's menu-to-game transition.
+                if (to == GameState.Playing || to == GameState.Menu) _juice.Fade(toClear: true);
             };
         }
 
@@ -218,10 +254,41 @@ namespace HR.App
             if (_ball != null) _ball.gameObject.SetActive(inPlay);
         }
 
+        /// <summary>
+        /// One switch for every effect, so "Reduce effects" is a single decision rather than a
+        /// setting each effect remembers to consult.
+        /// </summary>
+        void ApplyEffectSettings()
+        {
+            bool wanted = !_settings.reduceEffects;
+
+            _effects.Enabled = wanted;
+            _juice.Enabled = wanted;
+            _haptics.Enabled = _settings.vibrationEnabled;
+
+            if (!wanted)
+            {
+                _effects.Clear();
+                _juice.Clear();
+                _tunnel.transform.localRotation = Quaternion.identity;
+            }
+        }
+
+        void ApplyThemeToEffects()
+        {
+            var palette = _themes.Palette;
+            _effects.TrailColour = ThemeApplier.ToColor(palette.RingColourAt(0));
+            _juice.CurtainColour = ThemeApplier.ToColor(palette.Background);
+        }
+
         void StartRun()
         {
             _game.StartRun(seed == 0 ? UnityEngine.Random.Range(1, int.MaxValue) : seed);
             _input.ResetAngle();
+
+            // The menu left the tunnel turning; a run starts square.
+            _tunnel.transform.localRotation = Quaternion.identity;
+            _effects.Clear();
 
             foreach (var ring in _tunnel.Rings)
                 for (int i = 0; i < ring.ActiveSegmentCount; i++)
@@ -233,12 +300,31 @@ namespace HR.App
             _ui.Show(_game.State);
         }
 
+        /// <summary>Slow enough to be hypnotic rather than busy.</summary>
+        const float MenuSpinDegPerSecond = 6f;
+
         void Update()
         {
             if (_game == null) return;
 
             if (_game.State == GameState.Playing)
+            {
                 _tunnel.UserAngleDeg = _input.UserAngleDeg;
+                _effects.Tick(Time.deltaTime);
+            }
+            else if (_game.State == GameState.GameOver)
+            {
+                // Still ticking after the loss: this is the one effect that plays out when the
+                // game itself has stopped.
+                _effects.Tick(Time.deltaTime);
+            }
+            else if (_game.State == GameState.Menu && _effects.Enabled)
+            {
+                // Spec 10.2 asks for slowly turning rings behind the menu. Rotating the whole
+                // tunnel object is purely visual — no ring moves relative to another, and the
+                // physics it carries is asleep while the menu is up.
+                _tunnel.transform.Rotate(0f, 0f, MenuSpinDegPerSecond * Time.deltaTime);
+            }
 
             // Android's back button, routed through the same state machine as everything else.
             if (UnityEngine.InputSystem.Keyboard.current != null
