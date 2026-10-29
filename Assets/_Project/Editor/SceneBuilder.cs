@@ -20,10 +20,9 @@ namespace HR.Editor
         // in a shipping build is exactly what ProjectSetup.Verify is there to catch.
         public const string SandboxScene = ScenesDir + "/Sandbox.unity";
 
-        // CONTRACT.md G-10: the camera is static, and the tunnel centre O sits at 46% of screen
-        // height from the bottom. Screen centre is 50%, so O is 4% of the full height below it.
-        public const float OrthoSize = 7.5f;
-        const float CentreHeightFraction = 0.46f;
+        // CONTRACT.md G-10: the camera is static, and how it frames the tunnel is two numbers in
+        // GameConfig — read from there rather than repeated here, because the runtime reads them
+        // too and a second copy is a second answer.
 
         [MenuItem("Hypnotic Rings/Setup/Rebuild scenes")]
         public static void BuildAll()
@@ -88,19 +87,20 @@ namespace HR.Editor
 
         static Camera CreateCamera(string name)
         {
+            var config = ConfigBuilder.EnsureGameConfig();
+
             var go = new GameObject(name, typeof(Camera));
             go.tag = "MainCamera";
 
             var camera = go.GetComponent<Camera>();
             camera.orthographic = true;
-            camera.orthographicSize = OrthoSize;
+            camera.orthographicSize = config.orthoSize;
             camera.nearClipPlane = 0.1f;
             camera.farClipPlane = 100f;
             camera.clearFlags = CameraClearFlags.SolidColor;
             camera.backgroundColor = Color.black;
 
-            float offset = (0.5f - CentreHeightFraction) * 2f * OrthoSize;
-            go.transform.position = new Vector3(0f, offset, -10f);
+            go.transform.position = new Vector3(0f, config.CameraOffsetY, -10f);
             return camera;
         }
 

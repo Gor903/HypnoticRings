@@ -1,0 +1,35 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 0376567120f95b478f81786fe9ac6d94, type: 3}
+  m_Name: DifficultyTable
+  m_EditorClassIdentifier: HR.Gameplay::HR.Gameplay.DifficultyTable
+  anchors:
+  - rings: 0
+    compressionSpeed: 0.45
+    maxCompressionSpeed: 2
+    gapArcWidth: 4.1
+    autoSpinDeg: 0
+  - rings: 10
+    compressionSpeed: 0.55
+    maxCompressionSpeed: 3
+    gapArcWidth: 3.7
+    autoSpinDeg: 15
+  - rings: 30
+    compressionSpeed: 0.7
+    maxCompressionSpeed: 4
+    gapArcWidth: 3.27
+    autoSpinDeg: 40
+  - rings: 80
+    compressionSpeed: 0.85
+    maxCompressionSpeed: 5
+    gapArcWidth: 2.6
+    autoSpinDeg: 70

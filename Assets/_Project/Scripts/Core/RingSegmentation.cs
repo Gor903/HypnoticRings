@@ -2,30 +2,17 @@ using System;
 
 namespace HR.Core
 {
-    /// <summary>A gap in a ring, as the designer specifies it: a centre and an angular width.</summary>
+    /// <summary>
+    /// A gap in a ring, as the segmentation sees it: a centre and an angular width. How that
+    /// width is arrived at — held from the reference radius, floored so the ball still fits — is
+    /// <see cref="TunnelMath.HeldGapWidthDeg"/>, and it is stated there once.
+    /// </summary>
     public struct Gap
     {
         public double CentreDeg;
         public double WidthDeg;
 
         public Gap(double centreDeg, double widthDeg) { CentreDeg = centreDeg; WidthDeg = widthDeg; }
-
-        /// <summary>
-        /// Builds a gap from the arc length the contract actually stores. Angular width is
-        /// derived from the radius so a shrinking ring widens the angle and keeps the opening
-        /// the same size in world units.
-        /// </summary>
-        public static Gap FromArcLength(double centreDeg, double arcLength, double radius)
-            => new Gap(centreDeg, TunnelMath.GapWidthDeg(arcLength, radius));
-
-        /// <summary>
-        /// Builds the gap to cut so the ball actually gets <paramref name="opening"/> of clear
-        /// arc. The rounded end caps bulge half a thickness past each segment end, into the gap,
-        /// so cutting exactly the opening would deliver an opening narrower by a full thickness —
-        /// a nominal 1.5u way out would really be 1.2u, and the difficulty curve would be lying.
-        /// </summary>
-        public static Gap ForOpening(double centreDeg, double opening, double thickness, double radius)
-            => new Gap(centreDeg, TunnelMath.GapWidthDeg(opening + thickness, radius));
     }
 
     /// <summary>One solid stretch of a ring, as an arc to tessellate.</summary>
@@ -97,7 +84,8 @@ namespace HR.Core
 
         /// <summary>
         /// Clear opening left by a cut of this angular width, in world units — the inverse of
-        /// <see cref="Gap.ForOpening"/>, and what any measurement of built geometry should use.
+        /// <see cref="TunnelMath.HeldGapWidthDeg"/>, and what any measurement of built geometry
+        /// should use.
         /// </summary>
         public static double OpeningFor(double widthDeg, double thickness, double radius)
             => widthDeg / TunnelMath.DegPerRad * radius - thickness;

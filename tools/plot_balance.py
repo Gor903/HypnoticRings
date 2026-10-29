@@ -35,8 +35,10 @@ SERIES = {"weak": (42, 120, 214), "medium": (235, 104, 52), "strong": (27, 175, 
 LEVELS = ["weak", "medium", "strong"]
 LABEL_RU = {"weak": "слабый", "medium": "средний", "strong": "сильный"}
 
-# The plan's expected bands, drawn so a reader sees the target and the result together.
-BANDS = {"weak": (8, 20), "medium": (25, 60)}
+# The expected bands, drawn so a reader sees the target and the result together. Same numbers
+# as BalanceSimulationTests, and they moved at D-059 for the reason stated there: this simulator
+# asks the pre-D-058 question, so its scale no longer sets the difficulty — the play-mode gate does.
+BANDS = {"weak": (8, 22), "medium": (55, 95)}
 
 
 def font(size):

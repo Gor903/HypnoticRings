@@ -25,6 +25,7 @@ namespace HR.Tests.PlayMode
         SimulationMode2D _simulationMode;
         readonly List<GameObject> _spawned = new List<GameObject>();
 
+        DifficultyCurve _curve;
         BallController _ball;
         TunnelController _tunnel;
         RingController _ring;
@@ -35,6 +36,12 @@ namespace HR.Tests.PlayMode
         {
             _config = ScriptableObject.CreateInstance<GameConfig>();
             _settings = _config.ToSettings();
+
+            // The gate asks the curve what a ring is like rather than inventing a width. Tied to
+            // the floor instead, it measured whatever the floor happened to be — and D-059 moved
+            // that floor from a taste number to the ball's own width, which would have made this
+            // gate quietly twice as hard without a line of it changing.
+            _curve = new DifficultyCurve(_settings);
             _simulationMode = Physics2D.simulationMode;
             Physics2D.simulationMode = SimulationMode2D.Script;
             Physics2D.gravity = new Vector2(0f, -14f);
@@ -54,7 +61,8 @@ namespace HR.Tests.PlayMode
             _spawned.Clear();
         }
 
-        void Build(double gapCentreDeg, double gapWidth, double autoSpinDeg, bool compress)
+        void Build(double gapCentreDeg, double gapWidth, double autoSpinDeg, bool compress,
+                   int launchSeed = 0)
         {
             var root = new GameObject("GestureRoot");
             _spawned.Add(root);
@@ -72,6 +80,15 @@ namespace HR.Tests.PlayMode
             _tunnel.AutoStep = false;   // this fixture steps explicitly
             _tunnel.CompressionEnabled = compress;
 
+            // Thrown, not placed. Left where the factory puts it the ball has no velocity at
+            // all, which is a state a run never produces — and a gate measured in it is
+            // measuring a game nobody plays.
+            if (launchSeed != 0)
+            {
+                var band = BallLaunch.BandFor(_settings);
+                _ball.Launch(BallLaunch.For(launchSeed, band.Inner, band.Outer, _config.cruiseSpeed));
+            }
+
             _ring = TunnelFactory.CreateRing(_config, tunnelGo.transform, material, 0);
             _ring.Configure(_settings.TargetRadius, gapCentreDeg, gapWidth, autoSpinDeg);
             for (int i = 0; i < _ring.ActiveSegmentCount; i++)
@@ -88,6 +105,15 @@ namespace HR.Tests.PlayMode
         double OuterEdge => _settings.TargetRadius + _settings.Thickness * 0.5;
         bool BallHasPassed => _ball.DistanceToCentre > OuterEdge + _settings.PassMargin;
 
+        /// <summary>
+        /// Seconds the ring actually gives, rather than a round number. It used to be ten against
+        /// a budget of fifteen, which made the gate tighter than the game; since D-059 quadrupled
+        /// the squeeze a literal would have been looser than it instead, and a gate that outlives
+        /// the run it is measuring is measuring nothing.
+        /// </summary>
+        double Budget => TunnelMath.TimeBudget(_settings.TargetRadius, _settings.Thickness,
+                                               _settings.RedRadius, _config.baseCompressionSpeed);
+
         static Vector2 FingerAt(double angleDeg)
         {
             double rad = angleDeg * Math.PI / 180.0;
@@ -103,8 +129,17 @@ namespace HR.Tests.PlayMode
             int steps = Mathf.RoundToInt(seconds / Dt);
             for (int i = 0; i < steps; i++)
             {
+                // Parked, not chasing. Measured both ways on a flying ball: aiming the opening
+                // at the ball's live angle clears 238/300, holding it still clears far more.
+                // A ball that bounces sweeps the whole circle on its own, so the opening only
+                // has to wait somewhere; a lagging hand chasing it never arrives.
                 double step = bot.Decide(TunnelMath.BottomAngleDeg, _ring.GapCentreWorldDeg, Dt);
-                fingerAngle += step;
+
+                // The bot decides how far the *ring* should turn; the finger is what it actually
+                // moves. Feeding the ring's angle straight to the pointer would hand the bot a
+                // gain the gesture layer then multiplies again, and the gate would be measuring
+                // a player who overshoots every ring by the sensitivity.
+                fingerAngle += step / _config.sensitivity;
 
                 // Everything the bot does goes through the gesture layer, speed cap and all.
                 _input.FeedPointer(true, FingerAt(fingerAngle), Dt);
@@ -131,10 +166,11 @@ namespace HR.Tests.PlayMode
             for (int attempt = 0; attempt < attempts; attempt++)
             {
                 double gapAngle = random.NextDouble() * 360.0;
-                Build(gapAngle, _settings.MinGapWidth * 1.5, autoSpinDeg: 0.0, compress: true);
+                Build(gapAngle, _curve.GapArcWidthAt(30), autoSpinDeg: 0.0, compress: true,
+                      launchSeed: attempt + 1);
 
                 var bot = BotBrain.Medium(attempt);
-                if (RunAttempt(bot, seconds: 10f)) cleared++;
+                if (RunAttempt(bot, seconds: (float)Budget)) cleared++;
 
                 Cleanup();
                 if (attempt % 50 == 0) yield return null;
@@ -144,7 +180,15 @@ namespace HR.Tests.PlayMode
             // Logged, not just asserted: phase 4 tunes against this margin, and "it passed"
             // does not say whether it passed by three attempts or by none.
             Debug.Log($"[HR] bot gate: medium cleared {cleared}/{attempts} ({rate:F2}%)");
-            Assert.GreaterOrEqual(rate, 99.0,
+
+            // 95, not the 99 this gate held before D-058, and the number was lowered against a
+            // measurement rather than against a red run — see DECISIONS D-058. 99 was calibrated
+            // on a ball that rested at the bottom, where one correction solved the ring. A
+            // bouncing ball turns the same ring into a wait, and a lagging hand misses a few of
+            // those however good the game is. The evidence that the game is clearable is the
+            // floor below, not this: a weak bot clears a tutorial-width opening 100 times out
+            // of 100, and the opening rows are wider still.
+            Assert.GreaterOrEqual(rate, 95.0,
                 $"medium bot cleared only {cleared}/{attempts} ({rate:F1}%)");
         }
 
@@ -159,8 +203,9 @@ namespace HR.Tests.PlayMode
 
             for (int attempt = 0; attempt < attempts; attempt++)
             {
-                Build(random.NextDouble() * 360.0, _settings.MinGapWidth * 2.0, 0.0, compress: true);
-                if (RunAttempt(BotBrain.Weak(attempt), seconds: 12f)) cleared++;
+                Build(random.NextDouble() * 360.0, _curve.GapArcWidthAt(0), 0.0, compress: true,
+                      launchSeed: attempt + 1);
+                if (RunAttempt(BotBrain.Weak(attempt), seconds: (float)(Budget * 1.2))) cleared++;
                 Cleanup();
                 if (attempt % 25 == 0) yield return null;
             }
@@ -172,7 +217,7 @@ namespace HR.Tests.PlayMode
         [UnityTest]
         public IEnumerator The_gesture_layer_turns_the_rings_it_is_given()
         {
-            Build(90.0, _settings.MinGapWidth, 0.0, compress: false);
+            Build(90.0, _curve.GapArcWidthAt(0), 0.0, compress: false);
             yield return null;
 
             double before = _ring.GapCentreWorldDeg;
@@ -186,14 +231,16 @@ namespace HR.Tests.PlayMode
                 Physics2D.Simulate(Dt);
             }
 
+            // Forty degrees of finger, and the ring turns that times the sensitivity.
             double moved = TunnelMath.ShortestDeltaDeg(before, _ring.GapCentreWorldDeg);
-            Assert.AreEqual(40.0, moved, 1e-3, "the ring did not follow the gesture");
+            Assert.AreEqual(40.0 * _config.sensitivity, moved, 1e-3,
+                            "the ring did not follow the gesture");
         }
 
         [UnityTest]
         public IEnumerator Losing_focus_mid_gesture_stops_the_tunnel_dead()
         {
-            Build(90.0, _settings.MinGapWidth, 0.0, compress: false);
+            Build(90.0, _curve.GapArcWidthAt(0), 0.0, compress: false);
             yield return null;
 
             _input.FeedPointer(true, FingerAt(0.0), Dt);
@@ -210,7 +257,7 @@ namespace HR.Tests.PlayMode
         [UnityTest]
         public IEnumerator Releasing_mid_sweep_lets_the_tunnel_coast_to_a_stop()
         {
-            Build(90.0, _settings.MinGapWidth, 0.0, compress: false);
+            Build(90.0, _curve.GapArcWidthAt(0), 0.0, compress: false);
             yield return null;
 
             _input.FeedPointer(true, FingerAt(0.0), Dt);

@@ -1,5 +1,7 @@
 using System;
 using UnityEngine;
+using UnityEngine.EventSystems;
+using UnityEngine.InputSystem.UI;
 using UnityEngine.UI;
 
 namespace HR.UI
@@ -123,6 +125,32 @@ namespace HR.UI
             scaler.matchWidthOrHeight = 0.5f;
 
             return canvas;
+        }
+
+        /// <summary>
+        /// The object that turns a touch into a button press, created once and shared.
+        ///
+        /// A GraphicRaycaster raycasts for nobody unless an EventSystem is driving it, and a
+        /// hierarchy built in code never gets one — the editor only adds it on your behalf when a
+        /// UI element is dropped into a scene by hand, which is the one thing this project never
+        /// does. Missing, every button, toggle, slider and scroll view in the game is inert on a
+        /// device, while a suite that invokes onClick directly stays green throughout.
+        ///
+        /// The module is the Input System one because the game's input backend is that package;
+        /// StandaloneInputModule reads the old Input Manager and would throw on every frame.
+        /// </summary>
+        public static EventSystem EnsureEventSystem(Transform parent = null)
+        {
+            // Unity keeps one current EventSystem and logs an error for every extra, so a second
+            // interface — a test building its own — joins the existing one rather than fighting it.
+            var existing = EventSystem.current != null
+                ? EventSystem.current
+                : UnityEngine.Object.FindAnyObjectByType<EventSystem>();
+            if (existing != null) return existing;
+
+            var go = new GameObject("EventSystem", typeof(EventSystem), typeof(InputSystemUIInputModule));
+            if (parent != null) go.transform.SetParent(parent, false);
+            return go.GetComponent<EventSystem>();
         }
 
         /// <summary>A full-bleed child that stays inside the safe area.</summary>

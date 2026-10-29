@@ -12,12 +12,12 @@ namespace HR.Core
         public const double DegPerRad = 180.0 / Math.PI;
 
         /// <summary>
-        /// The bottom of the tunnel, and the only place a gap is a way out.
+        /// Where the bot aims a gap, and nothing more.
         ///
-        /// Gravity pulls towards -y, and the tunnel centre is above the ball, so "down" and
-        /// "outward through a ring" only coincide here. A gap brought level with the ball while
-        /// the ball is rolling up a side wall is not an exit — the ball slides along it and
-        /// stays in. Anything aiming a gap aims at this.
+        /// It used to be the only way out: the ball lay at the bottom of its ring and could
+        /// leave only straight down. The ball now flies, so any gap it reaches is an exit and
+        /// no rule in the game refers to this angle. The bot and the balance simulation still
+        /// need somewhere to aim, and the bottom is as good as any.
         /// </summary>
         public const double BottomAngleDeg = -90.0;
 
@@ -38,9 +38,8 @@ namespace HR.Core
 
         /// <summary>
         /// Angular width of a gap whose arc length is <paramref name="arcWidth"/> on a ring of
-        /// radius <paramref name="radius"/>. This is the rule that keeps a shrinking tunnel fair:
-        /// the arc length is what the designer sets, so a smaller radius widens the angle instead
-        /// of narrowing the opening.
+        /// radius <paramref name="radius"/>. Pure conversion between the two ways of saying how
+        /// wide an opening is; which of them a ring holds constant is <see cref="HeldGapWidthDeg"/>.
         /// </summary>
         public static double GapWidthDeg(double arcWidth, double radius)
         {
@@ -48,11 +47,32 @@ namespace HR.Core
             return arcWidth / radius * DegPerRad;
         }
 
-        /// <summary>True when <paramref name="angleDeg"/> falls inside the gap.</summary>
-        public static bool IsInsideGap(double angleDeg, double gapCentreDeg, double arcWidth, double radius)
+        /// <summary>
+        /// The angle a ring actually cuts at its current radius.
+        ///
+        /// The designer's number is an opening in world units, read at <paramref name="referenceRadius"/>,
+        /// and what is held constant as the ring shrinks is the ANGLE rather than that arc. Holding
+        /// the arc is what the tunnel used to do, and it means a ring has to open wider in degrees
+        /// the smaller it gets — by the time one reaches the middle of the screen a third of it is
+        /// missing, which reads as the ring falling apart rather than closing in. See DECISIONS D-059.
+        ///
+        /// The floor is the single exception, and it is physical rather than aesthetic: an opening
+        /// narrower than <paramref name="minOpening"/> is a wall, so once a fixed angle would pinch
+        /// below that the angle grows again — at exactly the rate that keeps the way out open, and
+        /// no faster.
+        /// </summary>
+        public static double HeldGapWidthDeg(double opening, double thickness, double referenceRadius,
+                                             double radius, double minOpening)
         {
-            double half = GapWidthDeg(arcWidth, radius) * 0.5;
-            return Math.Abs(ShortestDeltaDeg(gapCentreDeg, angleDeg)) <= half;
+            double held = GapWidthDeg(opening + thickness, referenceRadius);
+
+            // At or outside the reference radius a held angle already delivers at least the
+            // opening it was drawn with, so there is nothing to rescue — and applying the floor
+            // anyway would quietly widen a ring that was deliberately built too narrow to pass.
+            if (radius >= referenceRadius) return held;
+
+            double floor = GapWidthDeg(minOpening + thickness, radius);
+            return held > floor ? held : floor;
         }
 
         /// <summary>
@@ -74,13 +94,15 @@ namespace HR.Core
         }
 
         /// <summary>
-        /// Crushed when the cavity inside the ball's ring has closed to the ball's own size.
-        /// Geometric by design: collision-driven detection fires on glancing contact too.
-        /// Only valid once the ring has no ring left inside it.
+        /// The run is lost when a ring's inner edge reaches the red circle drawn at the centre.
+        ///
+        /// Geometric, and deliberately independent of where the ball is: the circle is drawn at
+        /// exactly this radius, so the player watches the boundary close rather than being told
+        /// afterwards that something touched something.
         /// </summary>
-        public static bool IsCrushed(double ringRadius, double thickness, double ballRadius, double crushMargin)
+        public static bool HasReachedRed(double ringRadius, double thickness, double redRadius)
         {
-            return FreeRadius(ringRadius, thickness) <= ballRadius + crushMargin;
+            return FreeRadius(ringRadius, thickness) <= redRadius;
         }
 
         /// <summary>Bug guard: the ball should never get this far out.</summary>
@@ -100,14 +122,15 @@ namespace HR.Core
         }
 
         /// <summary>
-        /// Seconds from an equilibrium pass to being crushed. The main difficulty dial — it is the
-        /// time the player has to line a gap up under the ball.
+        /// Seconds from an equilibrium pass to the ring reaching the red circle. The main
+        /// difficulty dial — it is how long the player has to turn a gap into the flying ball's
+        /// path before the ring closes on the centre.
         /// </summary>
-        public static double TimeBudget(double targetRadius, double thickness, double ballRadius,
-                                        double crushMargin, double vBase)
+        public static double TimeBudget(double targetRadius, double thickness, double redRadius,
+                                        double vBase)
         {
             if (vBase <= 0.0) throw new ArgumentOutOfRangeException(nameof(vBase));
-            return (targetRadius - thickness * 0.5 - ballRadius - crushMargin) / vBase;
+            return (targetRadius - thickness * 0.5 - redRadius) / vBase;
         }
 
         /// <summary>
@@ -124,6 +147,10 @@ namespace HR.Core
         /// The generator's hard rule: a gap this far away, on a ring spinning this fast, must be
         /// reachable inside 60% of the time budget. Pass <paramref name="autoSpinDeg"/> already
         /// clamped — see <see cref="ClampAutoSpin"/>.
+        ///
+        /// Worst case is still measured as half a turn away, which was exact while the ball lay
+        /// at the bottom. A flying ball meets gaps at other angles too, so the rule is now
+        /// conservative rather than exact — see DECISIONS D-058.
         /// </summary>
         public static bool IsReachable(double deltaDeg, double autoSpinDeg, double comfortSpinDeg,
                                        double timeBudget)

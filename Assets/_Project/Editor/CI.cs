@@ -44,6 +44,13 @@ namespace HR.Editor
                 EditorUserBuildSettings.buildAppBundle = false;
                 EditorUserBuildSettings.androidBuildSubtarget = MobileTextureSubtarget.ASTC;
 
+                // The debug key, always. ReleaseTool leaves a keystore path in the project
+                // settings and wipes its password in a finally block, so a dev build that
+                // inherits that state fails with "Unable to sign the Android application" —
+                // which says nothing about the dev path and everything about the release one.
+                bool customKeystore = PlayerSettings.Android.useCustomKeystore;
+                PlayerSettings.Android.useCustomKeystore = false;
+
                 var options = new BuildPlayerOptions
                 {
                     scenes = new[] { SceneBuilder.BootScene, SceneBuilder.MainScene },
@@ -61,6 +68,8 @@ namespace HR.Editor
 
                 // Size is read from the file, not from the report: the report's totalSize field has
                 // been observed measuring the intermediate Gradle project instead of the artifact.
+                PlayerSettings.Android.useCustomKeystore = customKeystore;
+
                 long bytes = new FileInfo(output).Length;
                 Debug.Log($"[HR] Built {output} ({bytes / 1024 / 1024} MB on disk)");
             });

@@ -93,11 +93,14 @@ namespace HR.Core
         /// How far the finger should sweep this step, in degrees. Positive turns the tunnel the
         /// way angles increase.
         ///
-        /// <paramref name="targetAngleDeg"/> is where the gap has to end up, which is the bottom
-        /// of the tunnel (<see cref="TunnelMath.BottomAngleDeg"/>) — not wherever the ball
-        /// happens to be this instant. Chasing the ball's live angle is a feedback loop: the
-        /// correction drags the ball round by friction, and the hand then chases the ball it
-        /// just moved. Aiming at a fixed point lets the ball settle and drop.
+        /// <paramref name="targetAngleDeg"/> is where the gap has to end up.
+        ///
+        /// It has to be a fixed point, and the reason changed with D-058 without the answer
+        /// changing. It used to be that chasing the ball's live angle dragged the resting ball
+        /// round by friction and the hand then chased the ball it had just moved. Friction is
+        /// zero now and the ball flies, so that loop is gone — but a flying ball sweeps the
+        /// whole circle by itself, which makes waiting strictly better than chasing with a
+        /// hand that lags. Measured: chasing clears 238/300.
         /// </summary>
         public double Decide(double targetAngleDeg, double gapWorldAngleDeg, double dt)
         {
