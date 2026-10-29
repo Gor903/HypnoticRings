@@ -58,9 +58,9 @@ namespace HR.Tests.PlayMode
             cameraGo.tag = "MainCamera";
             _camera = cameraGo.GetComponent<Camera>();
             _camera.orthographic = true;
-            _camera.orthographicSize = 7.5f;
+            _camera.orthographicSize = _config.orthoSize;
             _camera.clearFlags = CameraClearFlags.SolidColor;
-            _camera.transform.position = new Vector3(0f, (0.5f - 0.46f) * 2f * 7.5f, -10f);
+            _camera.transform.position = new Vector3(0f, _config.CameraOffsetY, -10f);
             if (cameraGo.GetComponent<UniversalAdditionalCameraData>() == null)
                 cameraGo.AddComponent<UniversalAdditionalCameraData>();
 
@@ -87,6 +87,14 @@ namespace HR.Tests.PlayMode
         [Timeout(600_000)]
         public IEnumerator Capture_every_screen_at_every_shape()
         {
+            // Nothing to capture without a renderer, and this is not a failure of the game: the
+            // suite runs headless (-nographics), where SubmitRenderRequest returns the colour the
+            // target was cleared to. tools/screenshots.sh runs this same test with a display,
+            // which is where the pictures actually come from. Said out loud, because for days
+            // this pair was simply red and everyone had learned to read past it.
+            if (SystemInfo.graphicsDeviceType == GraphicsDeviceType.Null)
+                Assert.Ignore("needs a renderer — run tools/screenshots.sh, which keeps one");
+
             Directory.CreateDirectory(OutputDir);
 
             // A record and a couple of unlocked themes, so the screens show something real
@@ -172,6 +180,20 @@ namespace HR.Tests.PlayMode
             _boot.Ui.Show(_boot.Game.State == state ? state : state);
         }
 
+        /// <summary>Render requests to spend before calling a flat frame a failure.</summary>
+        const int RenderAttempts = 4;
+
+        /// <summary>True once the frame holds more than the one colour it was cleared to.</summary>
+        static bool ShowsMoreThanOneColour(Texture2D frame)
+        {
+            var pixels = frame.GetPixels32();
+            var first = pixels[0];
+            for (int i = 1; i < pixels.Length; i += 53)
+                if (pixels[i].r != first.r || pixels[i].g != first.g || pixels[i].b != first.b)
+                    return true;
+            return false;
+        }
+
         IEnumerator Capture(string screen, (string Name, int Width, int Height) shape)
         {
             // The layout is told its size outright. Sizing only the texture would capture the
@@ -183,28 +205,31 @@ namespace HR.Tests.PlayMode
             var target = new RenderTexture(shape.Width, shape.Height, 24, RenderTextureFormat.ARGB32);
             var readback = new Texture2D(shape.Width, shape.Height, TextureFormat.RGB24, false);
 
-            var request = new UniversalRenderPipeline.SingleCameraRequest { destination = target };
-            Assert.IsTrue(RenderPipeline.SupportsRenderRequest(_camera, request));
-            RenderPipeline.SubmitRenderRequest(_camera, request);
-            yield return null;
-
-            var previous = RenderTexture.active;
-            RenderTexture.active = target;
-            readback.ReadPixels(new Rect(0, 0, shape.Width, shape.Height), 0, 0);
-            readback.Apply();
-            RenderTexture.active = previous;
-
-            string path = Path.Combine(OutputDir, $"{screen}-{shape.Name}.png");
-            File.WriteAllBytes(path, readback.EncodeToPNG());
-
-            // A flat frame means nothing rendered — the silent failure that cost phase 5 an
-            // afternoon. Caught here rather than by looking at fifteen files afterwards.
-            var pixels = readback.GetPixels32();
-            var first = pixels[0];
+            // Asked for more than once: the first request of a run comes back empty while the
+            // pipeline is still warming. A flat frame means nothing rendered — the silent
+            // failure that cost phase 5 an afternoon.
             bool varied = false;
-            for (int i = 1; i < pixels.Length && !varied; i += 53)
-                varied = pixels[i].r != first.r || pixels[i].g != first.g || pixels[i].b != first.b;
+            for (int attempt = 0; attempt < RenderAttempts && !varied; attempt++)
+            {
+                var request = new UniversalRenderPipeline.SingleCameraRequest { destination = target };
+                Assert.IsTrue(RenderPipeline.SupportsRenderRequest(_camera, request));
+                RenderPipeline.SubmitRenderRequest(_camera, request);
+                yield return null;
+
+                var previous = RenderTexture.active;
+                RenderTexture.active = target;
+                readback.ReadPixels(new Rect(0, 0, shape.Width, shape.Height), 0, 0);
+                readback.Apply();
+                RenderTexture.active = previous;
+
+                varied = ShowsMoreThanOneColour(readback);
+            }
+
+            // Written only once it is a picture. The file is a tracked store asset, and writing
+            // first meant every failed run replaced one with a grey rectangle.
+            string path = Path.Combine(OutputDir, $"{screen}-{shape.Name}.png");
             Assert.IsTrue(varied, $"{path} is a single flat colour — nothing rendered");
+            File.WriteAllBytes(path, readback.EncodeToPNG());
 
             Object.DestroyImmediate(readback);
             target.Release();

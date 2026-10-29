@@ -100,12 +100,16 @@ namespace HR.Gameplay
 
             var ball = go.GetComponent<BallController>();
             ball.Initialise(config, physics);
-            ball.Place(RestingPosition(settings));
+            ball.Place(StartPosition(settings));
             return ball;
         }
 
-        /// <summary>Where the ball sits on the inner surface of its ring, directly below the centre.</summary>
-        public static Vector2 RestingPosition(in TunnelSettings settings)
+        /// <summary>
+        /// Somewhere inside the opening ring, touching nothing, for a ball that has not been
+        /// thrown yet. A run replaces it immediately with a seeded launch; this only has to be
+        /// a legal place to exist.
+        /// </summary>
+        public static Vector2 StartPosition(in TunnelSettings settings)
         {
             double distance = settings.TargetRadius - settings.Thickness * 0.5 - settings.BallRadius;
             return new Vector2(0f, (float)-distance);

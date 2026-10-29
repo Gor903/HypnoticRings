@@ -12,24 +12,37 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 6112baaa6132f3a23ac64e7581d2cc90, type: 3}
   m_Name: GameConfig
   m_EditorClassIdentifier: HR.Gameplay::HR.Gameplay.GameConfig
-  thickness: 0.3
-  clearance: 1.25
+  thickness: 0.4
+  clearance: 0.95
   targetRadius: 3
-  vanishRadius: 0.9
-  ringsAhead: 3
-  ballRadius: 0.5
-  maxBallSpeed: 12
-  ballFriction: 0.25
-  ballBounce: 0.2
-  ringFriction: 0.25
-  ringBounce: 0
-  passMargin: 0.3
-  crushMargin: 0.05
-  baseCompressionSpeed: 0.15
+  vanishRadius: 1.05
+  ringsAhead: 9
+  orthoSize: 10
+  centreHeightFraction: 0.72
+  ballRadius: 0.27
+  maxBallSpeed: 16
+  cruiseSpeed: 10
+  cruiseAccel: 5
+  ballGravityScale: 0.15
+  ballFriction: 0
+  ballBounce: 1
+  ringFriction: 0
+  ringBounce: 1
+  passMargin: 0.22
+  redRadius: 0.75
+  redOpacity: 0.45
+  redColour: {r: 1, g: 0.231, b: 0.188, a: 1}
+  dissolveSeconds: 0.25
+  difficulty: {fileID: 11400000, guid: 3511f762f7fcf2ee13c5e4ea71ed5391, type: 2}
+  baseCompressionSpeed: 0.45
   pullToCentre: 3
-  maxCompressionSpeed: 4
-  minGapWidth: 1.5
-  comfortSpinDeg: 200
+  maxCompressionSpeed: 5
+  minGapWidth: 0.8
+  comfortSpinDeg: 300
+  sensitivity: 3
+  maxUserAngularSpeedDeg: 1500
+  inertiaDecay: 5
+  deadZoneRadius: 0.6
   maxArcStepDeg: 7.5
   maxSegmentSweepDeg: 120
   capPoints: 4

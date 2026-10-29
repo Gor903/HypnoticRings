@@ -268,6 +268,52 @@ namespace HR.Tests.PlayMode
                 "About survived a screen change and would reappear over Settings");
         }
 
+        /// <summary>Sweeps a finger a quarter turn and returns how far the gesture took the rings.</summary>
+        double QuarterTurnOfAFinger()
+        {
+            const double radius = 3.0;   // outside the dead zone
+            const float dt = 1f / 30f;
+
+            var input = _boot.Input;
+            input.ExternalDriver = true;
+            input.ResetAngle();
+
+            input.FeedPointer(true, new Vector2((float)radius, 0f), dt);
+            for (int i = 1; i <= 18; i++)
+            {
+                double radians = i * 5.0 * System.Math.PI / 180.0;
+                input.FeedPointer(true, new Vector2((float)(System.Math.Cos(radians) * radius),
+                                                    (float)(System.Math.Sin(radians) * radius)), dt);
+            }
+
+            double turned = input.UserAngleDeg;
+            input.Cancel();
+            return turned;
+        }
+
+        [UnityTest]
+        public IEnumerator The_sensitivity_slider_reaches_the_finger()
+        {
+            // It did not. The slider wrote the save and the save was never read back into the
+            // gesture, so every player had the config's feel whatever the setting said.
+            var settings = _boot.Ui.ScreenFor(GameState.Settings);
+
+            Slider sensitivity = null;
+            foreach (var slider in settings.GetComponentsInChildren<Slider>(includeInactive: true))
+                if (slider.name == "Sensitivity") sensitivity = slider;
+            Assert.IsNotNull(sensitivity, "no sensitivity slider on the settings screen");
+
+            double atDefault = QuarterTurnOfAFinger();
+            Assert.AreEqual(90.0 * _config.sensitivity, atDefault, 1e-3,
+                            "the config's gain never reached the gesture");
+
+            sensitivity.value = SaveData.MaxSensitivity;
+            yield return null;
+
+            Assert.AreEqual(atDefault * SaveData.MaxSensitivity, QuarterTurnOfAFinger(), 1e-3,
+                            "moving the slider did not change how far a finger turns the rings");
+        }
+
         [UnityTest]
         public IEnumerator Sound_and_music_are_switched_and_levelled_independently_and_persist()
         {

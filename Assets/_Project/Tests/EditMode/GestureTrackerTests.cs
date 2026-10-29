@@ -242,5 +242,6 @@ namespace HR.Tests.EditMode
 
             Assert.AreEqual(3600.0, t.AngleDeg, 1e-6);
         }
+
     }
 }

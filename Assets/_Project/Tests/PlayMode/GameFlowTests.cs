@@ -94,11 +94,14 @@ namespace HR.Tests.PlayMode
             yield return null;
         }
 
+        PhysicsMaterial2D _ringPhysics;
+
         void Build(int best = 0)
         {
             _root = new GameObject("FlowRoot");
             var material = TunnelFactory.CreateUnlitMaterial(Color.white);
             var ringPhysics = TunnelFactory.CreatePhysicsMaterial("Ring", _config.ringFriction, _config.ringBounce);
+            _ringPhysics = ringPhysics;
             var ballPhysics = TunnelFactory.CreatePhysicsMaterial("Ball", _config.ballFriction, _config.ballBounce);
 
             _ball = TunnelFactory.CreateBall(_config, _root.transform, ballPhysics, material, _settings);
@@ -118,33 +121,44 @@ namespace HR.Tests.PlayMode
         }
 
         /// <summary>
-        /// Steps while actively holding the opening away from the bottom, so the run is lost on
-        /// purpose rather than by luck.
+        /// Steps a run to its end on purpose rather than by luck.
         ///
-        /// Doing nothing does not reliably lose: rings turn by themselves from the fourth
-        /// onward, so a gap sooner or later passes under the ball and it falls through unaided.
-        /// A test that waits for a loss therefore passes or fails on the seed. This drives the
-        /// opening to the top instead, at a rate a hand could actually manage.
+        /// Doing nothing does not reliably lose: the ball flies, and a gap sooner or later ends
+        /// up on its path whatever the player does. A test that waits for a loss would therefore
+        /// pass or fail on the seed.
         /// </summary>
         void StepLosing(int steps)
         {
-            double userAngle = 0.0;
-            double maxStep = _config.maxUserAngularSpeedDeg * Dt;
+            // Sealed, not steered. Holding the opening away from the bottom used to keep a
+            // resting ball in; a flying one leaves through whichever gap it reaches, so the only
+            // honest way to say "the player did not get out" is to give them no way out.
+            Seal(_tunnel.ResolveBallRing());
 
             for (int i = 0; i < steps; i++)
             {
-                var ring = _tunnel.ResolveBallRing();
-                if (ring != null)
-                {
-                    double wanted = TunnelMath.ShortestDeltaDeg(ring.GapCentreWorldDeg, 90.0);
-                    userAngle += Math.Max(-maxStep, Math.Min(maxStep, wanted));
-                }
-
-                _game.Tick(Dt, userAngle);
+                _game.Tick(Dt, 0.0);
                 _ball.ClampSpeed();
                 Physics2D.Simulate(Dt);
                 if (_game.State != GameState.Playing) return;
             }
+        }
+
+        /// <summary>Closes a ring's opening and gives its new colliders the ring material back.</summary>
+        void Seal(RingController ring)
+        {
+            if (ring == null) return;
+            ring.ConfigureSolid(ring.Radius, autoSpinDeg: 0.0);
+            for (int i = 0; i < ring.ActiveSegmentCount; i++)
+                ring.SegmentAt(i).Collider.sharedMaterial = _ringPhysics;
+        }
+
+        /// <summary>The ring furthest out, which is the one no cull can take.</summary>
+        RingController Outermost()
+        {
+            RingController best = null;
+            for (int i = 0; i < _tunnel.Rings.Count; i++)
+                if (best == null || _tunnel.Rings[i].Radius > best.Radius) best = _tunnel.Rings[i];
+            return best;
         }
 
         static int SceneObjectCount() =>
@@ -163,10 +177,10 @@ namespace HR.Tests.PlayMode
         }
 
         [UnityTest]
-        public IEnumerator Keeping_the_opening_away_loses_the_run_and_only_once()
+        public IEnumerator A_ball_with_no_way_out_loses_the_run_and_only_once()
         {
-            // The tunnel closes and the ball is crushed. The budget at the opening pace is about
-            // fifteen seconds; forty is generous even allowing for a pass or two slipping through.
+            // The ring closes onto the red circle. The budget at the opening pace is about four
+            // and a half seconds since D-059, so forty is generous several times over.
             Build();
             _game.StartRun(seed: 2);
 
@@ -204,43 +218,43 @@ namespace HR.Tests.PlayMode
             StepLosing(60);
 
             Assert.IsTrue(_game.Pause());
-            double radius = _tunnel.Rings[0].Radius;
+
+            // One ring, held by reference. Watching Rings[0] instead watches a slot, not a ring:
+            // a cull removes an entry and everything behind it shifts forward, so the slot can
+            // come back holding a ring further out — which reads exactly like a tunnel that
+            // stopped closing. The outermost ring is the one the cull can never take.
+            var ring = Outermost();
+            double radius = ring.Radius;
+
             for (int i = 0; i < 300; i++) _game.Tick(Dt, 0.0);
-            Assert.AreEqual(radius, _tunnel.Rings[0].Radius, 1e-9, "the tunnel moved while paused");
+            Assert.AreEqual(radius, ring.Radius, 1e-9, "the tunnel moved while paused");
 
             Assert.IsTrue(_game.Resume());
             for (int i = 0; i < 90; i++) { _game.Tick(Dt, 0.0); Physics2D.Simulate(Dt); }
-            Assert.Less(_tunnel.Rings[0].Radius, radius, "the tunnel did not resume closing");
+            Assert.Less(ring.Radius, radius, "the tunnel did not resume closing");
             yield return null;
         }
 
         [UnityTest]
         public IEnumerator The_crush_fires_on_geometry_and_not_a_moment_early()
         {
-            // The lose condition is measured, not inferred from a collision: the ball is crushed
-            // when the cavity inside its ring has closed to the ball's own size.
+            // The lose condition is measured, not inferred from a collision: the run ends when
+            // a ring's inner edge reaches the red circle, and not a moment before.
             Build();
             _game.StartRun(seed: 5);
+            Seal(_tunnel.ResolveBallRing());
 
-            double crushRadius = _settings.CrushRadius;
+            double losingRadius = _settings.CrushRadius;
             int steps = Mathf.RoundToInt(40f / Dt);
-            double userAngle = 0.0;
-            double maxStep = _config.maxUserAngularSpeedDeg * Dt;
 
             for (int i = 0; i < steps && _game.State == GameState.Playing; i++)
             {
                 var ring = _tunnel.ResolveBallRing();
-                if (ring != null)
-                {
-                    if (ring.Radius > crushRadius + 0.05)
-                        Assert.AreNotEqual(GameState.GameOver, _game.State,
-                            $"crushed at radius {ring.Radius:F3} with the crush radius at {crushRadius:F3}");
+                if (ring != null && ring.Radius > losingRadius + 0.05)
+                    Assert.AreNotEqual(GameState.GameOver, _game.State,
+                        $"lost at radius {ring.Radius:F3} with the circle reached at {losingRadius:F3}");
 
-                    double wanted = TunnelMath.ShortestDeltaDeg(ring.GapCentreWorldDeg, 90.0);
-                    userAngle += Math.Max(-maxStep, Math.Min(maxStep, wanted));
-                }
-
-                _game.Tick(Dt, userAngle);
+                _game.Tick(Dt, 0.0);
                 _ball.ClampSpeed();
                 Physics2D.Simulate(Dt);
             }

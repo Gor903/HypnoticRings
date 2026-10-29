@@ -22,50 +22,75 @@ namespace HR.Gameplay
     [CreateAssetMenu(menuName = "Hypnotic Rings/Game Config", fileName = "GameConfig")]
     public sealed class GameConfig : ScriptableObject
     {
-        [Header("Tunnel geometry — 1 unit is the ball's diameter")]
+        [Header("Tunnel geometry — world units; the ball is 0.54 of one (D-059)")]
         [Tooltip("Ring thickness. Physical equals visual, in every theme, always.")]
-        public float thickness = 0.30f;
-        [Tooltip("Corridor clearance between neighbouring rings.")]
-        public float clearance = 1.25f;
-        [Tooltip("Radius the ball's ring settles at between passes.")]
+        public float thickness = 0.40f;
+        [Tooltip("Corridor clearance between neighbouring rings. Its floor is the ball's diameter.")]
+        public float clearance = 0.95f;
+        [Tooltip("Radius the ball's ring settles at between passes. Gap widths are read here.")]
         public float targetRadius = 3.0f;
         [Tooltip("Rings without the ball inside fade out below this radius.")]
-        public float vanishRadius = 0.9f;
-        [Tooltip("Rings kept outside the ball's ring.")]
-        public int ringsAhead = 3;
+        public float vanishRadius = 1.05f;
+        [Tooltip("Rings kept outside the ball's ring. Also how many of them the frame can show.")]
+        public int ringsAhead = 9;
 
-        [Header("Ball")]
-        public float ballRadius = 0.5f;
-        public float maxBallSpeed = 12f;
-        [Range(0f, 1f)] public float ballFriction = 0.25f;
-        [Range(0f, 1f)] public float ballBounce = 0.2f;
-        [Range(0f, 1f)] public float ringFriction = 0.25f;
-        [Range(0f, 1f)] public float ringBounce = 0f;
+        [Header("View — CONTRACT.md G-10: the camera is static and frames the tunnel")]
+        [Tooltip("Half the height the camera sees, in world units. Larger shows more rings.")]
+        [Min(1f)] public float orthoSize = 10.0f;
+        [Tooltip("Height of the tunnel centre on screen: 0 is the bottom edge, 1 is the top.")]
+        [Range(0.35f, 0.85f)] public float centreHeightFraction = 0.72f;
 
-        [Header("Pass and crush")]
+        [Header("Ball — it flies, it does not roll")]
+        public float ballRadius = 0.27f;
+        [Tooltip("Safety ceiling, not a feel knob: a step longer than a ring is thick could pass through one.")]
+        public float maxBallSpeed = 16f;
+        [Tooltip("Speed the regulator holds the ball at, feeding back whatever a bounce took or gave.")]
+        public float cruiseSpeed = 10f;
+        [Tooltip("How hard the regulator pulls, in units per second squared.")]
+        public float cruiseAccel = 5f;
+        [Tooltip("Share of world gravity the ball feels. Bends the flight; must not drive it.")]
+        [Range(0f, 1f)] public float ballGravityScale = 0.15f;
+        [Tooltip("Zero friction and full bounce, or the flight decays into a roll.")]
+        [Range(0f, 1f)] public float ballFriction = 0f;
+        [Range(0f, 1f)] public float ballBounce = 1f;
+        [Range(0f, 1f)] public float ringFriction = 0f;
+        [Range(0f, 1f)] public float ringBounce = 1f;
+
+        [Header("Pass and the red circle")]
         [Tooltip("Extra distance past a ring's outer edge before it counts as cleared.")]
-        public float passMargin = 0.3f;
-        [Tooltip("Slack before the closing cavity counts as a crush.")]
-        public float crushMargin = 0.05f;
+        public float passMargin = 0.22f;
+        [Tooltip("The red circle at the centre. A ring whose inner edge touches it ends the run.")]
+        public float redRadius = 0.75f;
+        [Tooltip("How strongly the circle is mixed over the theme's background.")]
+        [Range(0.1f, 0.9f)] public float redOpacity = 0.45f;
+        [Tooltip("The circle's own colour, before it is mixed over the background.")]
+        public Color redColour = new Color(1f, 0.231f, 0.188f, 1f);
+        [Tooltip("Seconds a ring takes to dissolve once the ball has left it.")]
+        public float dissolveSeconds = 0.25f;
+
+        [Header("Balance table")]
+        [Tooltip("The difficulty rows. Without one the curve falls back to its built-in defaults.")]
+        public DifficultyTable difficulty;
 
         [Header("Compression")]
-        [Tooltip("Speed the whole tunnel closes at in equilibrium.")]
-        public float baseCompressionSpeed = 0.15f;
+        [Tooltip("Only the opening value. Once a run scores, the difficulty table owns this.")]
+        public float baseCompressionSpeed = 0.45f;
         [Tooltip("Pull that retracts the tunnel after a pass.")]
         public float pullToCentre = 3.0f;
-        public float maxCompressionSpeed = 4.0f;
+        [Tooltip("Highest retraction any table row may ask for. The row itself sets the live ceiling.")]
+        public float maxCompressionSpeed = 5.0f;
 
         [Header("Gaps")]
-        [Tooltip("Narrowest opening any difficulty curve may produce.")]
-        public float minGapWidth = 1.5f;
+        [Tooltip("Narrowest clear opening that still admits the ball. A shrinking ring never cuts less.")]
+        public float minGapWidth = 0.80f;
         [Tooltip("Angular speed a player can comfortably sustain.")]
-        public float comfortSpinDeg = 200f;
+        public float comfortSpinDeg = 300f;
 
         [Header("Gesture")]
-        [Tooltip("Finger turns 90 degrees, rings turn 90 degrees times this.")]
-        [Range(0.6f, 1.6f)] public float sensitivity = 1.0f;
+        [Tooltip("Finger arc times this is the ring arc. At 3.0 a 120 degree arc is a full turn.")]
+        [Range(0.6f, 4.0f)] public float sensitivity = 3.0f;
         [Tooltip("Ceiling on how fast a gesture may turn the tunnel.")]
-        public float maxUserAngularSpeedDeg = 540f;
+        public float maxUserAngularSpeedDeg = 1500f;
         [Tooltip("Exponential decay of leftover spin once the finger lifts.")]
         public float inertiaDecay = 5.0f;
         [Tooltip("Touches closer to the centre than this are ignored — there a pixel is a huge angle.")]
@@ -104,11 +129,19 @@ namespace HR.Gameplay
         [Tooltip("Radius change that triggers a rebuild in RebuildOnThreshold mode.")]
         public float rebuildThreshold = 0.02f;
 
-        public GestureSettings ToGestureSettings(bool inverted = false) => new GestureSettings(
-            sensitivity, maxUserAngularSpeedDeg, inertiaDecay, deadZoneRadius, inverted);
+        /// <summary>Where the camera sits so the tunnel centre lands at its share of the height.</summary>
+        public float CameraOffsetY => (0.5f - centreHeightFraction) * 2f * orthoSize;
+
+        /// <summary>
+        /// The player's slider scales the base gain rather than replacing it, so the setting
+        /// keeps the spec's 0.6–1.6 range while the feel of 1.0 is ours to choose.
+        /// </summary>
+        public GestureSettings ToGestureSettings(float playerSensitivity = 1f, bool inverted = false) =>
+            new GestureSettings(sensitivity * playerSensitivity, maxUserAngularSpeedDeg,
+                                inertiaDecay, deadZoneRadius, inverted);
 
         public TunnelSettings ToSettings() => new TunnelSettings(
-            thickness, clearance, targetRadius, vanishRadius, ballRadius, crushMargin,
+            thickness, clearance, targetRadius, vanishRadius, ballRadius, redRadius,
             passMargin, minGapWidth, pullToCentre, maxCompressionSpeed, comfortSpinDeg,
             maxBallSpeed, maxArcStepDeg, maxSegmentSweepDeg, ringsAhead, capPoints);
 

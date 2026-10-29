@@ -37,29 +37,41 @@ namespace HR.Tests.EditMode
         [Test]
         public void Compression_matches_the_contract_at_every_anchor()
         {
+            // CONTRACT.md §2.7 after D-059: the squeeze is four times what it was, because a
+            // tunnel that takes ten seconds to deliver a ring is a screensaver.
             var c = Curve;
-            Assert.AreEqual(0.15, c.CompressionSpeedAt(0), 1e-9);
-            Assert.AreEqual(0.22, c.CompressionSpeedAt(10), 1e-9);
-            Assert.AreEqual(0.38, c.CompressionSpeedAt(30), 1e-9);
-            Assert.AreEqual(0.60, c.CompressionSpeedAt(80), 1e-9);
+            Assert.AreEqual(0.45, c.CompressionSpeedAt(0), 1e-9);
+            Assert.AreEqual(0.55, c.CompressionSpeedAt(10), 1e-9);
+            Assert.AreEqual(0.70, c.CompressionSpeedAt(30), 1e-9);
+            Assert.AreEqual(0.85, c.CompressionSpeedAt(80), 1e-9);
+        }
+
+        [Test]
+        public void Retraction_matches_the_contract_at_every_anchor()
+        {
+            var c = Curve;
+            Assert.AreEqual(2.0, c.MaxCompressionSpeedAt(0), 1e-9);
+            Assert.AreEqual(3.0, c.MaxCompressionSpeedAt(10), 1e-9);
+            Assert.AreEqual(4.0, c.MaxCompressionSpeedAt(30), 1e-9);
+            Assert.AreEqual(5.0, c.MaxCompressionSpeedAt(80), 1e-9);
         }
 
         [Test]
         public void Gap_width_matches_the_contract_at_every_anchor()
         {
             var c = Curve;
-            Assert.AreEqual(3.2, c.GapArcWidthAt(0), 1e-9);
-            Assert.AreEqual(2.8, c.GapArcWidthAt(10), 1e-9);
-            Assert.AreEqual(2.2, c.GapArcWidthAt(30), 1e-9);
-            Assert.AreEqual(1.6, c.GapArcWidthAt(80), 1e-9);
+            Assert.AreEqual(4.10, c.GapArcWidthAt(0), 1e-9);
+            Assert.AreEqual(3.70, c.GapArcWidthAt(10), 1e-9);
+            Assert.AreEqual(3.27, c.GapArcWidthAt(30), 1e-9);
+            Assert.AreEqual(2.60, c.GapArcWidthAt(80), 1e-9);
         }
 
         [Test]
         public void Spin_matches_the_contract_at_every_anchor_past_the_tutorial()
         {
             var c = Curve;
-            Assert.AreEqual(12.0, c.AutoSpinAt(10), 1e-9);
-            Assert.AreEqual(35.0, c.AutoSpinAt(30), 1e-9);
+            Assert.AreEqual(15.0, c.AutoSpinAt(10), 1e-9);
+            Assert.AreEqual(40.0, c.AutoSpinAt(30), 1e-9);
             Assert.AreEqual(70.0, c.AutoSpinAt(80), 1e-9);
         }
 
@@ -113,9 +125,9 @@ namespace HR.Tests.EditMode
             // An endless game that tightens forever stops being a test of skill and becomes a
             // coin flip. Past the last anchor everything holds.
             var c = Curve;
-            Assert.AreEqual(c.CompressionSpeedAt(DifficultyCurve.Ceiling), c.CompressionSpeedAt(5000), 1e-12);
-            Assert.AreEqual(c.GapArcWidthAt(DifficultyCurve.Ceiling), c.GapArcWidthAt(5000), 1e-12);
-            Assert.AreEqual(c.AutoSpinAt(DifficultyCurve.Ceiling), c.AutoSpinAt(5000), 1e-12);
+            Assert.AreEqual(c.CompressionSpeedAt(c.Ceiling), c.CompressionSpeedAt(5000), 1e-12);
+            Assert.AreEqual(c.GapArcWidthAt(c.Ceiling), c.GapArcWidthAt(5000), 1e-12);
+            Assert.AreEqual(c.AutoSpinAt(c.Ceiling), c.AutoSpinAt(5000), 1e-12);
         }
 
         [Test]
@@ -198,7 +210,7 @@ namespace HR.Tests.EditMode
         public void The_generator_refuses_to_emit_a_ring_nobody_could_catch()
         {
             // Difficulty asking for 400 deg/s against a budget that cannot support it.
-            var difficulty = new DifficultySnapshot(0.6, 1.6, 400.0, false, 3.83, 200.0);
+            var difficulty = new DifficultySnapshot(0.6, 4.0, 1.6, 400.0, false, 3.83, 200.0);
             var generator = new RingGenerator(5);
             double ceiling = TunnelMath.MaxReachableSpinDeg(200.0, 3.83);
 
@@ -217,7 +229,7 @@ namespace HR.Tests.EditMode
         [Test]
         public void Clamping_is_reported_rather_than_silent()
         {
-            var gentle = new DifficultySnapshot(0.15, 3.2, 20.0, false, 15.33, 200.0);
+            var gentle = new DifficultySnapshot(0.15, 1.0, 3.2, 20.0, false, 15.33, 200.0);
             var generator = new RingGenerator(5);
             double previous = 0.0;
             for (int i = 0; i < 200; i++) previous = generator.Next(gentle, previous).AutoSpinDeg;

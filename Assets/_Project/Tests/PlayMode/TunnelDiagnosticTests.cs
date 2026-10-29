@@ -98,7 +98,9 @@ namespace HR.Tests.PlayMode
                 var ring = _tunnel.ResolveBallRing();
                 if (ring != null)
                 {
-                    fingerAngle += bot.Decide(TunnelMath.BottomAngleDeg, ring.GapCentreWorldDeg, Dt);
+                    // The bot decides a ring angle; the finger moves that divided by the gain.
+                    fingerAngle += bot.Decide(TunnelMath.BottomAngleDeg, ring.GapCentreWorldDeg, Dt)
+                                   / _config.sensitivity;
                     _input.FeedPointer(true, Finger(fingerAngle), Dt);
                     _tunnel.UserAngleDeg = _input.UserAngleDeg;
                 }
@@ -123,7 +125,7 @@ namespace HR.Tests.PlayMode
                               + $"created={_pool.Created} passed={_tunnel.PassedCount} "
                               + $"ballDist={_ball.DistanceToCentre:F3} ballAng={_ball.AngleDeg:F1} "
                               + $"ringR={(r == null ? -1 : r.Radius):F3} gapErr={err:F1} "
-                              + $"user={_input.UserAngleDeg:F1} crushed={_tunnel.IsBallCrushed()}");
+                              + $"user={_input.UserAngleDeg:F1} closed={_tunnel.HasRingClosedOnCentre()}");
                 }
             }
 

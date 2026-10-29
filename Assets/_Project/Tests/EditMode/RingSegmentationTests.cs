@@ -141,58 +141,90 @@ namespace HR.Tests.EditMode
 
 
         [Test]
-        public void ForOpening_delivers_the_opening_that_was_asked_for()
+        public void A_held_gap_delivers_the_opening_it_was_drawn_with()
         {
             // The caps eat half a thickness from each side. Cutting exactly the opening would
             // leave the ball a way out narrower by a full T, and nothing downstream would say so.
-            const double T = 0.30;
+            var s = TunnelSettings.Default;
             foreach (double opening in new[] { 1.2, 1.5, 2.2, 3.2 })
-                foreach (double radius in new[] { 3.0, 1.5, 0.9 })
-                {
-                    var gap = Gap.ForOpening(270.0, opening, T, radius);
-                    double delivered = RingSegmentation.OpeningFor(gap.WidthDeg, T, radius);
-                    Assert.AreEqual(opening, delivered, 1e-9,
-                        $"opening {opening} at R={radius} came out as {delivered}");
-                }
+            {
+                double widthDeg = TunnelMath.HeldGapWidthDeg(opening, s.Thickness, s.TargetRadius,
+                                                             s.TargetRadius, s.MinGapWidth);
+                double delivered = RingSegmentation.OpeningFor(widthDeg, s.Thickness, s.TargetRadius);
+                Assert.AreEqual(opening, delivered, 1e-9,
+                    $"opening {opening} came out as {delivered}");
+            }
         }
 
         [Test]
         public void A_naive_cut_really_would_lose_a_whole_thickness()
         {
             // Guards the reasoning, not just the result: if the caps ever stop bulging into the
-            // gap, ForOpening is over-cutting and this test is the one that should fail.
+            // gap, the cap allowance is over-cutting and this test is the one that should fail.
             const double T = 0.30;
-            var naive = Gap.FromArcLength(270.0, 1.5, 3.0);
-            double delivered = RingSegmentation.OpeningFor(naive.WidthDeg, T, 3.0);
-            Assert.AreEqual(1.5 - T, delivered, 1e-9);
+            double naive = TunnelMath.GapWidthDeg(1.5, 3.0);
+            Assert.AreEqual(1.5 - T, RingSegmentation.OpeningFor(naive, T, 3.0), 1e-9);
         }
 
         [Test]
         public void The_minimum_gap_still_clears_the_ball_after_the_cap_allowance()
         {
             var s = TunnelSettings.Default;
-            var gap = Gap.ForOpening(270.0, s.MinGapWidth, s.Thickness, s.TargetRadius);
-            double delivered = RingSegmentation.OpeningFor(gap.WidthDeg, s.Thickness, s.TargetRadius);
+            double widthDeg = TunnelMath.HeldGapWidthDeg(s.MinGapWidth, s.Thickness, s.TargetRadius,
+                                                         s.TargetRadius, s.MinGapWidth);
+            double delivered = RingSegmentation.OpeningFor(widthDeg, s.Thickness, s.TargetRadius);
             Assert.Greater(delivered, s.BallRadius * 2.0, "the narrowest legal gap does not fit the ball");
         }
 
         [Test]
-        public void A_shrinking_ring_keeps_the_same_opening_in_world_units()
+        public void A_shrinking_ring_keeps_the_same_opening_angle()
         {
-            // Same arc length at three radii: the angular gap grows, the solid arc length that
-            // remains shrinks, and the opening the ball must fit through does not change.
-            const double arc = 1.5;
-            foreach (double radius in new[] { 3.0, 1.5, 0.9 })
-            {
-                var gaps = new[] { Gap.FromArcLength(270.0, arc, radius) };
-                var output = Buffer(1);
-                int n = RingSegmentation.BuildSolidSegments(gaps, 1, MaxSweep, output);
+            // D-059, and the whole point of it: a ring closing in on the centre keeps the notch
+            // it was drawn with. The rule this replaced held the arc length instead, so the same
+            // ring at a third of its radius showed three times the angle and read as falling apart.
+            var s = TunnelSettings.Default;
+            const double opening = 2.0;
+            double atReference = TunnelMath.HeldGapWidthDeg(opening, s.Thickness, s.TargetRadius,
+                                                            s.TargetRadius, s.MinGapWidth);
 
-                double solidDeg = RingSegmentation.SolidSweep(output, n);
-                double gapDeg = 360.0 - solidDeg;
-                double gapArc = gapDeg / TunnelMath.DegPerRad * radius;
-                Assert.AreEqual(arc, gapArc, 1e-6, $"opening changed size at R={radius}");
-            }
+            foreach (double radius in new[] { 12.0, 6.0, 4.0, s.TargetRadius })
+                Assert.AreEqual(atReference,
+                    TunnelMath.HeldGapWidthDeg(opening, s.Thickness, s.TargetRadius, radius,
+                                               s.MinGapWidth),
+                    1e-9, $"the angle changed at R={radius}");
+        }
+
+        [Test]
+        public void Close_to_the_centre_the_angle_grows_only_as_fast_as_the_ball_needs()
+        {
+            // The one exception to holding the angle, and it is physical: held all the way down,
+            // the opening would pinch below the ball before the ring reached the red circle.
+            var s = TunnelSettings.Default;
+            const double opening = 2.0;
+            double held = TunnelMath.HeldGapWidthDeg(opening, s.Thickness, s.TargetRadius,
+                                                     s.TargetRadius, s.MinGapWidth);
+            double atCrush = TunnelMath.HeldGapWidthDeg(opening, s.Thickness, s.TargetRadius,
+                                                        s.CrushRadius, s.MinGapWidth);
+
+            Assert.Greater(atCrush, held, "the opening pinched shut on its way in");
+            Assert.AreEqual(s.MinGapWidth,
+                RingSegmentation.OpeningFor(atCrush, s.Thickness, s.CrushRadius), 1e-9,
+                "the floor gives away more than the ball needs");
+        }
+
+        [Test]
+        public void A_ring_asked_for_less_than_the_floor_is_left_narrow()
+        {
+            // The floor rescues a ring that shrinks into its own opening. It must not widen one
+            // that was deliberately built impassable, or the play-mode test proving the ball
+            // cannot squeeze through a gap narrower than itself would be proving nothing.
+            var s = TunnelSettings.Default;
+            double narrow = s.BallRadius;   // half a ball wide
+            double widthDeg = TunnelMath.HeldGapWidthDeg(narrow, s.Thickness, s.TargetRadius,
+                                                         s.TargetRadius, s.MinGapWidth);
+
+            Assert.AreEqual(narrow, RingSegmentation.OpeningFor(widthDeg, s.Thickness, s.TargetRadius),
+                            1e-9, "the floor widened a ring that was asked to be a wall");
         }
     }
 
@@ -209,8 +241,8 @@ namespace HR.Tests.EditMode
         public void Derived_values_match_the_contract()
         {
             var s = TunnelSettings.Default;
-            Assert.AreEqual(1.55, s.Step, 1e-9, "ring step");
-            Assert.AreEqual(0.70, s.CrushRadius, 1e-9, "crush radius");
+            Assert.AreEqual(1.35, s.Step, 1e-9, "ring step");
+            Assert.AreEqual(0.95, s.CrushRadius, 1e-9, "crush radius");
         }
 
         [Test]

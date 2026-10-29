@@ -169,7 +169,12 @@ namespace HR.Tests.PlayMode
         }
 
         [UnityTest]
-        public IEnumerator Ten_minutes_of_nonsense_input_never_breaks_the_tunnel()
+        // What this covers is rings, not minutes, and D-059 quadrupled how fast they arrive: the
+        // same nonsense now delivers about 240 passes where it used to deliver 60. So the clock
+        // was halved rather than the coverage — at ten simulated minutes the run walked past its
+        // own twenty-minute timeout, because a tighter corridor doubled the cost of a step too.
+        [Timeout(1_200_000)]
+        public IEnumerator Five_minutes_of_nonsense_input_never_breaks_the_tunnel()
         {
             // Fuzzing, deterministically: the same nonsense every run, so a failure can be
             // reproduced rather than waited for. Jumps across the ±180 seam, taps with no
@@ -178,7 +183,7 @@ namespace HR.Tests.PlayMode
             Build(seed: 7);
             var random = new System.Random(20261027);
 
-            const int steps = 54000;   // ten minutes at 90 Hz
+            const int steps = 27000;   // five minutes at 90 Hz
             for (int i = 0; i < steps; i++)
             {
                 switch (random.Next(5))
@@ -223,7 +228,20 @@ namespace HR.Tests.PlayMode
             // rather than GC.GetTotalMemory, which reports the heap's size and not whether this
             // frame added to it.
             Build(seed: 8);
-            for (int i = 0; i < 300; i++) { _tunnel.Step(Dt); Physics2D.Simulate(Dt); }
+
+            // Warmed by playing, not by stepping a still tunnel. The pool only reaches its
+            // working size once rings have actually been passed and retired, and a warmup that
+            // never scores leaves the first pass of the measured window building a ring — which
+            // is the pool filling up, not the loop leaking.
+            for (int i = 0; i < 1800; i++)
+            {
+                _fingerAngle += 3.0;
+                _input.FeedPointer(true, FingerAt(_fingerAngle), Dt);
+                _tunnel.UserAngleDeg = _input.UserAngleDeg;
+                _tunnel.Step(Dt);
+                _ball.ClampSpeed();
+                Physics2D.Simulate(Dt);
+            }
 
             var recorder = ProfilerRecorder.StartNew(ProfilerCategory.Memory, "GC Allocated In Frame");
             Assert.IsTrue(recorder.Valid, "the allocation recorder is unavailable");
@@ -231,6 +249,7 @@ namespace HR.Tests.PlayMode
             yield return null;   // let the recorder settle on a real frame
 
             long worst = 0;
+            int createdBefore = _pool.Created;
             for (int i = 0; i < 240; i++)
             {
                 _fingerAngle += 3.0;
@@ -249,7 +268,13 @@ namespace HR.Tests.PlayMode
             // Not zero: the test runner's own coroutine machinery allocates on every frame it
             // drives, and that is not the game's doing. The bar is that the game loop cannot be
             // what is producing kilobytes per frame.
-            Debug.Log($"[HR] allocation gate: worst frame allocated {worst} bytes");
+            Debug.Log($"[HR] allocation gate: worst frame allocated {worst} bytes, "
+                      + $"{_pool.Created - createdBefore} rings built during the window");
+
+            // Named separately because it is the one cause worth telling apart: a ring built
+            // mid-run is the pool failing, and the byte count alone does not say which it was.
+            Assert.AreEqual(createdBefore, _pool.Created,
+                $"the pool built {_pool.Created - createdBefore} ring(s) during a running game");
             Assert.Less(worst, 4096,
                 $"the game loop allocated {worst} bytes in a frame");
         }

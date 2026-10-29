@@ -50,7 +50,8 @@ namespace HR.Gameplay
             _tunnel = tunnel;
             _ball = ball;
             _score = new ScoreKeeper(best);
-            _curve = new DifficultyCurve(_settings);
+            _curve = new DifficultyCurve(
+                _settings, config.difficulty != null ? config.difficulty.ToAnchors() : null);
 
             _states.Changed += (from, to) => StateChanged?.Invoke(from, to);
             _tunnel.RingPassed += OnRingPassed;
@@ -145,7 +146,7 @@ namespace HR.Gameplay
 
             ApplyDifficulty();
 
-            if (_tunnel.IsBallCrushed() || _tunnel.IsBallOutOfBounds())
+            if (_tunnel.HasRingClosedOnCentre() || _tunnel.IsBallOutOfBounds())
                 _states.Fire(GameTrigger.Crushed);
         }
 

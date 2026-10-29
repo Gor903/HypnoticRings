@@ -129,6 +129,10 @@ namespace HR.UI
             _settings = settings ?? throw new ArgumentNullException(nameof(settings));
             _score = score ?? throw new ArgumentNullException(nameof(score));
 
+            // Raised with the canvas, not alongside it: a screen nobody can press is not an
+            // interface, and the two have no business being able to exist without each other.
+            UiBuilder.EnsureEventSystem(transform);
+
             _canvas = UiBuilder.CreateCanvas("UI", transform, camera);
             var canvas = _canvas;
             var safe = UiBuilder.CreateSafeArea(canvas.transform);

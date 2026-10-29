@@ -35,8 +35,8 @@ namespace HR.Tests.PlayMode
             cameraGo.transform.SetParent(_root.transform, false);
             _camera = cameraGo.GetComponent<Camera>();
             _camera.orthographic = true;
-            _camera.orthographicSize = 7.5f;
-            _camera.transform.position = new Vector3(0f, 0f, -10f);
+            _camera.orthographicSize = _config.orthoSize;
+            _camera.transform.position = new Vector3(0f, _config.CameraOffsetY, -10f);
 
             var inputGo = new GameObject("Input");
             inputGo.transform.SetParent(_root.transform, false);

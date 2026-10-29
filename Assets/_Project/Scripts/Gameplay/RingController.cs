@@ -32,6 +32,9 @@ namespace HR.Gameplay
 
         int _activeSegments;
         int _gapCount;
+        bool _solid;
+        double _dissolveLeft;
+        double _dissolveSeconds;
         double _radius;
         double _builtRadius;
         double _baseRadius;
@@ -49,11 +52,10 @@ namespace HR.Gameplay
         public double Radius => _radius;
 
         /// <summary>
-        /// Radius the geometry was last built at. In threshold mode this trails Radius, and the
-        /// difference is the mode's real error — the measurements that read built geometry
-        /// cannot see it, so it is exposed rather than left implicit.
+        /// How far the built geometry trails the real radius. In threshold mode that lag is the
+        /// mode's actual error, and the measurements that read built geometry cannot see it, so
+        /// it is exposed rather than left implicit. The benchmark reports the worst of it.
         /// </summary>
-        public double BuiltRadius => _builtRadius;
         public double RadiusLag => System.Math.Abs(_radius - _builtRadius);
         public double GapCentreLocalDeg { get; private set; }
         public double GapArcWidth { get; private set; }
@@ -63,6 +65,61 @@ namespace HR.Gameplay
         public double GapCentreWorldDeg => TunnelMath.NormalizeDeg(GapCentreLocalDeg + TotalRotationDeg);
 
         public double TotalRotationDeg { get; private set; }
+
+        /// <summary>True from the moment the ball leaves this ring until it goes back to the pool.</summary>
+        public bool IsDissolving => _dissolveLeft > 0.0;
+
+        /// <summary>0 at the start of the dissolve, 1 when there is nothing left to draw.</summary>
+        public double DissolveProgress =>
+            _dissolveSeconds <= 0.0 ? 1.0 : 1.0 - _dissolveLeft / _dissolveSeconds;
+
+        /// <summary>
+        /// Whether this ring is a wall right now. Rings the ball cannot reach this step do not
+        /// need to be: D-059 put ten of them in the frame and halved the corridor, and Box2D was
+        /// then testing the ball against thirty polygon colliders it could not possibly touch.
+        ///
+        /// Cached rather than written through every step — flipping a collider that is already in
+        /// the right state is a native call per segment per ring per step, which is the cost this
+        /// is here to avoid. A dissolving ring never comes back: it has already been left.
+        /// </summary>
+        public void SetSolid(bool solid)
+        {
+            if (IsDissolving) solid = false;
+            if (_solid == solid) return;
+            _solid = solid;
+            SetCollidersEnabled(solid);
+        }
+
+        /// <summary>
+        /// The ball is out: stop being a wall at once, then fade.
+        ///
+        /// The colliders go first and the picture follows, because the edge of the opening the
+        /// ball has just cleared is still right next to it — left solid for even the length of
+        /// the fade, it would bat the ball back inside a ring it has already scored.
+        /// </summary>
+        public void BeginDissolve(double seconds)
+        {
+            if (IsDissolving) return;
+
+            _dissolveSeconds = seconds > 0.0 ? seconds : 0.0;
+            _dissolveLeft = _dissolveSeconds;
+            _solid = false;
+            SetCollidersEnabled(false);
+        }
+
+        /// <summary>Advances the fade. True once there is nothing left and the ring can be retired.</summary>
+        public bool AdvanceDissolve(double dt)
+        {
+            if (!IsDissolving) return false;
+            _dissolveLeft -= dt;
+            return _dissolveLeft <= 0.0;
+        }
+
+        void SetCollidersEnabled(bool enabled)
+        {
+            for (int i = 0; i < _activeSegments; i++)
+                _segments[i].Collider.enabled = enabled;
+        }
 
         /// <summary>Builds the segment children. Call once; Configure after it, as often as you like.</summary>
         public void Initialise(GameConfig config, Material material, int id)
@@ -76,7 +133,9 @@ namespace HR.Gameplay
             _body.bodyType = RigidbodyType2D.Kinematic;
             _body.useFullKinematicContacts = true;
 
-            _gaps = new Gap[2];
+            // One gap per ring, and the array says so. It held two for a second opening that
+            // was never built, which also made every ring carry a segment it could not use.
+            _gaps = new Gap[1];
             int maxSegments = RingSegmentation.UpperBoundSegments(_gaps.Length, _settings.MaxSegmentSweepDeg);
             _spans = new ArcSpan[maxSegments];
             _segments = new RingSegment[maxSegments];
@@ -95,37 +154,33 @@ namespace HR.Gameplay
             }
         }
 
-        /// <summary>Places the ring. Gap width is an arc length, not an angle — see CONTRACT.md §2.2.</summary>
+        /// <summary>Places the ring. Gap width is the opening at the target radius — CONTRACT.md §2.2.</summary>
         public void Configure(double radius, double gapCentreLocalDeg, double gapArcWidth, double autoSpinDeg)
-        {
-            GapCentreLocalDeg = gapCentreLocalDeg;
-            GapArcWidth = gapArcWidth;
-            _autoSpinDeg = autoSpinDeg;
-            _gapCount = 1;
-            _radius = radius;
-            _baseRadius = radius;
-            _spinDeg = 0.0;
-            _shaded = false;
-
-            RebuildGeometry(radius);
-            ApplyRotation(0.0);
-        }
+            => Place(radius, gapCentreLocalDeg, gapArcWidth, autoSpinDeg, gapCount: 1);
 
         /// <summary>
         /// A ring with no way out. Not a game state — it is what the tunnelling test needs, so
         /// that any escape at all is a failure rather than a judgement call.
         /// </summary>
         public void ConfigureSolid(double radius, double autoSpinDeg)
+            => Place(radius, 0.0, 0.0, autoSpinDeg, gapCount: 0);
+
+        void Place(double radius, double gapCentreLocalDeg, double gapArcWidth, double autoSpinDeg,
+                   int gapCount)
         {
-            GapCentreLocalDeg = 0.0;
-            GapArcWidth = 0.0;
+            GapCentreLocalDeg = gapCentreLocalDeg;
+            GapArcWidth = gapArcWidth;
             _autoSpinDeg = autoSpinDeg;
-            _gapCount = 0;
+            _gapCount = gapCount;
             _radius = radius;
             _baseRadius = radius;
             _spinDeg = 0.0;
             _shaded = false;
+            _dissolveLeft = 0.0;
+            _solid = true;
 
+            // The rebuild is what switches the colliders on, because it is what decides which
+            // segments exist at this radius in the first place.
             RebuildGeometry(radius);
             ApplyRotation(0.0);
         }
@@ -178,10 +233,11 @@ namespace HR.Gameplay
         {
             _builtRadius = radius;
 
-            // The angular width follows from the arc length, so shrinking widens the angle and
-            // the opening stays the same size in world units. ForOpening also pays for the
-            // rounded caps, which bulge into the gap from both sides.
-            _gaps[0] = Gap.ForOpening(GapCentreLocalDeg, GapArcWidth, _settings.Thickness, radius);
+            // The angle is held, not the arc: a shrinking ring keeps the opening it was drawn
+            // with instead of tearing wider as it closes in. The width also pays for the rounded
+            // caps, which bulge into the gap from both sides.
+            _gaps[0] = new Gap(GapCentreLocalDeg, TunnelMath.HeldGapWidthDeg(
+                GapArcWidth, _settings.Thickness, _settings.TargetRadius, radius, _settings.MinGapWidth));
 
             int count = RingSegmentation.BuildSolidSegments(
                 _gaps, _gapCount, _settings.MaxSegmentSweepDeg, _spans);
@@ -191,6 +247,10 @@ namespace HR.Gameplay
                 var segment = _segments[i];
                 if (!segment.gameObject.activeSelf) segment.gameObject.SetActive(true);
                 segment.Rebuild(_spans[i], radius, _settings);
+
+                // A segment switched on by a rebuild arrives with its collider enabled, which
+                // would hand a ring back its walls behind SetSolid's back.
+                if (segment.Collider.enabled != _solid) segment.Collider.enabled = _solid;
             }
 
             for (int i = count; i < _activeSegments; i++)

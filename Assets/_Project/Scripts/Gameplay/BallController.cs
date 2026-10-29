@@ -7,8 +7,11 @@ namespace HR.Gameplay
     /// The ball. Moved only by physics — never teleported, never animated along a path, because
     /// the whole design rests on the contact between ball and arc feeling honest.
     ///
-    /// The one thing imposed on it is a speed ceiling, and that is a safety rule: a ball moving
-    /// further in one step than a ring is thick could pass straight through one.
+    /// Two things are imposed on it. A speed ceiling, which is a safety rule: a ball moving
+    /// further in one step than a ring is thick could pass straight through one. And a
+    /// regulator that holds it near its cruising speed, which is what keeps it flying for a
+    /// whole run — perfect bounces are not actually perfect, and a moving wall gives energy as
+    /// readily as it takes it.
     /// </summary>
     [RequireComponent(typeof(Rigidbody2D), typeof(CircleCollider2D))]
     public sealed class BallController : MonoBehaviour
@@ -27,6 +30,8 @@ namespace HR.Gameplay
         Rigidbody2D _body;
         CircleCollider2D _collider;
         float _maxSpeed;
+        float _cruiseSpeed;
+        float _cruiseAccel;
 
         public Rigidbody2D Body => _body;
         public float Radius => _collider.radius;
@@ -57,12 +62,14 @@ namespace HR.Gameplay
             _collider = GetComponent<CircleCollider2D>();
 
             _maxSpeed = config.maxBallSpeed;
+            _cruiseSpeed = config.cruiseSpeed;
+            _cruiseAccel = config.cruiseAccel;
             _collider.radius = config.ballRadius;
             _collider.sharedMaterial = material;
 
             _body.bodyType = RigidbodyType2D.Dynamic;
             _body.mass = 1f;
-            _body.gravityScale = 1f;
+            _body.gravityScale = config.ballGravityScale;
             _body.collisionDetectionMode = CollisionDetectionMode2D.Continuous;
             _body.interpolation = RigidbodyInterpolation2D.Interpolate;
             _body.sharedMaterial = material;
@@ -76,9 +83,39 @@ namespace HR.Gameplay
             transform.position = position;
         }
 
+        /// <summary>Throws the ball: a place and a heading, both decided by the run's seed.</summary>
+        public void Launch(in LaunchPlan plan)
+        {
+            Place(new Vector2((float)plan.X, (float)plan.Y));
+            _body.linearVelocity = new Vector2((float)plan.VelocityX, (float)plan.VelocityY);
+        }
+
         void FixedUpdate()
         {
+            HoldCruisingSpeed(Time.fixedDeltaTime);
             ClampSpeed();
+        }
+
+        /// <summary>
+        /// Eases the ball's speed back toward its cruising speed.
+        ///
+        /// Exposed so the physics-step tests can drive it without waiting for FixedUpdate. Only
+        /// the magnitude is touched — the direction belongs to whatever the ball last hit, and
+        /// steering it here would be animating the ball rather than simulating it.
+        /// </summary>
+        public void HoldCruisingSpeed(float dt)
+        {
+            if (_cruiseSpeed <= 0f || dt <= 0f) return;
+
+            Vector2 v = _body.linearVelocity;
+            float speed = v.magnitude;
+
+            // A ball at a dead stop has no direction to preserve, so there is nothing to scale.
+            // It cannot happen with a full bounce, and guessing a heading would hide it if it did.
+            if (speed < 1e-4f) return;
+
+            float wanted = Mathf.MoveTowards(speed, _cruiseSpeed, _cruiseAccel * dt);
+            _body.linearVelocity = v * (wanted / speed);
         }
 
         /// <summary>

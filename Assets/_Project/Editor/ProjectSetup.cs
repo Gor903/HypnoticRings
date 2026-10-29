@@ -32,12 +32,24 @@ namespace HR.Editor
         public const float Gravity = -14f;
         public const int PhysicsHz = 90;
 
+        // Below this impact speed Box2D stops bouncing and lets the contact rest. At the default
+        // of 1 a ball that is meant to fly forever quietly settles against a wall instead, and
+        // nothing in the game says why — the bounce material is still 1.0 and looks right.
+        public const float BounceThreshold = 0.01f;
+
         const string RenderingDir = "Assets/_Project/Config/Rendering";
         const string RendererPath = RenderingDir + "/UniversalRenderer.asset";
         const string PipelinePath = RenderingDir + "/URP-HypnoticRings.asset";
 
+        // 0 is the old Input Manager, 1 the Input System package, 2 both. Every input path in the
+        // game is written against the package, and under the old backend the package is handed no
+        // devices at all — Touchscreen.current, Mouse.current and Keyboard.current are each null,
+        // nothing throws, and the game is simply deaf on a phone.
+        public const int InputHandlerPackage = 1;
+
         const string Physics2DAsset = "ProjectSettings/Physics2DSettings.asset";
         const string TimeAsset = "ProjectSettings/TimeManager.asset";
+        const string PlayerSettingsAsset = "ProjectSettings/ProjectSettings.asset";
 
         [MenuItem("Hypnotic Rings/Setup/Apply project settings")]
         public static void ApplyAll()
@@ -75,10 +87,21 @@ namespace HR.Editor
                    "scripting backend is not IL2CPP");
             Expect(PlayerSettings.colorSpace == ColorSpace.Linear, $"colorSpace is {PlayerSettings.colorSpace}");
 
+            // Only the stored value is checked here. Whether this session actually compiled
+            // against the package is a different question, and not one Apply can satisfy in the
+            // run that sets it — the editor has to be relaunched first. InputBackendTests asks it,
+            // where a fresh editor makes the answer mean something.
+            int handler = ActiveInputHandler();
+            Expect(handler == InputHandlerPackage,
+                   $"activeInputHandler is {handler}; the game's input is written against the package");
+
             Expect(GraphicsSettings.defaultRenderPipeline is UniversalRenderPipelineAsset,
                    "default render pipeline is not URP");
 
             Expect(Mathf.Approximately(Physics2D.gravity.y, Gravity), $"gravity is {Physics2D.gravity.y}");
+
+            Expect(Mathf.Abs(Physics2D.bounceThreshold - BounceThreshold) < 1e-6f,
+                   $"bounce threshold is {Physics2D.bounceThreshold}, expected {BounceThreshold}");
 
             float expected = 1f / PhysicsHz;
             Expect(Mathf.Abs(Time.fixedDeltaTime - expected) < 1e-6f,
@@ -188,6 +211,12 @@ namespace HR.Editor
 
             PlayerSettings.Android.renderOutsideSafeArea = true;
             PlayerSettings.Android.startInFullscreen = true;
+
+            // No scripting API exposes this one, so it is edited in the asset like the physics
+            // and time settings. It takes effect on the next editor launch, which is why Verify
+            // reads it back out of the file rather than trusting the assignment.
+            EditProjectSetting(PlayerSettingsAsset, so =>
+                so.FindProperty("activeInputHandler").intValue = InputHandlerPackage);
         }
 
         /// <summary>
@@ -213,7 +242,17 @@ namespace HR.Editor
             // These live in ProjectSettings assets rather than behind a scripting API that
             // persists, so they are edited through SerializedObject and saved explicitly.
             EditProjectSetting(Physics2DAsset, so =>
-                so.FindProperty("m_Gravity").vector2Value = new Vector2(0f, Gravity));
+            {
+                so.FindProperty("m_Gravity").vector2Value = new Vector2(0f, Gravity);
+
+                // m_BounceThreshold in the asset, and Physics2D.bounceThreshold in Unity 6;
+                // older layouts spell it velocityThreshold, so both names are tried.
+                var threshold = so.FindProperty("m_BounceThreshold")
+                             ?? so.FindProperty("m_VelocityThreshold");
+                if (threshold == null)
+                    throw new InvalidOperationException("Physics2D settings carry no bounce threshold");
+                threshold.floatValue = BounceThreshold;
+            });
 
             EditProjectSetting(TimeAsset, so => SetFixedTimestep(so.FindProperty("Fixed Timestep")));
         }
@@ -249,6 +288,15 @@ namespace HR.Editor
                     $"{PhysicsHz} Hz is not exactly representable at {ticksPerSecond}/{den} ticks per second");
 
             count.longValue = ticksPerSecond / divisor;
+        }
+
+        /// <summary>Reads the stored backend out of the asset. -1 when it cannot be read at all.</summary>
+        static int ActiveInputHandler()
+        {
+            var assets = AssetDatabase.LoadAllAssetsAtPath(PlayerSettingsAsset);
+            if (assets == null || assets.Length == 0 || assets[0] == null) return -1;
+            var prop = new SerializedObject(assets[0]).FindProperty("activeInputHandler");
+            return prop?.intValue ?? -1;
         }
 
         static void EditProjectSetting(string assetPath, Action<SerializedObject> edit)

@@ -37,7 +37,12 @@ namespace HR.App
         Effects _effects;
         ScreenJuice _juice;
         Haptics _haptics;
+        AndroidBackButton _back;
+        CentreMarker _centre;
         Camera _camera;
+
+        /// <summary>The numbers the scene was raised from, so a test can check against the source.</summary>
+        public GameConfig Config => config;
 
         public GameManager Game => _game;
         public GameUi Ui => _ui;
@@ -49,6 +54,12 @@ namespace HR.App
         public Effects Effects => _effects;
         public ScreenJuice Juice => _juice;
         public Haptics Haptics => _haptics;
+
+        /// <summary>The red circle at the centre, so a test can read what it was painted.</summary>
+        public CentreMarker Centre => _centre;
+
+        /// <summary>The system back button, so a test can press it without a phone.</summary>
+        public AndroidBackButton Back => _back;
 
         bool _built;
 
@@ -106,12 +117,18 @@ namespace HR.App
             if (_camera != null && _camera.GetComponent<UniversalAdditionalCameraData>() == null)
                 _camera.gameObject.AddComponent<UniversalAdditionalCameraData>();
 
+            ApplyFraming();
+
             var settings = config.ToSettings();
             var material = TunnelFactory.CreateUnlitMaterial(Color.white);
             var ringPhysics = TunnelFactory.CreatePhysicsMaterial("Ring", config.ringFriction, config.ringBounce);
             var ballPhysics = TunnelFactory.CreatePhysicsMaterial("Ball", config.ballFriction, config.ballBounce);
 
             _ball = TunnelFactory.CreateBall(config, transform, ballPhysics, material, settings);
+
+            var centreGo = new GameObject("Centre");
+            _centre = centreGo.AddComponent<CentreMarker>();
+            _centre.Initialise(config, transform, material);
 
             var tunnelGo = new GameObject("Tunnel");
             tunnelGo.transform.SetParent(transform, false);
@@ -128,7 +145,7 @@ namespace HR.App
             var inputGo = new GameObject("Input");
             inputGo.transform.SetParent(transform, false);
             _input = inputGo.AddComponent<InputController>();
-            _input.Initialise(config.ToGestureSettings(_settings.invertRotation), _camera);
+            _input.Initialise(config.ToGestureSettings(_settings.sensitivity, _settings.invertRotation), _camera);
 
             var themesGo = new GameObject("Themes");
             themesGo.transform.SetParent(transform, false);
@@ -159,6 +176,10 @@ namespace HR.App
 
             ApplyEffectSettings();
 
+            // Registered once the screens exist, because the first press can arrive immediately.
+            _back = new AndroidBackButton();
+            _back.Pressed += SystemBack;
+
             Wire();
             _themes.Apply(_settings.Theme);
             _ui.ApplyTheme(_themes.Palette);
@@ -168,6 +189,23 @@ namespace HR.App
         }
 
         PhysicsMaterial2D _ringPhysics;
+
+        /// <summary>
+        /// Points the camera at the tunnel the way the config asks. Done here rather than only
+        /// in SceneBuilder because the framing is a number to be tuned, and tuning it should not
+        /// mean regenerating the scenes — both read the same asset, so neither can drift.
+        /// </summary>
+        void ApplyFraming()
+        {
+            if (_camera == null) return;
+
+            _camera.orthographic = true;
+            _camera.orthographicSize = config.orthoSize;
+
+            var position = _camera.transform.position;
+            _camera.transform.position =
+                new Vector3(transform.position.x, transform.position.y + config.CameraOffsetY, position.z);
+        }
 
         void Wire()
         {
@@ -197,7 +235,7 @@ namespace HR.App
                 _audio.ApplySettings();
                 ApplyEffectSettings();
                 Strings.Apply(_settings.Language, DeviceLanguage());
-                _input.Initialise(config.ToGestureSettings(_settings.invertRotation), _camera);
+                _input.Initialise(config.ToGestureSettings(_settings.sensitivity, _settings.invertRotation), _camera);
                 Persist();
             };
 
@@ -252,6 +290,7 @@ namespace HR.App
             bool inPlay = state == GameState.Playing || state == GameState.Paused
                           || state == GameState.GameOver;
             if (_ball != null) _ball.gameObject.SetActive(inPlay);
+            if (_centre != null) _centre.gameObject.SetActive(inPlay);
         }
 
         /// <summary>
@@ -279,6 +318,7 @@ namespace HR.App
             var palette = _themes.Palette;
             _effects.TrailColour = ThemeApplier.ToColor(palette.RingColourAt(0));
             _juice.CurtainColour = ThemeApplier.ToColor(palette.Background);
+            _centre.Apply(ThemeApplier.ToColor(palette.Background));
         }
 
         void StartRun()
@@ -326,13 +366,27 @@ namespace HR.App
                 _tunnel.transform.Rotate(0f, 0f, MenuSpinDegPerSecond * Time.deltaTime);
             }
 
-            // Android's back button, routed through the same state machine as everything else.
+            // Escape, which is what Unity makes of a back *key*. Android 13 and up send the
+            // gesture to a callback instead, and AndroidBackButton picks that up; both land on
+            // SystemBack, which is where the one decision lives.
             if (UnityEngine.InputSystem.Keyboard.current != null
                 && UnityEngine.InputSystem.Keyboard.current.escapeKey.wasPressedThisFrame)
-            {
-                if (_game.State == GameState.Menu) Application.Quit();
-                else { _game.Back(); _ui.Show(_game.State); }
-            }
+                SystemBack();
+        }
+
+        int _lastBackFrame = -1;
+
+        /// <summary>
+        /// One press of back, from whichever path the device uses. A device can deliver both at
+        /// once, so the second within a frame is dropped — otherwise one press closes two screens.
+        /// </summary>
+        public void SystemBack()
+        {
+            if (_game == null || Time.frameCount == _lastBackFrame) return;
+            _lastBackFrame = Time.frameCount;
+
+            if (_game.State == GameState.Menu) Application.Quit();
+            else { _game.Back(); _ui.Show(_game.State); }
         }
 
         /// <summary>Backgrounded or interrupted: pause, drop the gesture, and keep the record.</summary>
@@ -349,6 +403,15 @@ namespace HR.App
             if (focused || _game == null) return;
             if (_game.State == GameState.Playing) { _game.Pause(); _ui.Show(_game.State); }
             _input?.Cancel();
+        }
+
+        /// <summary>The callback outlives the scene unless it is handed back.</summary>
+        void OnDestroy()
+        {
+            if (_back == null) return;
+            _back.Pressed -= SystemBack;
+            _back.Dispose();
+            _back = null;
         }
 
         void Persist()

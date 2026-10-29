@@ -19,6 +19,9 @@ namespace HR.Core
     public readonly struct DifficultySnapshot
     {
         public readonly double BaseCompressionSpeed;
+
+        /// <summary>Ceiling on the retraction after a pass. Separate dial from the timer above.</summary>
+        public readonly double MaxCompressionSpeed;
         public readonly double GapArcWidth;
         public readonly double AutoSpinDeg;
         public readonly bool AlternateSpinDirection;
@@ -29,11 +32,13 @@ namespace HR.Core
         /// <summary>Angular speed a player can comfortably sustain.</summary>
         public readonly double ComfortSpinDeg;
 
-        public DifficultySnapshot(double baseCompressionSpeed, double gapArcWidth,
-                                  double autoSpinDeg, bool alternateSpinDirection,
+        public DifficultySnapshot(double baseCompressionSpeed, double maxCompressionSpeed,
+                                  double gapArcWidth, double autoSpinDeg,
+                                  bool alternateSpinDirection,
                                   double timeBudget, double comfortSpinDeg)
         {
             BaseCompressionSpeed = baseCompressionSpeed;
+            MaxCompressionSpeed = maxCompressionSpeed;
             GapArcWidth = gapArcWidth;
             AutoSpinDeg = autoSpinDeg;
             AlternateSpinDirection = alternateSpinDirection;
@@ -41,9 +46,14 @@ namespace HR.Core
             ComfortSpinDeg = comfortSpinDeg;
         }
 
-        /// <summary>The tutorial setting: still rings, wide openings, slow squeeze.</summary>
+        /// <summary>
+        /// The tutorial setting: still rings, wide openings, slow squeeze — asked of the curve
+        /// rather than copied from it. Copied, it was a third place to remember whenever the
+        /// table moved, and the time budget in it was a rounded number that did not quite match
+        /// the one the game goes on to compute.
+        /// </summary>
         public static DifficultySnapshot Opening =>
-            new DifficultySnapshot(0.15, 3.2, 0.0, false, 15.33, 200.0);
+            new DifficultyCurve(TunnelSettings.Default).SnapshotAt(0);
     }
 
     /// <summary>

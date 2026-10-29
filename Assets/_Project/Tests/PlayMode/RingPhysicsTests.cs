@@ -140,7 +140,8 @@ namespace HR.Tests.PlayMode
         public IEnumerator A_gap_narrower_than_the_ball_does_not_pass_it()
         {
             // The opposite guard: physics must not stretch an opening to let the ball squeeze out.
-            BuildSingleRing(gapCentreDeg: 270.0, gapWidth: 0.9, autoSpinDeg: 0.0);
+            BuildSingleRing(gapCentreDeg: 270.0, gapWidth: _settings.BallRadius * 2.0 * 0.8,
+                            autoSpinDeg: 0.0);
             yield return null;
 
             double furthest = Simulate(3.0f, 1f / 90f);
@@ -173,7 +174,10 @@ namespace HR.Tests.PlayMode
 
             for (int trial = 0; trial < trials; trial++)
             {
-                double spin = (random.NextDouble() * 2.0 - 1.0) * _settings.ComfortSpinDeg * 2.7;
+                // The worst case is the gesture ceiling, not a comfortable spin: the finger can
+                // turn a ring far faster than any ring turns itself, and raising that ceiling is
+                // exactly the change this test exists to refuse.
+                double spin = (random.NextDouble() * 2.0 - 1.0) * _config.maxUserAngularSpeedDeg;
                 BuildSingleRing(0, 0, spin, solid: true);
 
                 float angle = (float)(random.NextDouble() * Mathf.PI * 2f);

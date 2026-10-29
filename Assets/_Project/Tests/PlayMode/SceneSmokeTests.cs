@@ -13,9 +13,9 @@ namespace HR.Tests.PlayMode
     /// </summary>
     public class SceneSmokeTests
     {
-        // CONTRACT.md G-10: static orthographic camera, tunnel centre O at 46% of screen height.
-        const float OrthoSize = 7.5f;
-        const float CentreHeightFraction = 0.46f;
+        // CONTRACT.md G-10: a static orthographic camera framing the tunnel. What it should be
+        // framed at comes from the config the scene was built from — repeating the numbers here
+        // would only prove that two files agree with each other.
 
         [UnityTest]
         public IEnumerator Boot_scene_loads_with_a_camera()
@@ -47,16 +47,27 @@ namespace HR.Tests.PlayMode
         {
             yield return LoadScene("Main");
 
+            // A frame, so the bootstrap has had its Awake and pointed the camera where the
+            // config asks. Before that the scene's camera is only what SceneBuilder left.
+            yield return null;
+
+            var bootstrap = Object.FindAnyObjectByType<HR.App.GameBootstrap>();
+            Assert.IsNotNull(bootstrap, "Main has no GameBootstrap");
+            var config = bootstrap.Config;
+            Assert.IsNotNull(config, "the bootstrap carries no config");
+
             var camera = Camera.main;
             Assert.IsNotNull(camera, "Main has no MainCamera-tagged camera");
             Assert.IsTrue(camera.orthographic, "camera must be orthographic");
-            Assert.AreEqual(OrthoSize, camera.orthographicSize, 1e-4f);
+            Assert.AreEqual(config.orthoSize, camera.orthographicSize, 1e-4f);
 
             // World origin projected back to viewport space is the honest check: it survives a
             // future change to how the offset is computed, which asserting the y position would not.
             Vector3 viewport = camera.WorldToViewportPoint(Vector3.zero);
             Assert.AreEqual(0.5f, viewport.x, 1e-4f, "tunnel centre is off the horizontal middle");
-            Assert.AreEqual(CentreHeightFraction, viewport.y, 1e-4f, "tunnel centre is at the wrong height");
+            Assert.AreEqual(config.centreHeightFraction, viewport.y, 1e-4f,
+                            "tunnel centre is at the wrong height");
+            Assert.Greater(viewport.y, 0.5f, "the tunnel centre belongs above the middle of the screen");
         }
 
         [UnityTest]

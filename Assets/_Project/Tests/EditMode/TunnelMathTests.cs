@@ -16,7 +16,7 @@ namespace HR.Tests.EditMode
         const double Step = 1.55;
         const double TargetRadius = 3.0;
         const double BallRadius = 0.5;
-        const double CrushMargin = 0.05;
+        const double RedRadius = 0.55;
         const double ComfortSpin = 200.0;
 
         [TestCase(0.0, 0.0)]
@@ -65,22 +65,6 @@ namespace HR.Tests.EditMode
         }
 
         [Test]
-        public void IsInsideGap_is_true_at_the_centre_and_false_past_the_edge()
-        {
-            // Half-width at R=3, arc 1.5 is 14.32 degrees.
-            Assert.IsTrue(TunnelMath.IsInsideGap(270.0, 270.0, 1.5, 3.0));
-            Assert.IsTrue(TunnelMath.IsInsideGap(283.0, 270.0, 1.5, 3.0));
-            Assert.IsFalse(TunnelMath.IsInsideGap(285.0, 270.0, 1.5, 3.0));
-        }
-
-        [Test]
-        public void IsInsideGap_works_across_the_zero_crossing()
-        {
-            Assert.IsTrue(TunnelMath.IsInsideGap(5.0, 355.0, 1.5, 3.0));
-            Assert.IsTrue(TunnelMath.IsInsideGap(355.0, 5.0, 1.5, 3.0));
-        }
-
-        [Test]
         public void Compression_sits_at_base_speed_in_equilibrium()
         {
             Assert.AreEqual(0.15, TunnelMath.CompressionSpeed(0.15, 3.0, 4.0, TargetRadius, TargetRadius), 1e-9);
@@ -103,19 +87,19 @@ namespace HR.Tests.EditMode
         }
 
         [Test]
-        public void Crush_fires_exactly_when_the_cavity_matches_the_ball()
+        public void The_run_ends_exactly_when_a_ring_reaches_the_red_circle()
         {
-            // Free radius = R - T/2; the ball needs r + margin = 0.55, so R = 0.70 is the boundary.
-            Assert.IsTrue(TunnelMath.IsCrushed(0.70, T, BallRadius, CrushMargin));
-            Assert.IsFalse(TunnelMath.IsCrushed(0.7001, T, BallRadius, CrushMargin));
+            // Free radius = R - T/2, and the circle is drawn at 0.55, so R = 0.70 is the line.
+            Assert.IsTrue(TunnelMath.HasReachedRed(0.70, T, RedRadius));
+            Assert.IsFalse(TunnelMath.HasReachedRed(0.7001, T, RedRadius));
         }
 
         [Test]
         public void A_ring_holding_the_ball_outlives_the_vanish_radius()
         {
-            // Rings vanish at R < 0.9 but crushing happens at 0.70, so the ball's own ring must
-            // survive below the vanish threshold or the lose condition could never fire.
-            Assert.IsFalse(TunnelMath.IsCrushed(0.9, T, BallRadius, CrushMargin));
+            // Rings vanish at R < 0.9 but the circle is reached at 0.70, so the ball's own ring
+            // must survive below the vanish threshold or the run could never be lost.
+            Assert.IsFalse(TunnelMath.HasReachedRed(0.9, T, RedRadius));
         }
 
         [Test]
@@ -139,7 +123,7 @@ namespace HR.Tests.EditMode
         [TestCase(0.60, 3.83)]
         public void TimeBudget_matches_the_spec_table(double vBase, double expectedSeconds)
         {
-            double budget = TunnelMath.TimeBudget(TargetRadius, T, BallRadius, CrushMargin, vBase);
+            double budget = TunnelMath.TimeBudget(TargetRadius, T, RedRadius, vBase);
             Assert.AreEqual(expectedSeconds, budget, 0.01);
         }
 
@@ -147,7 +131,7 @@ namespace HR.Tests.EditMode
         public void TimeBudget_rejects_a_stopped_tunnel()
         {
             Assert.Throws<ArgumentOutOfRangeException>(
-                () => TunnelMath.TimeBudget(TargetRadius, T, BallRadius, CrushMargin, 0.0));
+                () => TunnelMath.TimeBudget(TargetRadius, T, RedRadius, 0.0));
         }
 
         [TestCase(70.0, 70.0)]
@@ -175,14 +159,14 @@ namespace HR.Tests.EditMode
         [Test]
         public void Reachability_accepts_the_worst_case_on_a_still_ring()
         {
-            double budget = TunnelMath.TimeBudget(TargetRadius, T, BallRadius, CrushMargin, 0.60);
+            double budget = TunnelMath.TimeBudget(TargetRadius, T, RedRadius, 0.60);
             Assert.IsTrue(TunnelMath.IsReachable(180.0, 0.0, ComfortSpin, budget));
         }
 
         [Test]
         public void Reachability_rejects_a_gap_that_outruns_the_finger()
         {
-            double budget = TunnelMath.TimeBudget(TargetRadius, T, BallRadius, CrushMargin, 0.60);
+            double budget = TunnelMath.TimeBudget(TargetRadius, T, RedRadius, 0.60);
             Assert.IsFalse(TunnelMath.IsReachable(180.0, 190.0, ComfortSpin, budget));
         }
 
