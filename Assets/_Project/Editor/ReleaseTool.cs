@@ -218,6 +218,8 @@ namespace HR.Editor
                                  "which is the activity the GameActivity application entry needs.");
             }
 
+            problems.AddRange(VerifyDevOnlyPackages());
+
             problems.AddRange(VerifyScenes());
 
             problems.AddRange(VerifyIcons(target));
@@ -253,6 +255,31 @@ namespace HR.Editor
 
             if (landscape && PlayerSettings.allowedAutorotateToPortrait)
                 yield return "Orientation is Landscape but portrait autorotation is still allowed.";
+        }
+
+        // Editor-side agent tooling. Each one's runtime assembly declares no
+        // platform constraints, so a package left here is compiled into the app
+        // and drags its own module dependencies into the merged manifest.
+        static readonly string[] DevOnlyPackages = { "com.coplaydev.unity-mcp" };
+
+        const string PackageManifestPath = "Packages/manifest.json";
+
+        static IEnumerable<string> VerifyDevOnlyPackages()
+        {
+            if (!File.Exists(PackageManifestPath))
+            {
+                yield return $"Package manifest missing at {PackageManifestPath}.";
+                yield break;
+            }
+
+            string manifest = File.ReadAllText(PackageManifestPath);
+
+            foreach (string id in DevOnlyPackages)
+            {
+                if (manifest.Contains(id))
+                    yield return $"Development package '{id}' is still in {PackageManifestPath}; " +
+                                 "remove it before a release build.";
+            }
         }
 
         static IEnumerable<string> VerifyScenes()
