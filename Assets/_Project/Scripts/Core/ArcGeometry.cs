@@ -31,23 +31,33 @@ namespace HR.Core
             return Math.Max(1, (int)Math.Ceiling(sweep / maxStepDeg));
         }
 
-        public static int BandVertexCount(int steps) => 2 * (steps + 1);
-        public static int BandIndexCount(int steps) => 6 * steps;
+        /// <summary>Vertices a cap contributes to the mesh: its centre plus its rim.</summary>
+        static int CapRun(int capPoints) => capPoints > 0 ? capPoints + 1 : 0;
+
+        public static int BandVertexCount(int steps, int capPoints) => 2 * (steps + 1) + 2 * CapRun(capPoints);
+        public static int BandIndexCount(int steps, int capPoints) => 6 * steps + 6 * CapRun(capPoints);
         public static int OutlinePointCount(int steps, int capPoints) => 2 * (steps + 1) + 2 * capPoints;
 
         /// <summary>
-        /// Fills the triangle band. Vertices alternate inner, outer per tessellation step, which
-        /// keeps the index pattern fixed and lets the mesh be refilled without reallocating.
+        /// Fills the triangle band and the two cap fans that round its ends. Band vertices
+        /// alternate inner, outer per tessellation step, which keeps the index pattern fixed and
+        /// lets the mesh be refilled without reallocating; the caps are appended after them.
+        ///
+        /// The caps use the same points as <see cref="FillOutline"/>, so what is drawn is the
+        /// shape the ball actually hits — the spec's T/2 rounding, not a square end over a round
+        /// collider.
         /// </summary>
         public static void FillBand(double midRadius, double thickness, double startDeg, double sweepDeg,
-                                    int steps, Point2[] vertices, int[] triangles)
+                                    int steps, int capPoints, Point2[] vertices, int[] triangles)
         {
             if (steps < 1) throw new ArgumentOutOfRangeException(nameof(steps));
-            Require(vertices, BandVertexCount(steps), nameof(vertices));
-            Require(triangles, BandIndexCount(steps), nameof(triangles));
+            if (capPoints < 0) throw new ArgumentOutOfRangeException(nameof(capPoints));
+            Require(vertices, BandVertexCount(steps, capPoints), nameof(vertices));
+            Require(triangles, BandIndexCount(steps, capPoints), nameof(triangles));
 
-            double inner = midRadius - thickness * 0.5;
-            double outer = midRadius + thickness * 0.5;
+            double half = thickness * 0.5;
+            double inner = midRadius - half;
+            double outer = midRadius + half;
             if (inner <= 0.0)
                 throw new ArgumentOutOfRangeException(nameof(thickness), "thickness swallows the radius");
 
@@ -68,6 +78,45 @@ namespace HR.Core
                 int b = 2 * i;
                 triangles[t] = b; triangles[t + 1] = b + 3; triangles[t + 2] = b + 1;
                 triangles[t + 3] = b; triangles[t + 4] = b + 2; triangles[t + 5] = b + 3;
+            }
+
+            if (capPoints == 0) return;
+
+            int vertex = 2 * (steps + 1), index = 6 * steps;
+            // Each fan hangs off the two band vertices already sitting on that end, so the cap
+            // joins the band seamlessly instead of being a separate sliver with a hairline in it.
+            FillCapFan(vertices, triangles, ref vertex, ref index, midRadius, half,
+                       startDeg + sweepDeg, capPoints, outward: true,
+                       fromEdge: 2 * steps + 1, toEdge: 2 * steps);
+            FillCapFan(vertices, triangles, ref vertex, ref index, midRadius, half,
+                       startDeg, capPoints, outward: false, fromEdge: 0, toEdge: 1);
+        }
+
+        /// <summary>
+        /// Writes one cap as a triangle fan around the mid-line point at <paramref name="atDeg"/>,
+        /// running from the band vertex <paramref name="fromEdge"/> round to <paramref name="toEdge"/>.
+        /// </summary>
+        static void FillCapFan(Point2[] vertices, int[] triangles, ref int vertex, ref int index,
+                               double midRadius, double half, double atDeg, int capPoints,
+                               bool outward, int fromEdge, int toEdge)
+        {
+            double a = atDeg * DegToRad;
+            int centre = vertex;
+            vertices[vertex++] = new Point2((float)(midRadius * Math.Cos(a)), (float)(midRadius * Math.Sin(a)));
+
+            int rim = vertex;
+            for (int i = 1; i <= capPoints; i++)
+                vertices[vertex++] = CapPoint(midRadius, half, atDeg, capPoints, i, outward);
+
+            // The rim runs counter-clockwise around the centre, so each triangle is wound the
+            // other way — the same negative signed area the band uses to face the camera.
+            for (int i = 0; i <= capPoints; i++)
+            {
+                int from = i == 0 ? fromEdge : rim + i - 1;
+                int to = i == capPoints ? toEdge : rim + i;
+                triangles[index++] = centre;
+                triangles[index++] = to;
+                triangles[index++] = from;
             }
         }
 
@@ -118,21 +167,29 @@ namespace HR.Core
         static void WriteCap(Point2[] outline, ref int w, double midRadius, double half,
                              double atDeg, int capPoints, bool outward)
         {
-            if (capPoints == 0) return;
+            for (int i = 1; i <= capPoints; i++)
+                outline[w++] = CapPoint(midRadius, half, atDeg, capPoints, i, outward);
+        }
 
+        /// <summary>
+        /// The i-th interior point of a cap, 1..capPoints, walking the half-circle from the edge
+        /// the cap leaves to the edge it rejoins. Mesh and collider both read their caps from
+        /// here, which is what keeps the drawn end and the physical end the same shape.
+        /// </summary>
+        static Point2 CapPoint(double midRadius, double half, double atDeg, int capPoints,
+                               int i, bool outward)
+        {
             double a = atDeg * DegToRad;
             double cos = Math.Cos(a), sin = Math.Sin(a);
-            double cx = midRadius * cos, cy = midRadius * sin;
-            double tx = -sin, ty = cos;
             double sign = outward ? 1.0 : -1.0;
 
-            for (int i = 1; i <= capPoints; i++)
-            {
-                double phi = Math.PI * i / (capPoints + 1);
-                double r = Math.Cos(phi) * sign * half;
-                double t = Math.Sin(phi) * sign * half;
-                outline[w++] = new Point2((float)(cx + r * cos + t * tx), (float)(cy + r * sin + t * ty));
-            }
+            double phi = Math.PI * i / (capPoints + 1);
+            double r = Math.Cos(phi) * sign * half;
+            double t = Math.Sin(phi) * sign * half;
+
+            // Radial basis (cos, sin), tangential basis (-sin, cos).
+            return new Point2((float)(midRadius * cos + r * cos - t * sin),
+                              (float)(midRadius * sin + r * sin + t * cos));
         }
 
         static void Require<T>(T[] buffer, int needed, string name)

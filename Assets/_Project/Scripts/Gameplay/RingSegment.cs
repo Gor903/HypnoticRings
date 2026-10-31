@@ -48,8 +48,8 @@ namespace HR.Gameplay
             _steps = ArcGeometry.StepsFor(settings.MaxSegmentSweepDeg, settings.MaxArcStepDeg);
             _capPoints = settings.CapPoints;
 
-            _bandVertices = new Point2[ArcGeometry.BandVertexCount(_steps)];
-            _bandTriangles = new int[ArcGeometry.BandIndexCount(_steps)];
+            _bandVertices = new Point2[ArcGeometry.BandVertexCount(_steps, _capPoints)];
+            _bandTriangles = new int[ArcGeometry.BandIndexCount(_steps, _capPoints)];
             _outline = new Point2[ArcGeometry.OutlinePointCount(_steps, _capPoints)];
 
             _meshVertices.Capacity = _bandVertices.Length;
@@ -74,7 +74,7 @@ namespace HR.Gameplay
             Radius = radius;
 
             ArcGeometry.FillBand(radius, settings.Thickness, span.StartDeg, span.SweepDeg,
-                                 _steps, _bandVertices, _bandTriangles);
+                                 _steps, _capPoints, _bandVertices, _bandTriangles);
             ArcGeometry.FillOutline(radius, settings.Thickness, span.StartDeg, span.SweepDeg,
                                     _steps, _capPoints, _outline);
 

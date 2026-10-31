@@ -9,6 +9,7 @@ namespace HR.Tests.EditMode
         const double Mid = 3.0;
         const double T = 0.30;
         const double MaxStep = 7.5;   // CONTRACT.md §2.2: arc approximation step
+        const int Caps = 4;           // TunnelSettings.Default: points per rounded end
 
         static double Radius(Point2 p) => Math.Sqrt(p.X * p.X + p.Y * p.Y);
 
@@ -45,9 +46,9 @@ namespace HR.Tests.EditMode
         public void Band_vertices_sit_exactly_on_the_two_radii()
         {
             int steps = ArcGeometry.StepsFor(120.0, MaxStep);
-            var verts = new Point2[ArcGeometry.BandVertexCount(steps)];
-            var tris = new int[ArcGeometry.BandIndexCount(steps)];
-            ArcGeometry.FillBand(Mid, T, 0.0, 120.0, steps, verts, tris);
+            var verts = new Point2[ArcGeometry.BandVertexCount(steps, Caps)];
+            var tris = new int[ArcGeometry.BandIndexCount(steps, Caps)];
+            ArcGeometry.FillBand(Mid, T, 0.0, 120.0, steps, Caps, verts, tris);
 
             for (int i = 0; i <= steps; i++)
             {
@@ -60,9 +61,9 @@ namespace HR.Tests.EditMode
         public void Band_triangles_all_face_the_camera()
         {
             int steps = ArcGeometry.StepsFor(120.0, MaxStep);
-            var verts = new Point2[ArcGeometry.BandVertexCount(steps)];
-            var tris = new int[ArcGeometry.BandIndexCount(steps)];
-            ArcGeometry.FillBand(Mid, T, 0.0, 120.0, steps, verts, tris);
+            var verts = new Point2[ArcGeometry.BandVertexCount(steps, Caps)];
+            var tris = new int[ArcGeometry.BandIndexCount(steps, Caps)];
+            ArcGeometry.FillBand(Mid, T, 0.0, 120.0, steps, Caps, verts, tris);
 
             // Negative, not merely consistent. The camera looks along +Z, and a triangle wound
             // the other way is back-face culled: the mesh exists, its bounds are right, the
@@ -81,13 +82,13 @@ namespace HR.Tests.EditMode
         public void Band_refills_in_place_without_new_buffers()
         {
             int steps = ArcGeometry.StepsFor(120.0, MaxStep);
-            var verts = new Point2[ArcGeometry.BandVertexCount(steps)];
-            var tris = new int[ArcGeometry.BandIndexCount(steps)];
+            var verts = new Point2[ArcGeometry.BandVertexCount(steps, Caps)];
+            var tris = new int[ArcGeometry.BandIndexCount(steps, Caps)];
 
             // The shrinking tunnel refills these every time a ring's radius moves; allocating
             // per refill is what the no-garbage gate is about.
-            ArcGeometry.FillBand(3.0, T, 0.0, 120.0, steps, verts, tris);
-            ArcGeometry.FillBand(1.2, T, 45.0, 120.0, steps, verts, tris);
+            ArcGeometry.FillBand(3.0, T, 0.0, 120.0, steps, Caps, verts, tris);
+            ArcGeometry.FillBand(1.2, T, 45.0, 120.0, steps, Caps, verts, tris);
 
             Assert.AreEqual(1.2 - T / 2, Radius(verts[0]), 1e-5);
             Assert.AreEqual(1.2 + T / 2, Radius(verts[1]), 1e-5);
@@ -97,10 +98,10 @@ namespace HR.Tests.EditMode
         public void Band_refuses_a_thickness_that_swallows_the_radius()
         {
             int steps = 4;
-            var verts = new Point2[ArcGeometry.BandVertexCount(steps)];
-            var tris = new int[ArcGeometry.BandIndexCount(steps)];
+            var verts = new Point2[ArcGeometry.BandVertexCount(steps, Caps)];
+            var tris = new int[ArcGeometry.BandIndexCount(steps, Caps)];
             Assert.Throws<ArgumentOutOfRangeException>(
-                () => ArcGeometry.FillBand(0.1, T, 0.0, 90.0, steps, verts, tris));
+                () => ArcGeometry.FillBand(0.1, T, 0.0, 90.0, steps, Caps, verts, tris));
         }
 
         [Test]
@@ -109,7 +110,7 @@ namespace HR.Tests.EditMode
             var verts = new Point2[4];
             var tris = new int[6];
             Assert.Throws<ArgumentException>(
-                () => ArcGeometry.FillBand(Mid, T, 0.0, 120.0, 8, verts, tris));
+                () => ArcGeometry.FillBand(Mid, T, 0.0, 120.0, 8, Caps, verts, tris));
         }
 
         [TestCase(0)]
@@ -175,17 +176,111 @@ namespace HR.Tests.EditMode
             Assert.Less(gap, T, "cap does not start where the outer edge ends");
         }
 
+        [TestCase(0, 0)]
+        [TestCase(1, 2)]
+        [TestCase(4, 5)]
+        public void Capped_band_is_sized_for_two_fans(int capPoints, int trianglesPerCap)
+        {
+            int steps = ArcGeometry.StepsFor(120.0, MaxStep);
+            int verts = ArcGeometry.BandVertexCount(steps, capPoints);
+            int indices = ArcGeometry.BandIndexCount(steps, capPoints);
+
+            int capVerts = capPoints == 0 ? 0 : capPoints + 1;   // centre plus rim
+            Assert.AreEqual(2 * (steps + 1) + 2 * capVerts, verts);
+            Assert.AreEqual(6 * steps + 2 * 3 * trianglesPerCap, indices);
+        }
+
+        [Test]
+        public void Drawn_end_is_the_physical_end()
+        {
+            // The point of the change: the mesh used to stop square where the collider was
+            // already round, so the ball bounced off a bulge that was not drawn anywhere. Every
+            // cap point of the collider path must now appear verbatim among the mesh vertices.
+            int steps = ArcGeometry.StepsFor(120.0, MaxStep);
+            var verts = new Point2[ArcGeometry.BandVertexCount(steps, Caps)];
+            var tris = new int[ArcGeometry.BandIndexCount(steps, Caps)];
+            var outline = new Point2[ArcGeometry.OutlinePointCount(steps, Caps)];
+
+            ArcGeometry.FillBand(Mid, T, 30.0, 120.0, steps, Caps, verts, tris);
+            ArcGeometry.FillOutline(Mid, T, 30.0, 120.0, steps, Caps, outline);
+
+            foreach (var cap in CapPointsOf(outline, steps, Caps))
+            {
+                bool found = false;
+                foreach (var v in verts)
+                    if (Math.Abs(v.X - cap.X) < 1e-6 && Math.Abs(v.Y - cap.Y) < 1e-6) { found = true; break; }
+                Assert.IsTrue(found, $"collider cap point {cap} is not drawn");
+            }
+        }
+
+        [Test]
+        public void Cap_fan_is_a_half_circle_of_half_the_thickness()
+        {
+            int steps = ArcGeometry.StepsFor(90.0, MaxStep);
+            var verts = new Point2[ArcGeometry.BandVertexCount(steps, Caps)];
+            var tris = new int[ArcGeometry.BandIndexCount(steps, Caps)];
+            ArcGeometry.FillBand(Mid, T, 0.0, 90.0, steps, Caps, verts, tris);
+
+            // Fan layout after the band: centre, then its rim, for the end cap then the start cap.
+            foreach (int fan in new[] { 2 * (steps + 1), 2 * (steps + 1) + Caps + 1 })
+            {
+                Point2 centre = verts[fan];
+                Assert.AreEqual(Mid, Radius(centre), 1e-5, "cap centre is off the mid-line");
+
+                for (int i = 1; i <= Caps; i++)
+                {
+                    Point2 p = verts[fan + i];
+                    double d = Math.Sqrt(Math.Pow(p.X - centre.X, 2) + Math.Pow(p.Y - centre.Y, 2));
+                    Assert.AreEqual(T / 2, d, 1e-5, "rim point is not at T/2 from the cap centre");
+                    Assert.GreaterOrEqual(Radius(p), Mid - T / 2 - 1e-5, "rim dipped inside the inner surface");
+                    Assert.LessOrEqual(Radius(p), Mid + T / 2 + 1e-5, "rim poked outside the outer surface");
+                }
+            }
+        }
+
+        [Test]
+        public void Capped_band_still_faces_the_camera_at_both_ends()
+        {
+            // A fan wound the wrong way is invisible with no error, exactly like the band was.
+            int steps = ArcGeometry.StepsFor(37.0, MaxStep);
+            var verts = new Point2[ArcGeometry.BandVertexCount(steps, Caps)];
+            var tris = new int[ArcGeometry.BandIndexCount(steps, Caps)];
+
+            foreach (double start in new[] { 0.0, 95.0, 214.0, -40.0 })
+            {
+                ArcGeometry.FillBand(Mid, T, start, 37.0, steps, Caps, verts, tris);
+                for (int t = 0; t < tris.Length; t += 3)
+                {
+                    Point2 a = verts[tris[t]], b = verts[tris[t + 1]], c = verts[tris[t + 2]];
+                    double cross = (b.X - a.X) * (c.Y - a.Y) - (b.Y - a.Y) * (c.X - a.X);
+                    Assert.Less(cross, 0.0, $"triangle {t / 3} at start {start} would be culled");
+                }
+            }
+        }
+
+        /// <summary>The outline's two cap runs: after the outer edge, and after the inner edge.</summary>
+        static Point2[] CapPointsOf(Point2[] outline, int steps, int capPoints)
+        {
+            var caps = new Point2[2 * capPoints];
+            for (int i = 0; i < capPoints; i++)
+            {
+                caps[i] = outline[steps + 1 + i];
+                caps[capPoints + i] = outline[2 * (steps + 1) + capPoints + i];
+            }
+            return caps;
+        }
+
         [Test]
         public void Thickness_is_preserved_at_every_radius_the_tunnel_shrinks_through()
         {
             // The one invariant the whole design rests on: themes and compression may not change T.
             int steps = ArcGeometry.StepsFor(90.0, MaxStep);
-            var verts = new Point2[ArcGeometry.BandVertexCount(steps)];
-            var tris = new int[ArcGeometry.BandIndexCount(steps)];
+            var verts = new Point2[ArcGeometry.BandVertexCount(steps, Caps)];
+            var tris = new int[ArcGeometry.BandIndexCount(steps, Caps)];
 
             foreach (double radius in new[] { 7.65, 6.10, 4.55, 3.00, 1.45, 0.90, 0.70 })
             {
-                ArcGeometry.FillBand(radius, T, 0.0, 90.0, steps, verts, tris);
+                ArcGeometry.FillBand(radius, T, 0.0, 90.0, steps, Caps, verts, tris);
                 double measured = Radius(verts[1]) - Radius(verts[0]);
                 Assert.AreEqual(T, measured, 1e-5, $"thickness drifted at R={radius}");
             }
