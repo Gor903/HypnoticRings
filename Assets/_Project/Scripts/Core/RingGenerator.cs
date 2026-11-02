@@ -2,13 +2,27 @@ using System;
 
 namespace HR.Core
 {
+    /// <summary>What kind of ring the generator decided to make.</summary>
+    public enum RingKind
+    {
+        Plain = 0,
+        MultiGap = 1,
+    }
+
     /// <summary>Everything that distinguishes one ring from the next.</summary>
     public struct RingSpec
     {
-        public double GapCentreDeg;
-        public double GapArcWidth;
+        public RingGaps Gaps;
+        public RingKind Kind;
         public double AutoSpinDeg;
         public int ColourIndex;
+
+        /// <summary>
+        /// The first opening. Kept as a name because most of the game only ever has one, and
+        /// because the bot and the balance simulation aim at a ring rather than at a slot.
+        /// </summary>
+        public double GapCentreDeg => Gaps.A.CentreDeg;
+        public double GapArcWidth => Gaps.A.Opening;
     }
 
     /// <summary>
@@ -32,6 +46,16 @@ namespace HR.Core
         /// <summary>Angular speed a player can comfortably sustain.</summary>
         public readonly double ComfortSpinDeg;
 
+        /// <summary>Chance the next ring is cut with more than one opening, 0 to 1.</summary>
+        public readonly double MultiGapChance;
+
+        /// <summary>Of those, the share that get three openings rather than two.</summary>
+        public readonly double TripleShare;
+
+        /// <summary>Ring thickness and the radius openings are measured at, for angle maths.</summary>
+        public readonly double Thickness;
+        public readonly double ReferenceRadius;
+
         /// <summary>Corridor width right now. Was a constant until the corridor started closing.</summary>
         public readonly double Clearance;
 
@@ -48,8 +72,14 @@ namespace HR.Core
                                   double gapArcWidth, double autoSpinDeg,
                                   bool alternateSpinDirection,
                                   double timeBudget, double comfortSpinDeg,
-                                  double clearance, double step)
+                                  double clearance, double step,
+                                  double multiGapChance = 0.0, double tripleShare = 0.0,
+                                  double thickness = 0.18, double referenceRadius = 3.0)
         {
+            MultiGapChance = multiGapChance;
+            TripleShare = tripleShare;
+            Thickness = thickness;
+            ReferenceRadius = referenceRadius;
             BaseCompressionSpeed = baseCompressionSpeed;
             MaxCompressionSpeed = maxCompressionSpeed;
             GapArcWidth = gapArcWidth;
@@ -102,18 +132,80 @@ namespace HR.Core
         /// spin, which this one has to differ from — identical neighbours read as one rigid
         /// object rather than a tunnel.
         /// </summary>
+        // One buffer for the life of the generator: a ring is born every second or two, and a
+        // three-element array per ring is an allocation in the game loop.
+        readonly double[] _angles = new double[RingGaps.MaxGaps];
+
+        /// <summary>How many multi-gap rings have come out back to back, for the run-length rule.</summary>
+        int _multiGapRun;
+
+        /// <summary>Most multi-gap rings allowed in a row, from plan [G-27].</summary>
+        public const int MaxMultiGapRun = 2;
+
         public RingSpec Next(in DifficultySnapshot difficulty, double previousAutoSpinDeg)
         {
+            int gapCount = ChooseGapCount(difficulty);
+
             var spec = new RingSpec
             {
-                GapCentreDeg = _random.NextDouble() * 360.0,
-                GapArcWidth = difficulty.GapArcWidth,
+                Gaps = BuildGaps(difficulty, gapCount),
+                Kind = gapCount > 1 ? RingKind.MultiGap : RingKind.Plain,
                 AutoSpinDeg = SpinFor(difficulty, previousAutoSpinDeg),
                 ColourIndex = _produced,
             };
 
+            _multiGapRun = gapCount > 1 ? _multiGapRun + 1 : 0;
             _produced++;
             return spec;
+        }
+
+        /// <summary>
+        /// One, two or three openings. The run-length rule is drawn before the dice rather than
+        /// after, so a streak is refused outright instead of being rerolled into a different
+        /// streak — rerolling would bias the chances the table asks for.
+        /// </summary>
+        int ChooseGapCount(in DifficultySnapshot difficulty)
+        {
+            if (_multiGapRun >= MaxMultiGapRun) return 1;
+            if (difficulty.MultiGapChance <= 0.0) return 1;
+            if (_random.NextDouble() >= difficulty.MultiGapChance) return 1;
+
+            int wanted = _random.NextDouble() < difficulty.TripleShare ? 3 : 2;
+
+            // A narrow ring cannot afford what it was asked for: see LargestAffordableCount.
+            double single = GapSplit.AngleFor(difficulty.GapArcWidth,
+                                              difficulty.Thickness, difficulty.ReferenceRadius);
+            return GapSplit.LargestAffordableCount(single, wanted);
+        }
+
+        /// <summary>
+        /// Places the openings around the ring and gives each its width.
+        ///
+        /// Spacing is deliberately uneven. Two openings exactly opposite each other mean the
+        /// ball is never more than a quarter turn from a way out wherever it is, which hands the
+        /// player the thing the ring was supposed to ask of them.
+        /// </summary>
+        RingGaps BuildGaps(in DifficultySnapshot difficulty, int count)
+        {
+            double single = GapSplit.AngleFor(difficulty.GapArcWidth,
+                                              difficulty.Thickness, difficulty.ReferenceRadius);
+            GapSplit.Split(single, count, _angles);
+
+            var gaps = new RingGaps { Count = count };
+            double cursor = _random.NextDouble() * 360.0;
+
+            for (int i = 0; i < count; i++)
+            {
+                double opening = GapSplit.OpeningFor(_angles[i], difficulty.Thickness,
+                                                     difficulty.ReferenceRadius);
+                gaps.Set(i, new GapSpec(Wrap360(cursor), opening));
+
+                // Walk on by an uneven share of what is left, never letting two openings touch.
+                double remaining = 360.0 / count;
+                cursor += remaining * (0.6 + _random.NextDouble() * 0.8);
+            }
+
+            return gaps;
         }
 
         public void Reset()
@@ -121,6 +213,17 @@ namespace HR.Core
             _random = new Random(_seed);
             _produced = 0;
             Clamped = 0;
+            _multiGapRun = 0;
+        }
+
+        /// <summary>
+        /// Folds an angle into [0, 360). Not NormalizeDeg: that lands in (-180, 180], and gap
+        /// centres are stated in the positive turn everywhere else in the project.
+        /// </summary>
+        static double Wrap360(double deg)
+        {
+            double wrapped = deg % 360.0;
+            return wrapped < 0.0 ? wrapped + 360.0 : wrapped;
         }
 
         /// <summary>Smallest separation between neighbouring spin rates, as a fraction.</summary>

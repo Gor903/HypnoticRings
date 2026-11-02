@@ -25,6 +25,7 @@ namespace HR.Gameplay
         RingSegment[] _segments;
         ArcSpan[] _spans;
         Gap[] _gaps;
+        RingGaps _openings;
         TunnelSettings _settings;
 
         CompressionMode _mode;
@@ -61,8 +62,41 @@ namespace HR.Gameplay
         public double GapArcWidth { get; private set; }
         public double AutoSpinDeg { get => _autoSpinDeg; set => _autoSpinDeg = value; }
 
+        /// <summary>How many ways out this ring has.</summary>
+        public int GapCount => _gapCount;
+
         /// <summary>World-space angle of the first gap's centre, which is what the ball cares about.</summary>
         public double GapCentreWorldDeg => TunnelMath.NormalizeDeg(GapCentreLocalDeg + TotalRotationDeg);
+
+        /// <summary>World-space centre of a particular opening.</summary>
+        public double GapCentreWorldDegAt(int index) =>
+            TunnelMath.NormalizeDeg(_openings[index].CentreDeg + TotalRotationDeg);
+
+        /// <summary>
+        /// The opening nearest a given heading, which is the one a player would actually aim for.
+        ///
+        /// Without this the bot keeps steering at slot zero and a ring with three ways out plays
+        /// harder than a ring with one — the measurement would say multi-gap rings are a penalty
+        /// when for a human they are a gift.
+        /// </summary>
+        public double NearestGapWorldDeg(double towardsDeg)
+        {
+            if (_gapCount <= 0) return GapCentreWorldDeg;
+
+            double best = GapCentreWorldDegAt(0);
+            double bestDistance = System.Math.Abs(TunnelMath.ShortestDeltaDeg(best, towardsDeg));
+
+            for (int i = 1; i < _gapCount; i++)
+            {
+                double candidate = GapCentreWorldDegAt(i);
+                double distance = System.Math.Abs(TunnelMath.ShortestDeltaDeg(candidate, towardsDeg));
+                if (distance >= bestDistance) continue;
+                best = candidate;
+                bestDistance = distance;
+            }
+
+            return best;
+        }
 
         public double TotalRotationDeg { get; private set; }
 
@@ -133,9 +167,11 @@ namespace HR.Gameplay
             _body.bodyType = RigidbodyType2D.Kinematic;
             _body.useFullKinematicContacts = true;
 
-            // One gap per ring, and the array says so. It held two for a second opening that
-            // was never built, which also made every ring carry a segment it could not use.
-            _gaps = new Gap[1];
+            // Up to three, and every ring carries the segments for three whether it uses them
+            // or not: the spare ones sit deactivated, which costs a GameObject and no frame time,
+            // whereas growing the array later would mean building geometry mid-run.
+            _gaps = new Gap[RingGaps.MaxGaps];
+            _openings = new RingGaps();
             int maxSegments = RingSegmentation.UpperBoundSegments(_gaps.Length, _settings.MaxSegmentSweepDeg);
             _spans = new ArcSpan[maxSegments];
             _segments = new RingSegment[maxSegments];
@@ -154,24 +190,28 @@ namespace HR.Gameplay
             }
         }
 
-        /// <summary>Places the ring. Gap width is the opening at the target radius — CONTRACT.md §2.2.</summary>
+        /// <summary>Places the ring with one opening — the shape most rings have.</summary>
         public void Configure(double radius, double gapCentreLocalDeg, double gapArcWidth, double autoSpinDeg)
-            => Place(radius, gapCentreLocalDeg, gapArcWidth, autoSpinDeg, gapCount: 1);
+            => Place(radius, RingGaps.One(gapCentreLocalDeg, gapArcWidth), autoSpinDeg);
+
+        /// <summary>Places the ring with however many openings the generator decided on.</summary>
+        public void Configure(double radius, in RingGaps gaps, double autoSpinDeg)
+            => Place(radius, gaps, autoSpinDeg);
 
         /// <summary>
         /// A ring with no way out. Not a game state — it is what the tunnelling test needs, so
         /// that any escape at all is a failure rather than a judgement call.
         /// </summary>
         public void ConfigureSolid(double radius, double autoSpinDeg)
-            => Place(radius, 0.0, 0.0, autoSpinDeg, gapCount: 0);
+            => Place(radius, new RingGaps { Count = 0 }, autoSpinDeg);
 
-        void Place(double radius, double gapCentreLocalDeg, double gapArcWidth, double autoSpinDeg,
-                   int gapCount)
+        void Place(double radius, in RingGaps gaps, double autoSpinDeg)
         {
-            GapCentreLocalDeg = gapCentreLocalDeg;
-            GapArcWidth = gapArcWidth;
+            _openings = gaps;
+            GapCentreLocalDeg = gaps.Count > 0 ? gaps.A.CentreDeg : 0.0;
+            GapArcWidth = gaps.Count > 0 ? gaps.A.Opening : 0.0;
             _autoSpinDeg = autoSpinDeg;
-            _gapCount = gapCount;
+            _gapCount = gaps.Count;
             _radius = radius;
             _baseRadius = radius;
             _spinDeg = 0.0;
@@ -236,8 +276,10 @@ namespace HR.Gameplay
             // The angle is held, not the arc: a shrinking ring keeps the opening it was drawn
             // with instead of tearing wider as it closes in. The width also pays for the rounded
             // caps, which bulge into the gap from both sides.
-            _gaps[0] = new Gap(GapCentreLocalDeg, TunnelMath.HeldGapWidthDeg(
-                GapArcWidth, _settings.Thickness, _settings.TargetRadius, radius, _settings.MinGapWidth));
+            for (int i = 0; i < _gapCount; i++)
+                _gaps[i] = new Gap(_openings[i].CentreDeg, TunnelMath.HeldGapWidthDeg(
+                    _openings[i].Opening, _settings.Thickness, _settings.TargetRadius,
+                    radius, _settings.MinGapWidth));
 
             int count = RingSegmentation.BuildSolidSegments(
                 _gaps, _gapCount, _settings.MaxSegmentSweepDeg, _spans);
