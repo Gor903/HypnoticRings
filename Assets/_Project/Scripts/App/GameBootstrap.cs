@@ -222,7 +222,12 @@ namespace HR.App
 
         void Wire()
         {
-            _ui.PlayPressed += StartRun;
+            _ui.PlayPressed += () => { _game.Mode = GameMode.Normal; StartRun(); };
+            _ui.HardcorePressed += () => { _game.Mode = GameMode.Hardcore; StartRun(); };
+
+            // Retry keeps the mode it was playing: a player who just lost a hardcore run wants
+            // another hardcore run, and silently dropping them into the ordinary game would be
+            // the worst possible answer to pressing the biggest button on the screen.
             _ui.RetryPressed += StartRun;
             _ui.PausePressed += () => { _game.Pause(); _input.Cancel(); _ui.Show(_game.State); };
             _ui.ResumePressed += () => { _game.Resume(); _ui.Show(_game.State); };
@@ -278,6 +283,21 @@ namespace HR.App
                 if (!_settings.hintSeen) { _settings.hintSeen = true; _ui.ShowHint(false); Persist(); }
             };
 
+            _game.KilledByTouch += ring =>
+            {
+                _haptics.Lose();
+                _audio.PlayLose();
+            };
+
+            _tunnel.BallTouchedRing += touches =>
+            {
+                // The ordinary game already knocks on contact through BallController.Struck.
+                // This is the hardcore warning: the touch that spends the allowance sounds
+                // different from the one that does not.
+                if (_game.Mode == GameMode.Hardcore && touches == GameManager.HardcoreTouchAllowance)
+                    _haptics.Pass();
+            };
+
             _game.StateChanged += (_, to) =>
             {
                 _ui.Show(to);
@@ -285,6 +305,8 @@ namespace HR.App
                 if (to == GameState.Paused) _audio.ResetStreak();
                 if (to == GameState.GameOver)
                 {
+                    if (_game.Mode == GameMode.Hardcore && _game.Score > _settings.hardcoreBest)
+                        _settings.hardcoreBest = _game.Score;
                     _audio.PlayLose();
                     _effects.Shake();
                     _effects.Collapse(_tunnel.transform, _ball.transform.position);

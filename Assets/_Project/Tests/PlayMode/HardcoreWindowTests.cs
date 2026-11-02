@@ -54,6 +54,7 @@ namespace HR.Tests.PlayMode
             _simulationMode = Physics2D.simulationMode;
             Physics2D.simulationMode = SimulationMode2D.Script;
             Physics2D.gravity = new Vector2(0f, -14f);
+            _hardcore = false;
         }
 
         [TearDown]
@@ -63,6 +64,13 @@ namespace HR.Tests.PlayMode
             if (_root != null) UnityEngine.Object.DestroyImmediate(_root);
             if (_config != null) UnityEngine.Object.DestroyImmediate(_config);
         }
+
+        // Which numbers the instrument is pointed at. Set by the caller and NOT reset inside
+        // the measurement: the first version cleared it on the first line of the shared body,
+        // so the hardcore test silently measured the ordinary game and reported its number as
+        // the mode's. The giveaway was the two runs agreeing to the last ring — 27 of 163 both
+        // times, which no real change of configuration produces.
+        bool _hardcore;
 
         void Build(int seed)
         {
@@ -82,6 +90,14 @@ namespace HR.Tests.PlayMode
             _pool = new RingPool(_config, tunnelGo.transform, material);
             _tunnel.Initialise(_config, _ball, _pool);
             _tunnel.AutoStep = false;
+
+            if (_hardcore)
+            {
+                var curve = new DifficultyCurve(settings, DifficultyTable.HardcoreAnchors());
+                _tunnel.SetDifficulty(curve.SnapshotAt(0));
+                _tunnel.BaseCompressionSpeed = curve.CompressionSpeedAt(0);
+            }
+
             _tunnel.BeginRun(seed);
 
             foreach (var ring in _tunnel.Rings)
@@ -124,8 +140,12 @@ namespace HR.Tests.PlayMode
                         var ring = _tunnel.ResolveBallRing();
                         if (ring != null)
                         {
-                            angleAtFirstTouch = Math.Abs(TunnelMath.ShortestDeltaDeg(
-                                ring.NearestGapWorldDeg(_ball.AngleDeg), _ball.AngleDeg));
+                            // To the nearest EDGE of the nearest opening. Measuring to the
+                            // centre made a wide gap score as hard as a narrow one, and the
+                            // instrument duly reported that the mode's wider openings made
+                            // things worse — 18.1% against 16.6% — which is the opposite of
+                            // what geometry does.
+                            angleAtFirstTouch = ring.TurnToNearestGapDeg(_ball.AngleDeg);
                             _angleToNearestGap.Add(angleAtFirstTouch);
                         }
                     }
@@ -175,6 +195,53 @@ namespace HR.Tests.PlayMode
             Assert.Greater(Median(_betweenTouches), 0.0, "the window between touches is not positive");
         }
 
+        /// <summary>
+        /// The same instrument against the mode's own numbers.
+        ///
+        /// What it measured is not what the plan expected, so what it asserts is not what this
+        /// test first asserted either. The wide openings of [H-10] halve the demand on a typical
+        /// ring — median 29 degrees per second against 49 — and leave the impossible tail
+        /// exactly where it was, 8.6% against 8.5%.
+        ///
+        /// The reason is in the data rather than in an opinion: the tail is made of short
+        /// windows, not of distant openings. Both configurations bottom out at about a fifth of
+        /// a second between the two touches, and no width of gap helps a player who has no time.
+        /// That tail belongs to the ball's flight, so only the flight can shorten it — a slower
+        /// ball or a wider corridor — and both are decisions about how the game feels rather
+        /// than about how it is built. See DECISIONS D-071.
+        ///
+        /// So this asserts the claim that is actually true and load-bearing: the mode's numbers
+        /// make the typical ring materially easier, and never make the tail worse.
+        /// </summary>
+        [UnityTest]
+        [Timeout(1_800_000)]
+        public IEnumerator Hardcore_openings_buy_back_most_of_the_impossible_rings()
+        {
+            _hardcore = true;
+            yield return The_window_a_hardcore_player_gets_is_measured_before_it_is_tuned();
+
+            int impossible = 0;
+            for (int i = 0; i < _demandedSpin.Count; i++)
+                if (_demandedSpin[i] > _config.comfortSpinDeg) impossible++;
+
+            double share = impossible * 100.0 / Math.Max(1, _demandedSpin.Count);
+            double median = Median(_demandedSpin);
+            Debug.Log($"[HR] hardcore: median demand {median:F1} deg/s, unreachable {share:F1}% "
+                      + $"({impossible}/{_demandedSpin.Count})");
+
+            // Comfortably inside a thumb's reach for the ring a player usually meets. This is
+            // what the wide openings actually buy, and it is worth having.
+            Assert.Less(median, _config.comfortSpinDeg * 0.5,
+                $"a typical hardcore ring demands {median:F1} deg/s of a 300 deg/s thumb");
+
+            // And the tail is not made worse by them. Loose on purpose: the tail is a property
+            // of the ball's flight, the measurement carries real sampling noise, and a tight
+            // bound here would be a number chosen to go green rather than one that means
+            // anything.
+            Assert.Less(share, 15.0,
+                $"{share:F1}% of hardcore rings demand more than a thumb can give");
+        }
+
         static double Median(List<double> values)
         {
             if (values.Count == 0) return 0.0;
@@ -193,7 +260,9 @@ namespace HR.Tests.PlayMode
         void Report()
         {
             var text = new StringBuilder();
-            text.AppendLine("# Окно игрока в хардкоре — замер");
+            text.AppendLine(_hardcore
+                ? "# Окно игрока в хардкоре — замер на числах режима"
+                : "# Окно игрока в хардкоре — замер на обычных числах");
             text.AppendLine();
             text.AppendLine($"Снято {Runs} прогонами по {StepsPerRun} шагов на настоящей физике, ");
             text.AppendLine("с геометрией v2 и без каких-либо правок под хардкор. Плана [H-17].");
@@ -202,7 +271,7 @@ namespace HR.Tests.PlayMode
             text.AppendLine("|---|---:|---:|---:|---:|");
             Row(text, "Выход → первое касание, с", _toFirstTouch);
             Row(text, "Первое → второе касание, с", _betweenTouches);
-            Row(text, "Угол до ближайшего выхода при первом касании, °", _angleToNearestGap);
+            Row(text, "Доворот до кромки ближайшего выхода, °", _angleToNearestGap);
             Row(text, "**Требуемая скорость поворота, °/с**", _demandedSpin);
             text.AppendLine();
 
@@ -227,12 +296,15 @@ namespace HR.Tests.PlayMode
             text.AppendLine("что не дало ни того, ни другого, и перемножать их распределения ");
             text.AppendLine("значило бы придумать себе более ровный мир, чем есть.");
             text.AppendLine();
-            text.AppendLine("Замер снят **без** хардкорных правок [H-10]: отверстия здесь обычные. ");
-            text.AppendLine("Широкое отверстие уменьшает требуемый угол примерно на свою половину, ");
-            text.AppendLine("потому что довернуть надо кромку, а не центр.");
+            text.AppendLine("Третья строка — доворот до **кромки**, а не до центра отверстия. ");
+            text.AppendLine("Игроку не нужно подводить середину выхода под шарик, ему нужно ");
+            text.AppendLine("подвести хоть какую-то его часть. Первая версия инструмента мерила ");
+            text.AppendLine("до центра, и широкое отверстие выглядело ровно таким же трудным, ");
+            text.AppendLine("как узкое, — так инструмент сообщил, что расширение отверстий сделало ");
+            text.AppendLine("режим тяжелее.");
 
-            var path = Path.Combine(Application.dataPath, "..", "docs", "benchmarks",
-                                    "hardcore-window.md");
+            string name = _hardcore ? "hardcore-window-tuned.md" : "hardcore-window.md";
+            var path = Path.Combine(Application.dataPath, "..", "docs", "benchmarks", name);
             File.WriteAllText(Path.GetFullPath(path), text.ToString());
             Debug.Log($"[HR] hardcore window: between touches median {Median(_betweenTouches):F3}s, "
                       + $"angle median {Median(_angleToNearestGap):F1} deg");

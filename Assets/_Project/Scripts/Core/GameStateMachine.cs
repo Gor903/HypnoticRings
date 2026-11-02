@@ -2,6 +2,15 @@ using System;
 
 namespace HR.Core
 {
+    /// <summary>Which set of rules a run is played under.</summary>
+    public enum GameMode
+    {
+        Normal = 0,
+
+        /// <summary>One touch per ring. The second ends the run — plan [H-01].</summary>
+        Hardcore = 1,
+    }
+
     public enum GameState
     {
         Boot,

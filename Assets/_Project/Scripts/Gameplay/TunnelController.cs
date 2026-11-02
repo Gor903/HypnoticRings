@@ -133,6 +133,24 @@ namespace HR.Gameplay
         }
 
         Color _superColour = new Color(0.91f, 0.64f, 0.09f);
+        Color _hotColour = new Color(1f, 0.231f, 0.188f);
+
+        /// <summary>How much of the danger colour a spent ring takes. Plan [HV-01].</summary>
+        public const float HotMix = 0.7f;
+
+        /// <summary>The danger colour, which is the red circle's — one idea, one colour.</summary>
+        public void SetHotColour(Color colour) { _hotColour = colour; ForceReshade(); }
+
+        /// <summary>
+        /// Marks the ring a ball is in as spent, or not. Driven from outside because whether a
+        /// ring is spent depends on the mode's allowance, and the tunnel does not own rules.
+        /// </summary>
+        public void SetHotRing(int ballSlot, bool hot)
+        {
+            if (ballSlot < 0 || ballSlot >= _ballCount) return;
+            var ring = ResolveRingFor(_balls[ballSlot]);
+            if (ring != null) ring.SetHot(hot);
+        }
         double _depthFade = 1.0;
         float _haloWidth;
         float _haloStrength;
@@ -884,6 +902,11 @@ namespace HR.Gameplay
                 // A super ring keeps its own colour but not its own depth: it has to be
                 // recognisable from far out, and it still has to sit in the tunnel.
                 var ink = ring.Kind == RingKind.Super ? _superColour : _ringColours[slot];
+
+                // A ring that has used up its allowance burns. Mixed over its own ink rather
+                // than replacing it, so the ring stays recognisable as the one it was — the
+                // player has to see a change, not a different ring.
+                if (ring.IsHot) ink = Color.Lerp(ink, _hotColour, HotMix);
                 var colour = Color.Lerp(_fadeToward, ink, (float)alpha);
                 colour.a = 1f;
                 ring.ApplyShading(colour);
