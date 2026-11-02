@@ -8,21 +8,22 @@ Unity 6000.6.4f1, Android, портрет, оффлайн, бесплатно, �
 
 1. этот файл
 2. `docs/PROGRESS.md` — где остановились
-3. `docs/DECISIONS.md` — что уже решено и почему
-4. `docs/CONTRACT.md` — механика, числа, строки, архитектура
+3. `docs/HYPNOTIC_RINGS_GAMEPLAY_AND_VISUALS.md` — что строим сейчас
+4. `docs/DECISIONS.md` — что уже решено и почему
+5. `docs/CONTRACT.md` — как устроен v1, от которого идём
 
 ## Приоритет документов при конфликте
 
-`docs/design/GAME_DESIGN_SPEC.md` (числа, поведение, визуал) →
-`docs/design/CLAUDE_CODE_PLAN.md` (порядок работ).
+Идёт работа над **v2**. Источник поведения и чисел —
+`docs/HYPNOTIC_RINGS_GAMEPLAY_AND_VISUALS.md`, для режима «хардкор» —
+`docs/HYPNOTIC_RINGS_HARDCORE_PLAN.md`. Оба правятся автором, ссылаются друг на
+друга якорями `[G-xx]` / `[V-xx]` / `[H-xx]` и при конфликте главнее всего
+остального (D-061).
 
-Поведение и числа — в `docs/GAME_DESIGN_SPEC.md`; при конфликте он главнее
-GDD и плана. `docs/CONTRACT.md` — его рабочее прочтение: там же записаны все
-места, где исходники молчали или спорили друг с другом.
-
-`docs/design/` не редактируется никогда. Любое отступление от спецификации —
-записью в `docs/DECISIONS.md` и только с доказательством (тест или
-бот-симуляция).
+`docs/design/`, `docs/GAME_DESIGN_SPEC.md` и `docs/CONTRACT.md` описывают
+**v1** — он собран и зафиксирован тегом `v1-mvp`. Они не редактируются и
+остаются тем, с чем сравнивают. Отступление от планов v2 — записью в
+`docs/DECISIONS.md` и только с доказательством (тест, бот-симуляция, замер).
 
 ## Команды
 
@@ -70,10 +71,11 @@ systemd-run --user --scope -q -p MemoryHigh=8G -p MemoryMax=10G -p CPUQuota=600%
   артефакта, а не из лога сборки.
 - Фаза закрыта только когда пройдены её гейты. `docs/PROGRESS.md`
   обновляется после каждой задачи.
-- Каждая фаза — серия коммитов и тег `phase-N-done`, Conventional Commits.
+- Каждый слайс v2 — ветка `v2-N-<имя>`, серия коммитов и merge в `experiments`.
+  Conventional Commits. Неудачный слайс выбрасывается удалением ветки.
 - В релизной ветке нет `TODO`, `FIXME`, закомментированного кода и отладочных
   `Debug.Log` — проверяется `tools/audit.sh`.
-- Вне MVP ничего не добавляется. Идеи — в `docs/BACKLOG.md`.
+- Вне двух планов v2 ничего не добавляется. Идеи — в `docs/BACKLOG.md`.
 - Комментарий — одна строка, без номеров задач и сборок.
 - Keystore и пароли никогда не попадают в репозиторий: ключ в `~/keystores/`,
   пароли в переменных окружения.
@@ -82,7 +84,8 @@ systemd-run --user --scope -q -p MemoryHigh=8G -p MemoryMax=10G -p CPUQuota=600%
 
 ```
 CLAUDE.md
-docs/      CONTRACT.md DECISIONS.md PROGRESS.md BACKLOG.md GAME_DESIGN_SPEC.md
+docs/      HYPNOTIC_RINGS_GAMEPLAY_AND_VISUALS.md  HYPNOTIC_RINGS_HARDCORE_PLAN.md
+           CONTRACT.md DECISIONS.md PROGRESS.md BACKLOG.md GAME_DESIGN_SPEC.md
            design/ (исходники, read-only)  publishing/ (стор, privacy, арт)
 tools/     preflight.sh run_tests.sh build_android.sh screenshots.sh gen_*.py
 Assets/_Project/{Scripts,Config,Scenes,Editor,Tests}
