@@ -43,6 +43,12 @@ namespace HR.Core
         /// </summary>
         public readonly Rgb Super;
 
+        /// <summary>
+        /// The bead's colour. It has to read as a prize rather than as a stray ring fragment,
+        /// so it borrows the ball's ink: the thing it is about to become.
+        /// </summary>
+        public Rgb Bead => Ball;
+
         public readonly EndCapStyle EndCaps;
         public readonly bool SegmentSeams;
 

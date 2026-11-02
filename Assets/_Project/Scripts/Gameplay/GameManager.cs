@@ -72,6 +72,7 @@ namespace HR.Gameplay
             _seed = seed;
             RunCount++;
             _grace = 0.0;
+            _reliefLeft = 0.0;
 
             _score.BeginRun();
             _appliedDifficultyForScore = -1;
@@ -87,6 +88,21 @@ namespace HR.Gameplay
 
         /// <summary>CONTRACT.md G-02 and G-08: the grace a player gets back instead of a countdown.</summary>
         public const double ResumeGraceSeconds = 0.3;
+
+        /// <summary>
+        /// Seconds the tunnel is held after a ball is sacrificed — plan [G-29].
+        ///
+        /// Without it the reprieve is worth almost nothing: the surviving ball is in a ring that
+        /// is already most of the way to the centre, and the run ends again within a ring or
+        /// two. This is the same kind of mercy as the passability floor in [X-02], and it is
+        /// recorded as such rather than hidden.
+        /// </summary>
+        public const double ReliefSeconds = 0.6;
+
+        double _reliefLeft;
+
+        /// <summary>True while the tunnel is held still after a ball was lost.</summary>
+        public bool IsRecovering => _reliefLeft > 0.0;
 
         double _grace;
 
@@ -144,13 +160,32 @@ namespace HR.Gameplay
                 return;
             }
 
+            // The tunnel stands still while the player takes in that they lost a ball and not
+            // the run. Physics keeps running: the surviving ball is still flying.
+            if (_reliefLeft > 0.0)
+            {
+                _reliefLeft -= dt;
+                return;
+            }
+
             _tunnel.UserAngleDeg = userAngleDeg;
             _tunnel.Step(dt);
 
             ApplyDifficulty();
 
-            if (_tunnel.HasRingClosedOnCentre() || _tunnel.IsBallOutOfBounds())
-                _states.Fire(GameTrigger.Crushed);
+            if (_tunnel.IsBallOutOfBounds()) { _states.Fire(GameTrigger.Crushed); return; }
+
+            var closing = _tunnel.RingClosedOnCentre();
+            if (closing == null) return;
+
+            // A ring reaching the red circle is not automatically the end any more: with a
+            // second ball in play it may burst and take only the ball inside it. The rule is in
+            // HR.Core so it can be checked without crushing anything.
+            var outcome = SpareLife.Resolve(_tunnel.BallCount, _tunnel.BallsInside(closing));
+            if (outcome == CrushOutcome.Lost) { _states.Fire(GameTrigger.Crushed); return; }
+
+            _tunnel.SacrificeBallIn(closing);
+            _reliefLeft = ReliefSeconds;
         }
 
         void OnRingPassed(int ringIndex)

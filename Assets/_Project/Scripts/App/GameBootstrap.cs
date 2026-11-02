@@ -30,6 +30,7 @@ namespace HR.App
         GameManager _game;
         TunnelController _tunnel;
         BallController _ball;
+        BallController _spareBall;
         InputController _input;
         ThemeApplier _themes;
         GameUi _ui;
@@ -126,6 +127,16 @@ namespace HR.App
 
             _ball = TunnelFactory.CreateBall(config, transform, ballPhysics, material, settings);
 
+            // The spare the bead wakes. Built with the scene and left asleep: a run must never
+            // create one, and a run that never finds a bead must not pay for it either.
+            _spareBall = TunnelFactory.CreateBall(config, transform, ballPhysics, material, settings);
+            _spareBall.name = "SpareBall";
+
+            // The two never collide with each other. Plan [G-33]: they are two chances, not two
+            // objects in a pinball machine — a bounce between them would be unreadable.
+            Physics2D.IgnoreCollision(_ball.GetComponent<Collider2D>(),
+                                      _spareBall.GetComponent<Collider2D>(), true);
+
             var centreGo = new GameObject("Centre");
             _centre = centreGo.AddComponent<CentreMarker>();
             _centre.Initialise(config, transform, material);
@@ -135,6 +146,8 @@ namespace HR.App
             _tunnel = tunnelGo.AddComponent<TunnelController>();
             var pool = new RingPool(config, tunnelGo.transform, material);
             _tunnel.Initialise(config, _ball, pool);
+            _tunnel.RegisterSpareBall(_spareBall);
+            _tunnel.SetBeadMaterial(material);
             _ringPhysics = ringPhysics;
 
             var gameGo = new GameObject("Game");
@@ -250,6 +263,10 @@ namespace HR.App
             };
 
             _ball.Struck += _ => _audio.PlayKnock();
+            _spareBall.Struck += _ => _audio.PlayKnock();
+
+            _tunnel.BeadTaken += () => { _audio.PlayPass(Time.timeAsDouble); _haptics.Pass(); };
+            _tunnel.BallLost += () => { _audio.PlayLose(); _effects.Shake(); _haptics.Lose(); };
 
             _game.Scored += score =>
             {
@@ -290,6 +307,9 @@ namespace HR.App
             bool inPlay = state == GameState.Playing || state == GameState.Paused
                           || state == GameState.GameOver;
             if (_ball != null) _ball.gameObject.SetActive(inPlay);
+            // The spare only ever appears through a bead, so it stays hidden here and the
+            // tunnel is what wakes it.
+            if (!inPlay && _spareBall != null) _spareBall.gameObject.SetActive(false);
             if (_centre != null) _centre.gameObject.SetActive(inPlay);
         }
 
