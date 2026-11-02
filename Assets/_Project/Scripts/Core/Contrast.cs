@@ -24,6 +24,23 @@ namespace HR.Core
                 Convert.ToByte(s.Substring(4, 2), 16));
         }
 
+        /// <summary>
+        /// Blends two colours, <paramref name="amount"/> of the way from the first to the second.
+        ///
+        /// Mixing rather than fading, and that is not a detail: the tunnel's shader is opaque
+        /// and ignores alpha entirely, so every "transparent" effect in this game is a colour
+        /// mixed toward the background. Keeping the operation here means a test can predict
+        /// exactly what will be drawn.
+        /// </summary>
+        public static Rgb Mix(in Rgb from, in Rgb to, double amount)
+        {
+            double t = amount < 0.0 ? 0.0 : (amount > 1.0 ? 1.0 : amount);
+            return new Rgb(
+                (byte)Math.Round(from.R + (to.R - from.R) * t),
+                (byte)Math.Round(from.G + (to.G - from.G) * t),
+                (byte)Math.Round(from.B + (to.B - from.B) * t));
+        }
+
         public override string ToString() => $"#{R:X2}{G:X2}{B:X2}";
     }
 

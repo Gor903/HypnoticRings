@@ -126,6 +126,33 @@ namespace HR.Gameplay
         }
 
         Color _superColour = new Color(0.91f, 0.64f, 0.09f);
+        double _depthFade = 1.0;
+        float _haloWidth;
+        float _haloStrength;
+
+        /// <summary>
+        /// How much of the tunnel a theme wants to keep visible, and how wide a halo it wants.
+        ///
+        /// Both arrive together because both are the same decision: a palette that glows wants
+        /// its far rings to stay, and one that does not wants them gone.
+        /// </summary>
+        public void SetDepthAndGlow(double depthFade, double glow)
+        {
+            _depthFade = depthFade;
+            _haloStrength = (float)glow;
+            _haloWidth = (float)(_settings.Thickness * glow);
+
+            for (int i = 0; i < _rings.Count; i++) ApplyHaloTo(_rings[i]);
+            ForceReshade();
+        }
+
+        void ApplyHaloTo(RingController ring)
+        {
+            ring.HaloBackground = _fadeToward;
+            ring.HaloStrength = Mathf.Lerp(0.2f, 0.5f, _haloStrength);
+            ring.SetHaloWidth(_haloWidth);
+            ring.InvalidateShading();
+        }
 
         /// <summary>The colour distant rings fade into — the theme's background.</summary>
         public void SetFadeColour(Color colour)
@@ -665,6 +692,8 @@ namespace HR.Gameplay
 
             // The generator marks where a bead COULD go; whether one is actually there depends
             // on live state it must not see, or it would stop being a function of its seed.
+            ApplyHaloTo(ring);
+
             if (spec.BeadGap >= 0 && MayCarryBead())
                 ring.SetBead(spec.BeadGap, _beadMaterial, (float)(_settings.BallRadius * 0.6));
 
@@ -783,7 +812,7 @@ namespace HR.Gameplay
                 // How many rings are ahead follows from the step and the frame, so the fade-in
                 // window stays one ring wide however dense the tunnel has become.
                 double alpha = DepthShading.AlphaFor(ring.Radius, reference, _settings.VanishRadius,
-                                                     StepNow, RingsAheadNow(reference));
+                                                     StepNow, RingsAheadNow(reference), _depthFade);
 
                 // A ring the ball has left is already not a wall; the fade is the only part of
                 // it the player still sees, so it rides on top of the depth cue rather than

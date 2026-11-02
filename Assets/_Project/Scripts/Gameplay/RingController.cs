@@ -396,6 +396,30 @@ namespace HR.Gameplay
         /// <summary>Forgets the cached colour, so the next shading pass actually writes.</summary>
         public void InvalidateShading() => _shaded = false;
 
+        /// <summary>
+        /// Sets the halo width on every segment and rebuilds, which is the part that is easy to
+        /// forget: the width is read while geometry is being filled, so setting it afterwards
+        /// leaves a ring that has a halo in its fields and none on the screen.
+        /// </summary>
+        public void SetHaloWidth(float width)
+        {
+            bool changed = false;
+            for (int i = 0; i < _activeSegments; i++)
+            {
+                if (Mathf.Approximately(_segments[i].HaloWidth, width)) continue;
+                _segments[i].HaloWidth = width;
+                changed = true;
+            }
+
+            if (changed) RebuildGeometry(_radius);
+        }
+
+        /// <summary>What the halo is mixed toward — the theme's background.</summary>
+        public Color HaloBackground { get; set; } = Color.black;
+
+        /// <summary>How much of the ring's own ink the halo keeps, 0 to 1.</summary>
+        public float HaloStrength { get; set; } = 0.35f;
+
         public void ApplyShading(Color colour)
         {
             // Rewriting a property block every step for a colour that has not visibly changed is
@@ -408,11 +432,25 @@ namespace HR.Gameplay
             _block ??= new MaterialPropertyBlock();
             for (int i = 0; i < _activeSegments; i++)
             {
-                var renderer = _segments[i].Renderer;
+                var segment = _segments[i];
+                var renderer = segment.Renderer;
                 renderer.GetPropertyBlock(_block);
                 _block.SetColor(BaseColorId, colour);
                 _block.SetColor(ColorId, colour);
                 renderer.SetPropertyBlock(_block);
+
+                // The halo takes the same ink, mixed back toward the background. Mixed rather
+                // than faded: the shader is opaque and ignores alpha, so a "transparent" halo
+                // would draw at full strength and swallow the ring it is supposed to surround.
+                var halo = segment.HaloRenderer;
+                if (halo == null || !halo.enabled) continue;
+
+                halo.GetPropertyBlock(_block);
+                var glow = Color.Lerp(HaloBackground, colour, HaloStrength);
+                glow.a = 1f;
+                _block.SetColor(BaseColorId, glow);
+                _block.SetColor(ColorId, glow);
+                halo.SetPropertyBlock(_block);
             }
         }
 

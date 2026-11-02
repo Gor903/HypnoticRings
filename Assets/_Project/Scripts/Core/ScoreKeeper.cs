@@ -10,6 +10,7 @@ namespace HR.Core
         Neon = 2,
         Pastel = 3,
         Earth = 4,
+        Aurora = 5,
     }
 
     /// <summary>
@@ -28,6 +29,7 @@ namespace HR.Core
                 case Theme.Neon: return 0;
                 case Theme.Pastel: return 25;
                 case Theme.Earth: return 50;
+                case Theme.Aurora: return 100;
                 default: throw new ArgumentOutOfRangeException(nameof(theme));
             }
         }
