@@ -66,6 +66,13 @@ namespace HR.Gameplay
         public event Action BallLost;
 
         /// <summary>
+        /// Fires when a ball is turned back by its ring, with how many times that ring has
+        /// turned it now. Hardcore ends a run on the second one; the ordinary game only listens
+        /// so it can make a noise.
+        /// </summary>
+        public event Action<int> BallTouchedRing;
+
+        /// <summary>
         /// Fires when a super ring's wave has taken rings the player will now never meet, with
         /// how many. They are worth a point each: the score stays equal to the number of the
         /// ring the ball is in, so difficulty and unlock thresholds keep meaning what they say.
@@ -258,6 +265,7 @@ namespace HR.Gameplay
             StepRest(dt);
             StepWave(dt);
             StepBeads();
+            StepLedgers(dt);
             if (CompressionEnabled) Compress(dt, ballRing);
             if (RotationEnabled) Rotate(dt);
             ApplySolidity(ballRing);
@@ -682,6 +690,58 @@ namespace HR.Gameplay
                 return;
             }
         }
+
+        readonly TouchLedger[] _ledgers = { new TouchLedger(), new TouchLedger() };
+        double _ledgerClock;
+
+        /// <summary>How many times the ring a ball is in has turned it back.</summary>
+        public int TouchesOn(int ballSlot) =>
+            ballSlot >= 0 && ballSlot < MaxBalls ? _ledgers[ballSlot].Touches : 0;
+
+        /// <summary>
+        /// Watches each ball for the moment its ring turns it back.
+        ///
+        /// Contact is decided geometrically rather than by a collision callback, for the same
+        /// reason the ledger counts reversals rather than events: a ring is a row of colliders,
+        /// and the engine's idea of "a contact" is an artefact of where the seams happen to be.
+        /// The ball is against the wall when its own edge reaches the ring's inner surface, and
+        /// that is a fact about the tunnel rather than about Box2D.
+        /// </summary>
+        void StepLedgers(double dt)
+        {
+            _ledgerClock += dt;
+
+            for (int b = 0; b < _ballCount; b++)
+            {
+                var ball = _balls[b];
+                var ring = ResolveRingFor(ball);
+                if (ball == null || ring == null) { _ledgers[b].Reset(); continue; }
+
+                _ledgers[b].Watch(ring.SpawnIndex);
+
+                double distance = ball.DistanceToCentre;
+                if (distance <= 1e-6) continue;
+
+                Vector2 position = ball.Body.position;
+                Vector2 outward = new Vector2((float)(position.x / distance), (float)(position.y / distance));
+                double radial = Vector2.Dot(ball.Body.linearVelocity, outward);
+
+                double innerSurface = ring.Radius - _settings.Thickness * 0.5;
+                bool touching = distance + _settings.BallRadius >= innerSurface - ContactSlack;
+
+                if (_ledgers[b].Step(_ledgerClock, radial, touching))
+                    BallTouchedRing?.Invoke(_ledgers[b].Touches);
+            }
+        }
+
+        /// <summary>
+        /// How close to the wall still counts as against it, in world units.
+        ///
+        /// Box2D keeps a small separation between touching bodies, so an exact test would miss
+        /// every real contact by a hair. Small enough that open flight is never mistaken for a
+        /// bounce.
+        /// </summary>
+        public const double ContactSlack = 0.02;
 
         void SpawnAt(double radius)
         {
