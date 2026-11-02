@@ -76,6 +76,21 @@ namespace HR.Core
         }
 
         /// <summary>
+        /// The pull coefficient for a given step.
+        ///
+        /// The retraction after a pass is k·(R−R_target) evaluated one step out, so it is k·step
+        /// that the player actually feels. The corridor narrows as a run goes on; a fixed k would
+        /// therefore make the snap-back fade out on its own, as a side effect of a number that
+        /// was changed for a different reason entirely. Fixing the product instead keeps the two
+        /// dials independent.
+        /// </summary>
+        public static double PullFor(double pullPerStep, double step)
+        {
+            if (step <= 0.0) throw new ArgumentOutOfRangeException(nameof(step));
+            return pullPerStep / step;
+        }
+
+        /// <summary>
         /// Shrink speed shared by every ring. The pull term is what retracts the tunnel after a
         /// pass: clearing a ring raises R_E by one step, which spikes v_eff for about a second.
         /// </summary>

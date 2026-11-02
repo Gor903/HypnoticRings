@@ -37,13 +37,14 @@ namespace HR.Tests.EditMode
         [Test]
         public void Compression_matches_the_contract_at_every_anchor()
         {
-            // CONTRACT.md §2.7 after D-059: the squeeze is four times what it was, because a
-            // tunnel that takes ten seconds to deliver a ring is a screensaver.
+            // Plan [G-16]: the speed is derived from the corridor and the tempo, so these are
+            // consequences rather than settings. Asserting them anyway is what catches a change
+            // to either dial that nobody meant to make.
             var c = Curve;
-            Assert.AreEqual(0.45, c.CompressionSpeedAt(0), 1e-9);
-            Assert.AreEqual(0.55, c.CompressionSpeedAt(10), 1e-9);
-            Assert.AreEqual(0.70, c.CompressionSpeedAt(30), 1e-9);
-            Assert.AreEqual(0.85, c.CompressionSpeedAt(80), 1e-9);
+            Assert.AreEqual(1.28 / 3.00, c.CompressionSpeedAt(0), 1e-9);
+            Assert.AreEqual(1.23 / 2.45, c.CompressionSpeedAt(10), 1e-9);
+            Assert.AreEqual(1.14 / 1.93, c.CompressionSpeedAt(30), 1e-9);
+            Assert.AreEqual(0.90 / 1.59, c.CompressionSpeedAt(80), 1e-9);
         }
 
         [Test]
@@ -60,10 +61,12 @@ namespace HR.Tests.EditMode
         public void Gap_width_matches_the_contract_at_every_anchor()
         {
             var c = Curve;
-            Assert.AreEqual(4.10, c.GapArcWidthAt(0), 1e-9);
-            Assert.AreEqual(3.70, c.GapArcWidthAt(10), 1e-9);
-            Assert.AreEqual(3.27, c.GapArcWidthAt(30), 1e-9);
-            Assert.AreEqual(2.60, c.GapArcWidthAt(80), 1e-9);
+            // Recomputed for a 0.18 ring: the opening in units changed, the angle it cuts
+            // did not — (w + T) / R_target is still 1.50 rad at the first anchor.
+            Assert.AreEqual(4.32, c.GapArcWidthAt(0), 1e-9);
+            Assert.AreEqual(3.90, c.GapArcWidthAt(10), 1e-9);
+            Assert.AreEqual(3.48, c.GapArcWidthAt(30), 1e-9);
+            Assert.AreEqual(2.80, c.GapArcWidthAt(80), 1e-9);
         }
 
         [Test]
@@ -83,13 +86,38 @@ namespace HR.Tests.EditMode
                 Assert.AreEqual(0.0, c.AutoSpinAt(n), $"ring {n} spins during the tutorial");
         }
 
+        /// <summary>
+        /// The tempo is the thing that may only ever tighten — not the speed that delivers it.
+        ///
+        /// Speed used to be the dial and so it was the thing to watch. It is now derived from a
+        /// corridor and an interval that both shrink, and the ratio of two shrinking numbers is
+        /// free to dip: between rings 30 and 80 the corridor closes faster than the interval, so
+        /// the speed eases off by a hundredth while rings keep arriving sooner. Asserting the
+        /// old invariant would forbid a curve the plan asks for.
+        /// </summary>
         [Test]
-        public void Compression_only_ever_speeds_up()
+        public void Rings_only_ever_arrive_sooner()
         {
             var c = Curve;
             for (int n = 0; n < 200; n++)
-                Assert.LessOrEqual(c.CompressionSpeedAt(n), c.CompressionSpeedAt(n + 1) + 1e-12,
-                    $"compression eased off between ring {n} and {n + 1}");
+                Assert.LessOrEqual(c.RingIntervalAt(n + 1), c.RingIntervalAt(n) + 1e-12,
+                    $"rings got slower between {n} and {n + 1}");
+        }
+
+        [Test]
+        public void The_corridor_only_ever_tightens_and_never_past_the_floor()
+        {
+            var c = Curve;
+            var settings = TunnelSettings.Default;
+            double floor = settings.BallRadius * 2.0 * TunnelSettings.CorridorFloorInDiameters;
+
+            for (int n = 0; n < 200; n++)
+            {
+                Assert.LessOrEqual(c.ClearanceAt(n + 1), c.ClearanceAt(n) + 1e-12,
+                    $"the corridor widened between {n} and {n + 1}");
+                Assert.GreaterOrEqual(c.ClearanceAt(n), floor - 1e-12,
+                    $"the corridor at {n} is under the floor a ball can use");
+            }
         }
 
         [Test]
@@ -210,7 +238,7 @@ namespace HR.Tests.EditMode
         public void The_generator_refuses_to_emit_a_ring_nobody_could_catch()
         {
             // Difficulty asking for 400 deg/s against a budget that cannot support it.
-            var difficulty = new DifficultySnapshot(0.6, 4.0, 1.6, 400.0, false, 3.83, 200.0);
+            var difficulty = new DifficultySnapshot(0.6, 4.0, 1.6, 400.0, false, 3.83, 200.0, 1.10, 1.28);
             var generator = new RingGenerator(5);
             double ceiling = TunnelMath.MaxReachableSpinDeg(200.0, 3.83);
 
@@ -229,7 +257,7 @@ namespace HR.Tests.EditMode
         [Test]
         public void Clamping_is_reported_rather_than_silent()
         {
-            var gentle = new DifficultySnapshot(0.15, 1.0, 3.2, 20.0, false, 15.33, 200.0);
+            var gentle = new DifficultySnapshot(0.15, 1.0, 3.2, 20.0, false, 15.33, 200.0, 1.10, 1.28);
             var generator = new RingGenerator(5);
             double previous = 0.0;
             for (int i = 0; i < 200; i++) previous = generator.Next(gentle, previous).AutoSpinDeg;

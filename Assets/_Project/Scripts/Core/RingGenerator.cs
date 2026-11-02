@@ -32,10 +32,23 @@ namespace HR.Core
         /// <summary>Angular speed a player can comfortably sustain.</summary>
         public readonly double ComfortSpinDeg;
 
+        /// <summary>Corridor width right now. Was a constant until the corridor started closing.</summary>
+        public readonly double Clearance;
+
+        /// <summary>
+        /// Distance between neighbouring rings right now.
+        ///
+        /// It lives here rather than in TunnelSettings because it is no longer a property of the
+        /// tunnel but of how far the run has got. Everything that spaces, fades or spawns rings
+        /// reads it from the snapshot, so there is exactly one answer per step.
+        /// </summary>
+        public readonly double Step;
+
         public DifficultySnapshot(double baseCompressionSpeed, double maxCompressionSpeed,
                                   double gapArcWidth, double autoSpinDeg,
                                   bool alternateSpinDirection,
-                                  double timeBudget, double comfortSpinDeg)
+                                  double timeBudget, double comfortSpinDeg,
+                                  double clearance, double step)
         {
             BaseCompressionSpeed = baseCompressionSpeed;
             MaxCompressionSpeed = maxCompressionSpeed;
@@ -44,6 +57,8 @@ namespace HR.Core
             AlternateSpinDirection = alternateSpinDirection;
             TimeBudget = timeBudget;
             ComfortSpinDeg = comfortSpinDeg;
+            Clearance = clearance;
+            Step = step;
         }
 
         /// <summary>

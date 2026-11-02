@@ -47,6 +47,16 @@ namespace HR.Gameplay
         public bool RotationEnabled { get; set; } = true;
         public bool ShadingEnabled { get; set; } = true;
 
+        /// <summary>
+        /// Distance between neighbouring rings right now.
+        ///
+        /// It used to be TunnelSettings.Step — one number for a whole run. The corridor now
+        /// narrows with difficulty, so the live value belongs to the snapshot and every place
+        /// that spaces, spawns or fades rings has to read the same one. The fallback is for
+        /// fixtures that drive the tunnel before any difficulty has been applied.
+        /// </summary>
+        public double StepNow => _difficulty.Step > 0.0 ? _difficulty.Step : _settings.Step;
+
         public IReadOnlyList<RingController> Rings => _rings;
         public double LastCompressionSpeed { get; private set; }
         public RingPool Pool => _pool;
@@ -113,13 +123,12 @@ namespace HR.Gameplay
             _pendingIndex = -1;
             _lastPassedIndex = -1;
 
-            // The ball's own ring, then the ones ahead. Nothing inside it: a ring the ball has
-            // left is retired the moment it leaves, so an opening ring inside the ball would be
-            // the only one of its kind in the whole run and the first level would play unlike
-            // every other.
-            for (int i = 0; i <= _settings.RingsAhead; i++)
+            // The ball's own ring, then outwards until the tunnel reaches the edge of the frame.
+            // Nothing inside it: a ring the ball has left is retired the moment it leaves, so an
+            // opening ring inside the ball would be the only one of its kind in the whole run and
+            // the first level would play unlike every other.
+            for (double radius = _settings.TargetRadius; radius <= OuterLimit; radius += StepNow)
             {
-                double radius = _settings.TargetRadius + _settings.Step * i;
                 if (radius <= _settings.Thickness) continue;
                 SpawnAt(radius);
             }
@@ -195,8 +204,9 @@ namespace HR.Gameplay
             // config's value is only the floor a table may never go under.
             double ceiling = Math.Max(_difficulty.MaxCompressionSpeed, BaseCompressionSpeed);
 
+            // The pull is derived from the live step, not stored: see TunnelMath.PullFor.
             LastCompressionSpeed = TunnelMath.CompressionSpeed(
-                BaseCompressionSpeed, _settings.PullToCentre, ceiling,
+                BaseCompressionSpeed, TunnelMath.PullFor(_settings.PullPerStep, StepNow), ceiling,
                 ballRingRadius, _settings.TargetRadius);
 
             double delta = LastCompressionSpeed * dt;
@@ -218,7 +228,7 @@ namespace HR.Gameplay
         void ApplySolidity(RingController ballRing)
         {
             double reference = ballRing != null ? ballRing.Radius : OutermostRadius();
-            double limit = reference + _settings.Step * SolidRingsOutside;
+            double limit = reference + StepNow * SolidRingsOutside;
 
             for (int i = 0; i < _rings.Count; i++)
                 _rings[i].SetSolid(_rings[i].Radius <= limit);
@@ -282,20 +292,50 @@ namespace HR.Gameplay
             return ballRing;
         }
 
-        /// <summary>Keeps the required number of rings outside the ball's ring.</summary>
+        /// <summary>
+        /// Grows the tunnel outwards until it reaches the edge of the frame.
+        ///
+        /// Counted by radius rather than by number of rings, because the corridor narrows over a
+        /// run: a fixed count would reach less and less far out, and the tunnel would visibly
+        /// stop short of the frame edge exactly when it got densest. How many rings that is
+        /// follows from the step, which is the right way round.
+        /// </summary>
         void Fill(RingController ballRing)
         {
-            double reference = ballRing != null ? ballRing.Radius : OutermostRadius();
+            double step = StepNow;
+            if (step <= 0.0) return;
 
-            int ahead = 0;
-            for (int i = 0; i < _rings.Count; i++)
-                if (!_rings[i].IsDissolving && _rings[i].Radius > reference + 1e-6) ahead++;
+            // Bounded so a nonsense step cannot spin here forever. The bound is generous: it is
+            // reached only if something has already gone wrong with the geometry.
+            int guard = MaxRingsInFrame;
+            while (OutermostRadius() + step <= OuterLimit && guard-- > 0)
+                SpawnAt(OutermostRadius() + step);
+        }
 
-            while (ahead < _settings.RingsAhead)
-            {
-                SpawnAt(OutermostRadius() + _settings.Step);
-                ahead++;
-            }
+        /// <summary>
+        /// Furthest a ring is spawned to. Beyond it the tunnel is off-screen, so a ring there is
+        /// geometry nobody sees.
+        /// </summary>
+        double OuterLimit => _config != null && _config.outerRadiusLimit > _settings.TargetRadius
+            ? _config.outerRadiusLimit
+            : _settings.TargetRadius + _settings.Step * _settings.RingsAhead;
+
+        /// <summary>Hard ceiling on rings drawn at once, as a loop guard rather than a design number.</summary>
+        public const int MaxRingsInFrame = 32;
+
+        /// <summary>
+        /// How many rings stand between the ball's ring and the edge of the frame right now.
+        ///
+        /// The depth fade needs this to know how far out "just arrived" is. It used to be a
+        /// configured count; it is now a consequence of the step, so a denser tunnel gets more
+        /// rings rather than a shorter one.
+        /// </summary>
+        int RingsAheadNow(double reference)
+        {
+            double step = StepNow;
+            if (step <= 0.0) return _settings.RingsAhead;
+            int ahead = (int)((OuterLimit - reference) / step);
+            return ahead > 0 ? ahead : 1;
         }
 
         void SpawnAt(double radius)
@@ -387,8 +427,10 @@ namespace HR.Gameplay
             for (int i = 0; i < _rings.Count; i++)
             {
                 var ring = _rings[i];
+                // How many rings are ahead follows from the step and the frame, so the fade-in
+                // window stays one ring wide however dense the tunnel has become.
                 double alpha = DepthShading.AlphaFor(ring.Radius, reference, _settings.VanishRadius,
-                                                     _settings.Step, _settings.RingsAhead);
+                                                     StepNow, RingsAheadNow(reference));
 
                 // A ring the ball has left is already not a wall; the fade is the only part of
                 // it the player still sees, so it rides on top of the depth cue rather than
@@ -451,7 +493,7 @@ namespace HR.Gameplay
         {
             var ring = ResolveBallRing();
             double reference = ring != null ? ring.Radius : OutermostRadius();
-            return TunnelMath.IsOutOfBounds(_ball.DistanceToCentre, reference, _settings.Step);
+            return TunnelMath.IsOutOfBounds(_ball.DistanceToCentre, reference, StepNow);
         }
     }
 }

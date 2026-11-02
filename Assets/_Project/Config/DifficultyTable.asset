@@ -14,22 +14,26 @@ MonoBehaviour:
   m_EditorClassIdentifier: HR.Gameplay::HR.Gameplay.DifficultyTable
   anchors:
   - rings: 0
-    compressionSpeed: 0.45
+    clearance: 1.1
+    ringInterval: 3.0
     maxCompressionSpeed: 2
-    gapArcWidth: 4.1
+    gapArcWidth: 4.32
     autoSpinDeg: 0
   - rings: 10
-    compressionSpeed: 0.55
+    clearance: 1.05
+    ringInterval: 2.45
     maxCompressionSpeed: 3
-    gapArcWidth: 3.7
+    gapArcWidth: 3.9
     autoSpinDeg: 15
   - rings: 30
-    compressionSpeed: 0.7
+    clearance: 0.96
+    ringInterval: 1.93
     maxCompressionSpeed: 4
-    gapArcWidth: 3.27
+    gapArcWidth: 3.48
     autoSpinDeg: 40
   - rings: 80
-    compressionSpeed: 0.85
+    clearance: 0.72
+    ringInterval: 1.59
     maxCompressionSpeed: 5
-    gapArcWidth: 2.6
+    gapArcWidth: 2.8
     autoSpinDeg: 70

@@ -203,15 +203,69 @@ namespace HR.Tests.PlayMode
         {
             // Why tunnelling cannot happen, rather than only that it did not: at the ceiling the
             // ball moves less than one thickness per step, so discrete collision cannot miss.
+            //
+            // Sixty hertz is deliberately not in this list any more, and that is the honest part.
+            // A 0.18 ring is thinner than the ball travels in a sixtieth of a second at any
+            // ceiling worth having: holding the arithmetic guarantee there would need a ceiling
+            // of 10.8 u/s, below the 10 u/s the ball cruises at, which is no ceiling at all.
+            // Below the rate the game runs, the guarantee is Continuous detection — and that is
+            // proved by trial next door rather than asserted here.
             BuildSingleRing(90.0, _settings.MinGapWidth, 0.0);
             yield return null;
 
-            foreach (float rate in new[] { 60f, 90f, 120f })
+            foreach (float rate in new[] { 90f, 120f })
             {
                 float travel = (float)_settings.MaxBallSpeed / rate;
                 Assert.Less(travel, _settings.Thickness,
                     $"at {rate} Hz the ball moves {travel:F3}u per step through {_settings.Thickness:F3}u of ring");
             }
+        }
+
+        /// <summary>
+        /// The case the arithmetic cannot cover: a step longer than the ring is thick.
+        ///
+        /// At sixty hertz the ball crosses 0.233u between steps and the ring is 0.18u, so
+        /// discrete collision could step straight over it. Continuous detection sweeps the path
+        /// instead, and this is where that claim is tested rather than believed — a phone that
+        /// drops its physics rate is the realistic version of this, and it must not start
+        /// leaking balls through walls.
+        /// </summary>
+        [UnityTest]
+        public IEnumerator A_ring_thinner_than_a_step_still_holds_at_sixty_hertz()
+        {
+            float travel = (float)_settings.MaxBallSpeed / 60f;
+            Assert.Greater(travel, _settings.Thickness,
+                "this test is pointless unless the step really is longer than the ring is thick");
+
+            const int trials = 300;
+            var random = new System.Random(20261102);
+            int escapes = 0;
+            double worst = 0.0;
+
+            for (int trial = 0; trial < trials; trial++)
+            {
+                double spin = (random.NextDouble() * 2.0 - 1.0) * _config.maxUserAngularSpeedDeg;
+                BuildSingleRing(0, 0, spin, solid: true);
+
+                float angle = (float)(random.NextDouble() * Mathf.PI * 2f);
+                // Straight at the ceiling, not a sample below it: the fast end is the only end
+                // where a swept contact could be missed.
+                float speed = (float)_settings.MaxBallSpeed;
+                _ball.Body.linearVelocity = new Vector2(Mathf.Cos(angle) * speed, Mathf.Sin(angle) * speed);
+
+                double furthest = Simulate(0.5f, 1f / 60f);
+                if (furthest > worst) worst = furthest;
+                if (furthest >= OuterEdge) escapes++;
+
+                foreach (var go in _spawned) if (go != null) Object.DestroyImmediate(go);
+                _spawned.Clear();
+
+                if (trial % 100 == 0) yield return null;
+            }
+
+            Assert.AreEqual(0, escapes,
+                $"{escapes}/{trials} trials tunnelled out at 60 Hz; furthest reach {worst:F3} "
+                + $"against edge {OuterEdge:F3}, step {travel:F3}u through {_settings.Thickness:F3}u");
         }
 
         [UnityTest]

@@ -76,24 +76,27 @@ namespace HR.Tests.EditMode
         [Test]
         public void The_average_hand_lands_in_the_band_it_is_defined_by()
         {
-            // The band moved 25–60 → 55–95 at D-059, and the honest reading of that is that this
-            // simulator no longer sets the difficulty. It asks the pre-D-058 question — can the
-            // hand bring the opening to the bottom and hold it there — and the answer got easy,
-            // because the openings had to be widened in ANGLE for a ball that now leaves through
-            // whichever one it happens to reach. Measured here: 73.8 against 69% at the play-mode
-            // gate on the same numbers. Tightening the game until this band was happy again would
-            // be tuning against a model of a game nobody plays; the gate is the one that decides.
+            // Third recalibration: 25–60 at D-058, 55–95 at D-059, 110–165 here. Each time for
+            // the same reason — this simulator asks the pre-D-058 question, whether the hand can
+            // bring an opening to the bottom and hold it, and every change that helps a flying
+            // ball makes that question easier without making the game easier.
+            //
+            // The size of the disagreement is the point. On the geometry this run measures, the
+            // model says 135 where the play-mode gate on real physics says 296/300 — a gate that
+            // barely moved from the 288/300 it gave before the geometry changed at all. The gate
+            // decides; this is a regression net, not a difficulty dial, and whether it earns its
+            // keep at all is a question for the balance slice. See DECISIONS D-062.
             double mean = MeanScore(BotBrain.Medium);
-            Assert.GreaterOrEqual(mean, 55.0, $"medium averages {mean:F1}, under the band");
-            Assert.LessOrEqual(mean, 95.0, $"medium averages {mean:F1}, over the band");
+            Assert.GreaterOrEqual(mean, 110.0, $"medium averages {mean:F1}, under the band");
+            Assert.LessOrEqual(mean, 165.0, $"medium averages {mean:F1}, over the band");
         }
 
         [Test]
         public void The_weakest_hand_lands_in_the_band_it_is_defined_by()
         {
             double mean = MeanScore(BotBrain.Weak);
-            Assert.GreaterOrEqual(mean, 8.0, $"weak averages {mean:F1}, under the band");
-            Assert.LessOrEqual(mean, 22.0, $"weak averages {mean:F1}, over the band");
+            Assert.GreaterOrEqual(mean, 12.0, $"weak averages {mean:F1}, under the band");
+            Assert.LessOrEqual(mean, 32.0, $"weak averages {mean:F1}, over the band");
         }
 
         [Test]
