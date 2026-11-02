@@ -80,11 +80,65 @@ namespace HR.Tests.EditMode
             // The spec's original Pastel rings, against its near-white background.
             var bad = new ThemePalette(Theme.Pastel, "#FDF6F0",
                 new[] { "#F4A6A6", "#A6D8F4", "#B8E6C1", "#FFE0A3" }, "#5C5470",
-                "#FDF6F0", "#5C5470", EndCapStyle.Round, false, 0.5, 0.0);
+                "#FDF6F0", "#5C5470", 0.5, 0.0);
 
             var problems = bad.Validate();
             Assert.IsNotEmpty(problems, "pale rings on near-white should not pass");
             Assert.AreEqual(4, problems.Count, "all four rings should be reported, not just the first");
+        }
+
+        [Test]
+        public void No_palette_pulses_faster_than_a_player_can_be_asked_to_look_at()
+        {
+            // Plan [G-34] item 2 and [X-14]. The player stares straight into this tunnel for
+            // minutes at a time; a palette that flickers is a health question rather than taste,
+            // and the floor is the only thing standing between the two.
+            foreach (var theme in ThemePalette.All)
+            {
+                var palette = ThemePalette.For(theme);
+                if (palette.ShimmerSeconds <= 0.0) continue;
+
+                Assert.GreaterOrEqual(palette.ShimmerSeconds, ThemePalette.MinShimmerSeconds,
+                    $"{theme} pulses every {palette.ShimmerSeconds:F1}s");
+                Assert.LessOrEqual(palette.ShimmerDepth, 0.25,
+                    $"{theme} moves its colours by {palette.ShimmerDepth:P0} a cycle");
+            }
+        }
+
+        [Test]
+        public void A_shimmer_only_ever_makes_a_ring_easier_to_see()
+        {
+            // Swinging both ways was the obvious reading of "shimmer" and it cost Neon's purple
+            // ring its legibility at the bottom of every cycle: 2.92 against a floor of 3.0, a
+            // tenth of a second at a time, for as long as the theme was on. The shimmer now
+            // moves away from the background and never toward it, and this is the test that
+            // keeps it that way.
+            foreach (var theme in ThemePalette.All)
+            {
+                var palette = ThemePalette.For(theme);
+                if (palette.ShimmerDepth <= 0.0) continue;
+
+                var away = Contrast.Luminance(palette.Background) < 0.5
+                    ? new Rgb(255, 255, 255) : new Rgb(0, 0, 0);
+
+                for (int i = 0; i < palette.RingColours.Length; i++)
+                {
+                    var ink = palette.RingColours[i];
+                    double still = Contrast.Ratio(ink, palette.Background);
+
+                    // Across the whole cycle, not only at its ends.
+                    for (double t = 0.0; t <= 1.0001; t += 0.1)
+                    {
+                        var shifted = Rgb.Mix(ink, away, t * palette.ShimmerDepth);
+                        double moved = Contrast.Ratio(shifted, palette.Background);
+
+                        Assert.GreaterOrEqual(moved, Contrast.Required,
+                            $"{theme} ring {i} drops under the floor at {t:P0} of its shimmer");
+                        Assert.GreaterOrEqual(moved, still - 1e-9,
+                            $"{theme} ring {i} got harder to see at {t:P0} of its shimmer");
+                    }
+                }
+            }
         }
 
         [Test]
@@ -118,7 +172,7 @@ namespace HR.Tests.EditMode
                 Assert.IsTrue(seen.Add(palette.Background.ToString() + palette.Ball),
                     $"{theme} looks identical to another theme");
             }
-            Assert.AreEqual(5, seen.Count);
+            Assert.AreEqual(6, seen.Count);
         }
 
         [Test]

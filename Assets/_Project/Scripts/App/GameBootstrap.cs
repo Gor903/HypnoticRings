@@ -378,7 +378,12 @@ namespace HR.App
                 // game itself has stopped.
                 _effects.Tick(Time.deltaTime);
             }
-            else if (_game.State == GameState.Menu && _effects.Enabled)
+            // The palette breathes wherever the tunnel is visible, menu included — it is the
+            // same tunnel, and a theme that only moved during a run would read as a glitch the
+            // moment the player pressed Play.
+            if (_effects.Enabled) _themes.Tick(Time.deltaTime);
+
+            if (_game.State == GameState.Menu && _effects.Enabled)
             {
                 // Spec 10.2 asks for slowly turning rings behind the menu. Rotating the whole
                 // tunnel object is purely visual — no ring moves relative to another, and the
