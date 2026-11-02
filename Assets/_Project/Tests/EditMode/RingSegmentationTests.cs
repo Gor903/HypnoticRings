@@ -241,8 +241,8 @@ namespace HR.Tests.EditMode
         public void Derived_values_match_the_contract()
         {
             var s = TunnelSettings.Default;
-            Assert.AreEqual(1.35, s.Step, 1e-9, "ring step");
-            Assert.AreEqual(0.95, s.CrushRadius, 1e-9, "crush radius");
+            Assert.AreEqual(1.28, s.Step, 1e-9, "ring step");
+            Assert.AreEqual(0.84, s.CrushRadius, 1e-9, "crush radius");
         }
 
         [Test]

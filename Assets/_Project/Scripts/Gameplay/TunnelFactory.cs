@@ -58,7 +58,9 @@ namespace HR.Gameplay
             // The pooled path is the one that ships, so the sandbox uses it too rather than a
             // hand-placed arrangement that could drift from what a real run does.
             var pool = new RingPool(config, tunnelGo.transform, ringMaterial);
-            pool.Prewarm(settings.RingsAhead + 3);
+            // Enough for the densest the tunnel ever gets, not for the count it opens with:
+            // the corridor narrows over a run, so the frame holds more rings the longer it goes.
+            pool.Prewarm(TunnelController.MaxRingsInFrame / 2);
 
             tunnel.Initialise(config, ball, pool);
             tunnel.SetRingColours(new[] { Color.white });

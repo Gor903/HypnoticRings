@@ -10,8 +10,10 @@ namespace HR.Gameplay
     {
         [Tooltip("Rings cleared at which this row applies.")]
         public int rings;
-        [Tooltip("Shrink speed in equilibrium. This is the timer: budget = (target - T/2 - red) / it.")]
-        public float compressionSpeed;
+        [Tooltip("Corridor width between neighbouring rings. Tightens as a run goes on.")]
+        public float clearance;
+        [Tooltip("Seconds a ring is meant to last. The shrink speed is derived from it and the step.")]
+        public float ringInterval;
         [Tooltip("Ceiling on the retraction after a pass. Separate from the timer on purpose.")]
         public float maxCompressionSpeed;
         [Tooltip("Clear opening in world units, measured at the target radius. The angle is held from there.")]
@@ -34,10 +36,10 @@ namespace HR.Gameplay
         [Tooltip("In ascending order of rings. The last row is the ceiling: past it nothing gets harder.")]
         public DifficultyAnchor[] anchors =
         {
-            new DifficultyAnchor { rings = 0,  compressionSpeed = 0.45f, maxCompressionSpeed = 2.0f, gapArcWidth = 4.10f, autoSpinDeg = 0f },
-            new DifficultyAnchor { rings = 10, compressionSpeed = 0.55f, maxCompressionSpeed = 3.0f, gapArcWidth = 3.70f, autoSpinDeg = 15f },
-            new DifficultyAnchor { rings = 30, compressionSpeed = 0.70f, maxCompressionSpeed = 4.0f, gapArcWidth = 3.27f, autoSpinDeg = 40f },
-            new DifficultyAnchor { rings = 80, compressionSpeed = 0.85f, maxCompressionSpeed = 5.0f, gapArcWidth = 2.60f, autoSpinDeg = 70f },
+            new DifficultyAnchor { rings = 0,  clearance = 1.10f, ringInterval = 3.00f, maxCompressionSpeed = 2.0f, gapArcWidth = 4.32f, autoSpinDeg = 0f },
+            new DifficultyAnchor { rings = 10, clearance = 1.05f, ringInterval = 2.45f, maxCompressionSpeed = 3.0f, gapArcWidth = 3.90f, autoSpinDeg = 15f },
+            new DifficultyAnchor { rings = 30, clearance = 0.96f, ringInterval = 1.93f, maxCompressionSpeed = 4.0f, gapArcWidth = 3.48f, autoSpinDeg = 40f },
+            new DifficultyAnchor { rings = 80, clearance = 0.72f, ringInterval = 1.59f, maxCompressionSpeed = 5.0f, gapArcWidth = 2.80f, autoSpinDeg = 70f },
         };
 
         /// <summary>The rows in the engine-free shape the curve reads.</summary>
@@ -45,9 +47,9 @@ namespace HR.Gameplay
         {
             var rows = new List<CurveAnchor>(anchors.Length);
             for (int i = 0; i < anchors.Length; i++)
-                rows.Add(new CurveAnchor(anchors[i].rings, anchors[i].compressionSpeed,
-                                         anchors[i].maxCompressionSpeed, anchors[i].gapArcWidth,
-                                         anchors[i].autoSpinDeg));
+                rows.Add(new CurveAnchor(anchors[i].rings, anchors[i].clearance,
+                                         anchors[i].ringInterval, anchors[i].maxCompressionSpeed,
+                                         anchors[i].gapArcWidth, anchors[i].autoSpinDeg));
             return rows;
         }
 

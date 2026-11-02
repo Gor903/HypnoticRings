@@ -24,15 +24,17 @@ namespace HR.Gameplay
     {
         [Header("Tunnel geometry — world units; the ball is 0.54 of one (D-059)")]
         [Tooltip("Ring thickness. Physical equals visual, in every theme, always.")]
-        public float thickness = 0.40f;
-        [Tooltip("Corridor clearance between neighbouring rings. Its floor is the ball's diameter.")]
-        public float clearance = 0.95f;
+        public float thickness = 0.18f;
+        [Tooltip("Opening corridor width. Once a run scores, the difficulty table owns this.")]
+        public float clearance = 1.10f;
         [Tooltip("Radius the ball's ring settles at between passes. Gap widths are read here.")]
         public float targetRadius = 3.0f;
         [Tooltip("Rings without the ball inside fade out below this radius.")]
         public float vanishRadius = 1.05f;
-        [Tooltip("Rings kept outside the ball's ring. Also how many of them the frame can show.")]
+        [Tooltip("Rings kept outside the ball's ring. Only a floor now; the radius limit decides.")]
         public int ringsAhead = 9;
+        [Tooltip("Rings are spawned outwards until the outermost reaches this radius.")]
+        public float outerRadiusLimit = 15.2f;
 
         [Header("View — CONTRACT.md G-10: the camera is static and frames the tunnel")]
         [Tooltip("Half the height the camera sees, in world units. Larger shows more rings.")]
@@ -43,7 +45,7 @@ namespace HR.Gameplay
         [Header("Ball — it flies, it does not roll")]
         public float ballRadius = 0.27f;
         [Tooltip("Safety ceiling, not a feel knob: a step longer than a ring is thick could pass through one.")]
-        public float maxBallSpeed = 16f;
+        public float maxBallSpeed = 14f;
         [Tooltip("Speed the regulator holds the ball at, feeding back whatever a bounce took or gave.")]
         public float cruiseSpeed = 10f;
         [Tooltip("How hard the regulator pulls, in units per second squared.")]
@@ -75,8 +77,8 @@ namespace HR.Gameplay
         [Header("Compression")]
         [Tooltip("Only the opening value. Once a run scores, the difficulty table owns this.")]
         public float baseCompressionSpeed = 0.45f;
-        [Tooltip("Pull that retracts the tunnel after a pass.")]
-        public float pullToCentre = 3.0f;
+        [Tooltip("Pull that retracts the tunnel after a pass, per step: k = this / step.")]
+        public float pullPerStep = 4.05f;
         [Tooltip("Highest retraction any table row may ask for. The row itself sets the live ceiling.")]
         public float maxCompressionSpeed = 5.0f;
 
@@ -142,7 +144,7 @@ namespace HR.Gameplay
 
         public TunnelSettings ToSettings() => new TunnelSettings(
             thickness, clearance, targetRadius, vanishRadius, ballRadius, redRadius,
-            passMargin, minGapWidth, pullToCentre, maxCompressionSpeed, comfortSpinDeg,
+            passMargin, minGapWidth, pullPerStep, maxCompressionSpeed, comfortSpinDeg,
             maxBallSpeed, maxArcStepDeg, maxSegmentSweepDeg, ringsAhead, capPoints);
 
 #if UNITY_EDITOR
