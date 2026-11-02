@@ -35,6 +35,14 @@ namespace HR.Core
         public readonly Rgb BallOutline;
 
         public readonly Rgb Ui;
+
+        /// <summary>
+        /// The super ring's own colour. A reward has to be recognisable before it is reached,
+        /// and the depth fade alone cannot say "this one is different" — it only says "this one
+        /// is near". Gold on dark themes, deep amber where gold would wash out.
+        /// </summary>
+        public readonly Rgb Super;
+
         public readonly EndCapStyle EndCaps;
         public readonly bool SegmentSeams;
 
@@ -46,8 +54,9 @@ namespace HR.Core
 
         public ThemePalette(Theme theme, string background, string[] ringColours, string ball,
                             string ballOutline, string ui, EndCapStyle endCaps, bool segmentSeams,
-                            double depthFade, double glow)
+                            double depthFade, double glow, string super = "#E8A317")
         {
+            Super = Rgb.Parse(super);
             if (ringColours == null || ringColours.Length == 0)
                 throw new ArgumentException("a theme needs at least one ring colour", nameof(ringColours));
 
@@ -109,8 +118,10 @@ namespace HR.Core
                 case Theme.Monochrome:
                     // Ball and rings are the same ink on purpose — the reference image is black
                     // rings on white. The background-coloured outline is what keeps them apart.
+                    // Gold on near-white is invisible; the reward ring reads as the only warm
+                    // ink in a monochrome tunnel instead.
                     return new ThemePalette(theme, "#FAFAFA", new[] { "#111111" }, "#111111",
-                        "#FAFAFA", "#111111", EndCapStyle.Round, false, 0.55, 0.0);
+                        "#FAFAFA", "#111111", EndCapStyle.Round, false, 0.55, 0.0, "#9A6B00");
 
                 case Theme.Midnight:
                     return new ThemePalette(theme, "#0B1020", new[] { "#E8ECF4" }, "#FFB703",
@@ -127,12 +138,12 @@ namespace HR.Core
                     // Hue and saturation are kept; only value moved. DECISIONS D-026.
                     return new ThemePalette(theme, "#FDF6F0",
                         new[] { "#B97E7E", "#6F91A3", "#76937C", "#9E8B65" }, "#5C5470",
-                        "#FDF6F0", "#5C5470", EndCapStyle.Round, false, 0.5, 0.0);
+                        "#FDF6F0", "#5C5470", EndCapStyle.Round, false, 0.5, 0.0, "#A07400");
 
                 case Theme.Earth:
                     return new ThemePalette(theme, "#EADDC8",
                         new[] { "#3F5E3A", "#6B4F3A", "#8A7A52" }, "#C2562B",
-                        "#EADDC8", "#3B2F26", EndCapStyle.Round, false, 0.5, 0.0);
+                        "#EADDC8", "#3B2F26", EndCapStyle.Round, false, 0.5, 0.0, "#8A5A00");
 
                 default:
                     throw new ArgumentOutOfRangeException(nameof(theme));

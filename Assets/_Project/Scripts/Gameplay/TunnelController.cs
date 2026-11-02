@@ -30,6 +30,7 @@ namespace HR.Gameplay
         int _pendingIndex = -1;
         double _pendingRadius;
         int _lastPassedIndex = -1;
+        bool _pendingWasSuper;
         Color[] _ringColours = { Color.white };
 
         // Depth is carried by fading toward the background rather than by alpha: the unlit
@@ -39,6 +40,13 @@ namespace HR.Gameplay
 
         /// <summary>Fires once per ring cleared, with that ring's spawn index.</summary>
         public event Action<int> RingPassed;
+
+        /// <summary>
+        /// Fires when a super ring's wave has taken rings the player will now never meet, with
+        /// how many. They are worth a point each: the score stays equal to the number of the
+        /// ring the ball is in, so difficulty and unlock thresholds keep meaning what they say.
+        /// </summary>
+        public event Action<int> RingsDissolved;
 
         public int PassedCount { get; private set; }
         public double BaseCompressionSpeed { get; set; }
@@ -85,6 +93,15 @@ namespace HR.Gameplay
             ForceReshade();
         }
 
+        /// <summary>The reward ring's ink, which the theme owns like every other colour.</summary>
+        public void SetSuperColour(Color colour)
+        {
+            _superColour = colour;
+            ForceReshade();
+        }
+
+        Color _superColour = new Color(0.91f, 0.64f, 0.09f);
+
         /// <summary>The colour distant rings fade into — the theme's background.</summary>
         public void SetFadeColour(Color colour)
         {
@@ -122,6 +139,10 @@ namespace HR.Gameplay
             _ballRing = null;
             _pendingIndex = -1;
             _lastPassedIndex = -1;
+            _pendingWasSuper = false;
+            _restLeft = 0.0;
+            for (int i = 0; i < _waveCount; i++) _wave[i] = null;
+            _waveCount = 0;
 
             // The ball's own ring, then outwards until the tunnel reaches the edge of the frame.
             // Nothing inside it: a ring the ball has left is retired the moment it leaves, so an
@@ -179,6 +200,8 @@ namespace HR.Gameplay
             // is five scans of the ring list per step for an answer that cannot change mid-step.
             var ballRing = ResolveBallRing();
 
+            StepRest(dt);
+            StepWave(dt);
             if (CompressionEnabled) Compress(dt, ballRing);
             if (RotationEnabled) Rotate(dt);
             ApplySolidity(ballRing);
@@ -209,6 +232,7 @@ namespace HR.Gameplay
                 BaseCompressionSpeed, TunnelMath.PullFor(_settings.PullPerStep, StepNow), ceiling,
                 ballRingRadius, _settings.TargetRadius);
 
+            LastCompressionSpeed *= RestFactor;
             double delta = LastCompressionSpeed * dt;
             for (int i = 0; i < _rings.Count; i++)
             {
@@ -232,6 +256,102 @@ namespace HR.Gameplay
 
             for (int i = 0; i < _rings.Count; i++)
                 _rings[i].SetSolid(_rings[i].Radius <= limit);
+        }
+
+        /// <summary>Seconds left of the rest a super ring bought, counting the fade back.</summary>
+        double _restLeft;
+
+        // The wave of dissolving rings, as a fixed queue. Sized once at the largest the config
+        // allows, because a list that grows is an allocation and this fires mid-run.
+        const int MaxWave = 5;
+        readonly RingController[] _wave = new RingController[MaxWave];
+        readonly double[] _waveDelay = new double[MaxWave];
+        int _waveCount;
+
+        /// <summary>
+        /// Starts the reward for clearing a super ring: the next few rings let the ball through
+        /// without being cleared, one after another rather than all at once.
+        ///
+        /// Staggered because three rings vanishing on the same frame reads as a glitch, and
+        /// because the wave travelling outwards is the thing that says what just happened.
+        /// </summary>
+        void BeginWave(RingController ballRing)
+        {
+            if (_config == null) return;
+
+            int wanted = Mathf.Clamp(_config.superDissolveCount, 0, MaxWave);
+            if (wanted == 0) return;
+
+            _waveCount = 0;
+            double reference = ballRing != null ? ballRing.Radius : OutermostRadius();
+
+            // Outwards from the ball, nearest first: these are the rings it would have met next.
+            for (int picked = 0; picked < wanted; picked++)
+            {
+                RingController best = null;
+                for (int i = 0; i < _rings.Count; i++)
+                {
+                    var ring = _rings[i];
+                    if (ring == ballRing || ring.IsDissolving) continue;
+                    if (ring.Radius <= reference + 1e-6) continue;
+                    if (AlreadyInWave(ring)) continue;
+                    if (best == null || ring.Radius < best.Radius) best = ring;
+                }
+
+                if (best == null) break;
+                _wave[_waveCount] = best;
+                _waveDelay[_waveCount] = _config.superWaveStagger * _waveCount;
+                _waveCount++;
+            }
+
+            _restLeft = _config.superSlowSeconds + _config.superSlowReturnSeconds;
+            if (_waveCount > 0) RingsDissolved?.Invoke(_waveCount);
+        }
+
+        bool AlreadyInWave(RingController ring)
+        {
+            for (int i = 0; i < _waveCount; i++)
+                if (ReferenceEquals(_wave[i], ring)) return true;
+            return false;
+        }
+
+        void StepWave(double dt)
+        {
+            for (int i = 0; i < _waveCount; i++)
+            {
+                if (_wave[i] == null) continue;
+
+                _waveDelay[i] -= dt;
+                if (_waveDelay[i] > 0.0) continue;
+
+                _wave[i].BeginDissolve(_config.dissolveSeconds);
+                _wave[i] = null;
+            }
+        }
+
+        /// <summary>
+        /// How much of normal compression is running right now.
+        ///
+        /// A flat multiplier that snapped back to one would read as the tunnel being shoved; the
+        /// last second eases it back instead, so the rest ends rather than stops.
+        /// </summary>
+        double RestFactor
+        {
+            get
+            {
+                if (_restLeft <= 0.0 || _config == null) return 1.0;
+
+                double fade = _config.superSlowReturnSeconds;
+                if (fade <= 0.0 || _restLeft > fade) return _config.superSlowFactor;
+
+                double t = _restLeft / fade;
+                return _config.superSlowFactor + (1.0 - _config.superSlowFactor) * (1.0 - t);
+            }
+        }
+
+        void StepRest(double dt)
+        {
+            if (_restLeft > 0.0) _restLeft -= dt;
         }
 
         void Rotate(double dt)
@@ -343,7 +463,7 @@ namespace HR.Gameplay
             var ring = _pool.Rent();
             var spec = _generator.Next(_difficulty, PreviousSpin());
             ring.SpawnIndex = _nextSpawnIndex++;
-            ring.Configure(radius, spec.Gaps, spec.AutoSpinDeg);
+            ring.Configure(radius, spec.Gaps, spec.AutoSpinDeg, spec.Kind);
             _rings.Add(ring);
         }
 
@@ -398,6 +518,7 @@ namespace HR.Gameplay
                     // number and an index, never the object.
                     _pendingIndex = _ballRing.SpawnIndex;
                     _pendingRadius = _ballRing.Radius;
+                    _pendingWasSuper = _ballRing.Kind == RingKind.Super;
                     _ballRing.BeginDissolve(_config.dissolveSeconds);
                 }
                 _ballRing = current;
@@ -416,6 +537,8 @@ namespace HR.Gameplay
                 PassedCount++;
                 _lastPassedIndex = _pendingIndex;
                 RingPassed?.Invoke(_pendingIndex);
+                if (_pendingWasSuper) BeginWave(current);
+                _pendingWasSuper = false;
                 _pendingIndex = -1;
             }
         }
@@ -438,7 +561,11 @@ namespace HR.Gameplay
                 if (ring.IsDissolving) alpha *= 1.0 - ring.DissolveProgress;
                 int slot = ((ring.SpawnIndex % _ringColours.Length) + _ringColours.Length)
                            % _ringColours.Length;
-                var colour = Color.Lerp(_fadeToward, _ringColours[slot], (float)alpha);
+
+                // A super ring keeps its own colour but not its own depth: it has to be
+                // recognisable from far out, and it still has to sit in the tunnel.
+                var ink = ring.Kind == RingKind.Super ? _superColour : _ringColours[slot];
+                var colour = Color.Lerp(_fadeToward, ink, (float)alpha);
                 colour.a = 1f;
                 ring.ApplyShading(colour);
             }

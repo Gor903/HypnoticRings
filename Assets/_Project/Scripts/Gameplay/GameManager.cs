@@ -55,12 +55,15 @@ namespace HR.Gameplay
 
             _states.Changed += (from, to) => StateChanged?.Invoke(from, to);
             _tunnel.RingPassed += OnRingPassed;
+            _tunnel.RingsDissolved += OnRingsDissolved;
             _states.Fire(GameTrigger.Loaded);
         }
 
         void OnDestroy()
         {
-            if (_tunnel != null) _tunnel.RingPassed -= OnRingPassed;
+            if (_tunnel == null) return;
+            _tunnel.RingPassed -= OnRingPassed;
+            _tunnel.RingsDissolved -= OnRingsDissolved;
         }
 
         /// <summary>Begins a run. Safe to call again — that is what Retry is.</summary>
@@ -153,6 +156,17 @@ namespace HR.Gameplay
         void OnRingPassed(int ringIndex)
         {
             _score.AddRing();
+            Scored?.Invoke(_score.Score);
+        }
+
+        /// <summary>
+        /// Rings the super ring's wave took. Worth a point each, because the score is a count of
+        /// rings and these were rings — paying a bonus instead would split the score from the n
+        /// the difficulty curve and the unlock thresholds are written in.
+        /// </summary>
+        void OnRingsDissolved(int count)
+        {
+            _score.AddRings(count);
             Scored?.Invoke(_score.Score);
         }
 

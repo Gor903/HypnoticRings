@@ -65,6 +65,9 @@ namespace HR.Gameplay
         /// <summary>How many ways out this ring has.</summary>
         public int GapCount => _gapCount;
 
+        /// <summary>What the generator made this ring for. Colour and the wave both read it.</summary>
+        public RingKind Kind { get; private set; }
+
         /// <summary>World-space angle of the first gap's centre, which is what the ball cares about.</summary>
         public double GapCentreWorldDeg => TunnelMath.NormalizeDeg(GapCentreLocalDeg + TotalRotationDeg);
 
@@ -192,18 +195,28 @@ namespace HR.Gameplay
 
         /// <summary>Places the ring with one opening — the shape most rings have.</summary>
         public void Configure(double radius, double gapCentreLocalDeg, double gapArcWidth, double autoSpinDeg)
-            => Place(radius, RingGaps.One(gapCentreLocalDeg, gapArcWidth), autoSpinDeg);
+        {
+            Kind = RingKind.Plain;
+            Place(radius, RingGaps.One(gapCentreLocalDeg, gapArcWidth), autoSpinDeg);
+        }
 
         /// <summary>Places the ring with however many openings the generator decided on.</summary>
-        public void Configure(double radius, in RingGaps gaps, double autoSpinDeg)
-            => Place(radius, gaps, autoSpinDeg);
+        public void Configure(double radius, in RingGaps gaps, double autoSpinDeg,
+                              RingKind kind = RingKind.Plain)
+        {
+            Kind = kind;
+            Place(radius, gaps, autoSpinDeg);
+        }
 
         /// <summary>
         /// A ring with no way out. Not a game state — it is what the tunnelling test needs, so
         /// that any escape at all is a failure rather than a judgement call.
         /// </summary>
         public void ConfigureSolid(double radius, double autoSpinDeg)
-            => Place(radius, new RingGaps { Count = 0 }, autoSpinDeg);
+        {
+            Kind = RingKind.Plain;
+            Place(radius, new RingGaps { Count = 0 }, autoSpinDeg);
+        }
 
         void Place(double radius, in RingGaps gaps, double autoSpinDeg)
         {

@@ -7,6 +7,9 @@ namespace HR.Core
     {
         Plain = 0,
         MultiGap = 1,
+
+        /// <summary>A rest, not a test: one wide opening, and clearing it dissolves the next three.</summary>
+        Super = 2,
     }
 
     /// <summary>Everything that distinguishes one ring from the next.</summary>
@@ -142,8 +145,23 @@ namespace HR.Core
         /// <summary>Most multi-gap rings allowed in a row, from plan [G-27].</summary>
         public const int MaxMultiGapRun = 2;
 
+        /// <summary>Every this many rings, one is a super ring. Plan [G-32].</summary>
+        public const int SuperRingEvery = 12;
+
+        /// <summary>Plain rings guaranteed after a super one, so the reward lands cleanly.</summary>
+        public const int PlainRingsAfterSuper = 2;
+
+        /// <summary>A super ring's opening, as a share of what the curve asks for.</summary>
+        public const double SuperGapBonus = 1.3;
+
+        /// <summary>Whether the ring at this ordinal is the rest the curve owes the player.</summary>
+        public static bool IsSuperOrdinal(int ordinal) =>
+            ordinal > 0 && ordinal % SuperRingEvery == 0;
+
         public RingSpec Next(in DifficultySnapshot difficulty, double previousAutoSpinDeg)
         {
+            if (IsSuperOrdinal(_produced)) return NextSuper(difficulty);
+
             int gapCount = ChooseGapCount(difficulty);
 
             var spec = new RingSpec
@@ -160,12 +178,40 @@ namespace HR.Core
         }
 
         /// <summary>
+        /// The rest ring: one opening, wider than the curve asks, and never spinning.
+        ///
+        /// Its ordinal decides it rather than a die roll, so a player can learn the rhythm — a
+        /// reward that arrives at random is indistinguishable from luck, and a run that happens
+        /// to get none feels unfair without the player ever knowing why.
+        /// </summary>
+        RingSpec NextSuper(in DifficultySnapshot difficulty)
+        {
+            var spec = new RingSpec
+            {
+                Gaps = RingGaps.One(_random.NextDouble() * 360.0,
+                                    difficulty.GapArcWidth * SuperGapBonus),
+                Kind = RingKind.Super,
+                AutoSpinDeg = 0.0,
+                ColourIndex = _produced,
+            };
+
+            _multiGapRun = 0;
+            _plainRingsOwed = PlainRingsAfterSuper;
+            _produced++;
+            return spec;
+        }
+
+        /// <summary>Plain rings still owed after the last super ring.</summary>
+        int _plainRingsOwed;
+
+        /// <summary>
         /// One, two or three openings. The run-length rule is drawn before the dice rather than
         /// after, so a streak is refused outright instead of being rerolled into a different
         /// streak — rerolling would bias the chances the table asks for.
         /// </summary>
         int ChooseGapCount(in DifficultySnapshot difficulty)
         {
+            if (_plainRingsOwed > 0) { _plainRingsOwed--; return 1; }
             if (_multiGapRun >= MaxMultiGapRun) return 1;
             if (difficulty.MultiGapChance <= 0.0) return 1;
             if (_random.NextDouble() >= difficulty.MultiGapChance) return 1;
@@ -214,6 +260,7 @@ namespace HR.Core
             _produced = 0;
             Clamped = 0;
             _multiGapRun = 0;
+            _plainRingsOwed = 0;
         }
 
         /// <summary>

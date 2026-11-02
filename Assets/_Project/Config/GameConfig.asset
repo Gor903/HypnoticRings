@@ -38,6 +38,11 @@ MonoBehaviour:
   baseCompressionSpeed: 0.427
   pullPerStep: 4.05
   maxCompressionSpeed: 5
+  superDissolveCount: 3
+  superWaveStagger: 0.1
+  superSlowFactor: 0.4
+  superSlowSeconds: 3.5
+  superSlowReturnSeconds: 1
   minGapWidth: 0.8
   comfortSpinDeg: 300
   sensitivity: 3
