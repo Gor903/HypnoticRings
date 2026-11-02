@@ -17,6 +17,13 @@ namespace HR.Core
     {
         public RingGaps Gaps;
         public RingKind Kind;
+
+        /// <summary>
+        /// Which opening carries the bead, or -1. The generator marks it; whether a bead is
+        /// actually put there is the tunnel's call, because that depends on how many balls are
+        /// already in play and the generator has to stay a function of its seed.
+        /// </summary>
+        public int BeadGap;
         public double AutoSpinDeg;
         public int ColourIndex;
 
@@ -148,6 +155,12 @@ namespace HR.Core
         /// <summary>Every this many rings, one is a super ring. Plan [G-32].</summary>
         public const int SuperRingEvery = 12;
 
+        /// <summary>One in this many multi-gap rings carries a bead. Plan [G-27].</summary>
+        public const int BeadEveryMultiGap = 3;
+
+        /// <summary>How much narrower the bead's own opening is. The prize has a price.</summary>
+        public const double BeadGapNarrowing = 0.7;
+
         /// <summary>Plain rings guaranteed after a super one, so the reward lands cleanly.</summary>
         public const int PlainRingsAfterSuper = 2;
 
@@ -164,10 +177,21 @@ namespace HR.Core
 
             int gapCount = ChooseGapCount(difficulty);
 
+            int beadGap = -1;
+            if (gapCount > 1)
+            {
+                _multiGapSeen++;
+                // The first multi-gap ring of a run always carries one, so the mechanic is seen
+                // rather than waited for; after that, every third.
+                if (_multiGapSeen == 1 || _multiGapSeen % BeadEveryMultiGap == 0)
+                    beadGap = gapCount - 1;   // the narrowest, which is what makes it a choice
+            }
+
             var spec = new RingSpec
             {
-                Gaps = BuildGaps(difficulty, gapCount),
+                Gaps = BuildGaps(difficulty, gapCount, beadGap),
                 Kind = gapCount > 1 ? RingKind.MultiGap : RingKind.Plain,
+                BeadGap = beadGap,
                 AutoSpinDeg = SpinFor(difficulty, previousAutoSpinDeg),
                 ColourIndex = _produced,
             };
@@ -191,6 +215,7 @@ namespace HR.Core
                 Gaps = RingGaps.One(_random.NextDouble() * 360.0,
                                     difficulty.GapArcWidth * SuperGapBonus),
                 Kind = RingKind.Super,
+                BeadGap = -1,
                 AutoSpinDeg = 0.0,
                 ColourIndex = _produced,
             };
@@ -231,7 +256,10 @@ namespace HR.Core
         /// ball is never more than a quarter turn from a way out wherever it is, which hands the
         /// player the thing the ring was supposed to ask of them.
         /// </summary>
-        RingGaps BuildGaps(in DifficultySnapshot difficulty, int count)
+        /// <summary>Multi-gap rings produced so far, for spacing the beads out.</summary>
+        int _multiGapSeen;
+
+        RingGaps BuildGaps(in DifficultySnapshot difficulty, int count, int beadGap = -1)
         {
             double single = GapSplit.AngleFor(difficulty.GapArcWidth,
                                               difficulty.Thickness, difficulty.ReferenceRadius);
@@ -242,7 +270,15 @@ namespace HR.Core
 
             for (int i = 0; i < count; i++)
             {
-                double opening = GapSplit.OpeningFor(_angles[i], difficulty.Thickness,
+                double angle = _angles[i];
+
+                // The bead sits in the tightest way out there is. Taking the easy opening and
+                // taking the prize have to be different decisions, or the bead is just a bonus
+                // for doing what you were going to do anyway.
+                if (i == beadGap)
+                    angle = System.Math.Max(GapSplit.MinGapDeg, angle * BeadGapNarrowing);
+
+                double opening = GapSplit.OpeningFor(angle, difficulty.Thickness,
                                                      difficulty.ReferenceRadius);
                 gaps.Set(i, new GapSpec(Wrap360(cursor), opening));
 
@@ -261,6 +297,7 @@ namespace HR.Core
             Clamped = 0;
             _multiGapRun = 0;
             _plainRingsOwed = 0;
+            _multiGapSeen = 0;
         }
 
         /// <summary>
