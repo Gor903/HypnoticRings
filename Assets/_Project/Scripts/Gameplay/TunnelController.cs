@@ -224,6 +224,19 @@ namespace HR.Gameplay
             for (int i = 0; i < _waveCount; i++) _wave[i] = null;
             _waveCount = 0;
 
+            // A run starts with one ball, whatever the last one ended with. Without this the
+            // spare survives into the next run: the bead's ball is still awake, the count is
+            // still two, and the player is handed a second chance they did not earn and a
+            // second ball they did not ask for.
+            if (_balls[1] != null) _balls[1].gameObject.SetActive(false);
+            _ballCount = _balls[0] != null ? 1 : 0;
+
+            // Touch tallies are per ring, and ring numbers start over with the run. Left alone,
+            // the ledger still believes it is watching ring zero and keeps the count it ended
+            // the last run with — which in hardcore means starting a run already one touch down.
+            _ledgerClock = 0.0;
+            for (int i = 0; i < MaxBalls; i++) _ledgers[i].Reset();
+
             // The ball's own ring, then outwards until the tunnel reaches the edge of the frame.
             // Nothing inside it: a ring the ball has left is retired the moment it leaves, so an
             // opening ring inside the ball would be the only one of its kind in the whole run and
@@ -351,8 +364,25 @@ namespace HR.Gameplay
                 for (int b = 0; b < _ballCount && !solid; b++)
                 {
                     var own = ResolveRingFor(_balls[b]);
-                    if (own == null) continue;
-                    solid = ring.Radius >= own.Radius - 1e-6
+
+                    // A ball with no ring is outside the whole tunnel, and the previous rule
+                    // made every ring passable for it — nothing was anybody's own ring, so
+                    // nothing was a wall, and a ball that got out once was gone for good. The
+                    // outermost rings become its wall instead, which is what the tunnel would
+                    // have been if it had never escaped.
+                    if (own == null)
+                    {
+                        solid = ring.Radius >= OutermostRadius() - step * SolidRingsOutside;
+                        continue;
+                    }
+
+                    // One step further in than the ball's own ring, not level with it. The ring
+                    // a ball is in the middle of crossing is no longer "its" ring — the moment
+                    // its centre passes the inner surface, the next ring out becomes that — and
+                    // keying solidity on ownership alone switched off the walls of the very ring
+                    // the ball was inside. It stays a wall until it dissolves, which now happens
+                    // only once the ball has genuinely cleared it.
+                    solid = ring.Radius >= own.Radius - step - 1e-6
                             && ring.Radius <= own.Radius + step * SolidRingsOutside;
                 }
 
@@ -840,11 +870,6 @@ namespace HR.Gameplay
                     _pendingIndex[slot] = left.SpawnIndex;
                     _pendingRadius[slot] = left.Radius;
                     _pendingWasSuper[slot] = left.Kind == RingKind.Super;
-
-                    // Only once nobody is left inside it. With two balls the one in front would
-                    // otherwise dissolve the ring the one behind is still flying in, and the
-                    // ball behind would find itself in open space with no wall to bounce off.
-                    if (!IsOwnedByAnother(left, slot)) left.BeginDissolve(_config.dissolveSeconds);
                 }
                 _ballRings[slot] = current;
             }
@@ -862,10 +887,46 @@ namespace HR.Gameplay
             {
                 PassedCount++;
                 _lastPassedIndex = _pendingIndex[slot];
+
+                // The ring goes now, not when the ball first poked into its opening.
+                //
+                // It used to dissolve at the moment the ball's centre crossed its inner surface
+                // — while the ball was still level with the ring, halfway through the gap. Two
+                // things followed, and both were reported from the phone. The ring appeared to
+                // vanish as the ball reached the NEXT one, because that is when the eye catches
+                // up with it. And its colliders went off while the ball was still inside it, so
+                // a ball lined up with the next opening could run the whole tunnel without ever
+                // meeting a wall.
+                DissolvePassed(_pendingIndex[slot], slot);
+
                 RingPassed?.Invoke(_pendingIndex[slot]);
                 if (_pendingWasSuper[slot]) BeginWave(current);
                 _pendingWasSuper[slot] = false;
                 _pendingIndex[slot] = -1;
+            }
+        }
+
+        /// <summary>
+        /// Retires the ring a ball has just cleared, by its number rather than by holding it.
+        ///
+        /// By number because the latch deliberately keeps no reference: between the ball
+        /// leaving and the pass being confirmed the ring may have been culled, dissolved by a
+        /// super ring's wave, or burst around the other ball.
+        /// </summary>
+        void DissolvePassed(int spawnIndex, int slot)
+        {
+            for (int i = 0; i < _rings.Count; i++)
+            {
+                var ring = _rings[i];
+                if (ring.SpawnIndex != spawnIndex) continue;
+                if (ring.IsDissolving) return;
+
+                // Not while the other ball is still inside it: it would find itself in open
+                // space with no wall to bounce off.
+                if (IsOwnedByAnother(ring, slot)) return;
+
+                ring.BeginDissolve(_config.dissolveSeconds);
+                return;
             }
         }
 
