@@ -22,8 +22,15 @@ namespace HR.Core
         public readonly double GapArcWidth;
         public readonly double AutoSpinDeg;
 
+        /// <summary>Chance a ring is cut with more than one opening, 0 to 1.</summary>
+        public readonly double MultiGapChance;
+
+        /// <summary>Of those, the share cut with three rather than two.</summary>
+        public readonly double TripleShare;
+
         public CurveAnchor(int rings, double clearance, double ringInterval,
-                           double maxCompressionSpeed, double gapArcWidth, double autoSpinDeg)
+                           double maxCompressionSpeed, double gapArcWidth, double autoSpinDeg,
+                           double multiGapChance = 0.0, double tripleShare = 0.0)
         {
             Rings = rings;
             Clearance = clearance;
@@ -31,6 +38,8 @@ namespace HR.Core
             MaxCompressionSpeed = maxCompressionSpeed;
             GapArcWidth = gapArcWidth;
             AutoSpinDeg = autoSpinDeg;
+            MultiGapChance = multiGapChance;
+            TripleShare = tripleShare;
         }
     }
 
@@ -57,10 +66,10 @@ namespace HR.Core
         /// </summary>
         public static IReadOnlyList<CurveAnchor> DefaultAnchors { get; } = new[]
         {
-            new CurveAnchor(0, 1.10, 3.00, 2.0, 4.32, 0.0),
-            new CurveAnchor(10, 1.05, 2.45, 3.0, 3.90, 15.0),
-            new CurveAnchor(30, 0.96, 1.93, 4.0, 3.48, 40.0),
-            new CurveAnchor(80, 0.72, 1.59, 5.0, 2.80, 70.0),
+            new CurveAnchor(0, 1.10, 3.00, 2.0, 4.32, 0.0, 0.00, 0.00),
+            new CurveAnchor(10, 1.05, 2.45, 3.0, 3.90, 15.0, 0.25, 0.00),
+            new CurveAnchor(30, 0.96, 1.93, 4.0, 3.48, 40.0, 0.36, 0.25),
+            new CurveAnchor(80, 0.72, 1.59, 5.0, 2.80, 70.0, 0.40, 0.25),
         };
 
         /// <summary>Rings played with the training wheels on — no spin at all (CONTRACT.md §2.7).</summary>
@@ -174,6 +183,13 @@ namespace HR.Core
         public double CompressionSpeedAt(int rings) => StepAt(rings) / RingIntervalAt(rings);
 
         public double MaxCompressionSpeedAt(int rings) => Sample(rings, a => a.MaxCompressionSpeed);
+
+        /// <summary>
+        /// Chance of more than one opening. Flat zero until the first anchor that asks for it,
+        /// because a second way out on ring three teaches the wrong lesson about rings.
+        /// </summary>
+        public double MultiGapChanceAt(int rings) => Sample(rings, a => a.MultiGapChance);
+        public double TripleShareAt(int rings) => Sample(rings, a => a.TripleShare);
         public double GapArcWidthAt(int rings) => Math.Max(_settings.MinGapWidth, Sample(rings, a => a.GapArcWidth));
 
         public double AutoSpinAt(int rings)
@@ -196,7 +212,11 @@ namespace HR.Core
             TimeBudgetAt(rings),
             _settings.ComfortSpinDeg,
             ClearanceAt(rings),
-            StepAt(rings));
+            StepAt(rings),
+            MultiGapChanceAt(rings),
+            TripleShareAt(rings),
+            _settings.Thickness,
+            _settings.TargetRadius);
 
         /// <summary>
         /// Smooth step between anchors. Linear would satisfy the letter of "no large jumps" but

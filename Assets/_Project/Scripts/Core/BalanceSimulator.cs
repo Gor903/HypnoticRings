@@ -97,7 +97,6 @@ namespace HR.Core
         {
             bot.Reset();
 
-            double tolerance = ToleranceDeg(spec.GapArcWidth);
             double budget = difficulty.TimeBudget;
             double ringSpin = 0.0;
             double aligned = 0.0;
@@ -106,12 +105,17 @@ namespace HR.Core
             {
                 // The ring turns on its own whatever the hand does; the hand has to out-turn it.
                 ringSpin += spec.AutoSpinDeg * dt;
-                double gapWorld = spec.GapCentreDeg + ringSpin + userAngle;
+
+                // The hand goes for whichever way out is closest, and is judged against that
+                // one's width. Reading slot zero would measure a ring nobody plays.
+                int nearest = spec.Gaps.NearestIndex(ringSpin + userAngle, TunnelMath.BottomAngleDeg);
+                double tolerance = ToleranceDeg(spec.Gaps[nearest].Opening);
+                double gapWorld = spec.Gaps[nearest].CentreDeg + ringSpin + userAngle;
 
                 userAngle += bot.Decide(TunnelMath.BottomAngleDeg, gapWorld, dt);
 
                 double error = Math.Abs(TunnelMath.ShortestDeltaDeg(
-                    spec.GapCentreDeg + ringSpin + userAngle, TunnelMath.BottomAngleDeg));
+                    spec.Gaps[nearest].CentreDeg + ringSpin + userAngle, TunnelMath.BottomAngleDeg));
 
                 if (error <= tolerance)
                 {

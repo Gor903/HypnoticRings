@@ -19,21 +19,29 @@ MonoBehaviour:
     maxCompressionSpeed: 2
     gapArcWidth: 4.32
     autoSpinDeg: 0
+    multiGapChance: 0.0
+    tripleShare: 0.0
   - rings: 10
     clearance: 1.05
     ringInterval: 2.45
     maxCompressionSpeed: 3
     gapArcWidth: 3.9
     autoSpinDeg: 15
+    multiGapChance: 0.25
+    tripleShare: 0.0
   - rings: 30
     clearance: 0.96
     ringInterval: 1.93
     maxCompressionSpeed: 4
     gapArcWidth: 3.48
     autoSpinDeg: 40
+    multiGapChance: 0.36
+    tripleShare: 0.25
   - rings: 80
     clearance: 0.72
     ringInterval: 1.59
     maxCompressionSpeed: 5
     gapArcWidth: 2.8
     autoSpinDeg: 70
+    multiGapChance: 0.4
+    tripleShare: 0.25

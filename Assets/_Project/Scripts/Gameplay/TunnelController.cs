@@ -343,7 +343,7 @@ namespace HR.Gameplay
             var ring = _pool.Rent();
             var spec = _generator.Next(_difficulty, PreviousSpin());
             ring.SpawnIndex = _nextSpawnIndex++;
-            ring.Configure(radius, spec.GapCentreDeg, spec.GapArcWidth, spec.AutoSpinDeg);
+            ring.Configure(radius, spec.Gaps, spec.AutoSpinDeg);
             _rings.Add(ring);
         }
 
