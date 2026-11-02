@@ -141,6 +141,36 @@ namespace HR.Gameplay
             TunnelMath.NormalizeDeg(_openings[index].CentreDeg + TotalRotationDeg);
 
         /// <summary>
+        /// How far the ring must turn to put the nearest opening under a heading, in degrees.
+        ///
+        /// To the nearest EDGE, not to the centre, and the difference is the whole point of a
+        /// wide opening. A player does not have to line the middle of a gap up with the ball;
+        /// they have to get any part of it there. Measuring to the centre makes a 120° opening
+        /// look exactly as demanding as a 20° one, which is how an instrument can report that
+        /// widening the gaps made the game harder.
+        ///
+        /// Zero when the heading is already inside an opening.
+        /// </summary>
+        public double TurnToNearestGapDeg(double towardsDeg)
+        {
+            if (_gapCount <= 0) return 180.0;
+
+            double best = double.MaxValue;
+            for (int i = 0; i < _gapCount; i++)
+            {
+                double toCentre = System.Math.Abs(TunnelMath.ShortestDeltaDeg(
+                    GapCentreWorldDegAt(i), towardsDeg));
+
+                // The built width at this radius, which is what the ball actually meets.
+                double half = _gaps[i].WidthDeg * 0.5;
+                double turn = System.Math.Max(0.0, toCentre - half);
+                if (turn < best) best = turn;
+            }
+
+            return best;
+        }
+
+        /// <summary>
         /// The opening nearest a given heading, which is the one a player would actually aim for.
         ///
         /// Without this the bot keeps steering at slot zero and a ring with three ways out plays
@@ -286,6 +316,7 @@ namespace HR.Gameplay
         void Place(double radius, in RingGaps gaps, double autoSpinDeg)
         {
             _openings = gaps;
+            IsHot = false;
             if (_bead != null) _bead.SetActive(false);
             BeadGap = -1;
             GapCentreLocalDeg = gaps.Count > 0 ? gaps.A.CentreDeg : 0.0;
@@ -412,6 +443,22 @@ namespace HR.Gameplay
             }
 
             if (changed) RebuildGeometry(_radius);
+        }
+
+        /// <summary>
+        /// True once this ring has used up its allowance and the next touch will end the run.
+        ///
+        /// A ring that is about to kill has to look different before it does, not after. The
+        /// alternative is a death the player cannot see coming, which in a mode built on one
+        /// mistake per ring is the difference between hard and unfair.
+        /// </summary>
+        public bool IsHot { get; private set; }
+
+        public void SetHot(bool hot)
+        {
+            if (IsHot == hot) return;
+            IsHot = hot;
+            _shaded = false;
         }
 
         /// <summary>What the halo is mixed toward — the theme's background.</summary>

@@ -18,6 +18,10 @@ namespace HR.UI
     public sealed class GameUi : MonoBehaviour
     {
         public event Action PlayPressed;
+
+        /// <summary>Play, but under the hardcore rules. A separate button, not a toggle:
+        /// a mode you can leave switched on by accident is a mode you lose runs to.</summary>
+        public event Action HardcorePressed;
         public event Action PausePressed;
         public event Action ResumePressed;
         public event Action HomePressed;
@@ -237,6 +241,13 @@ namespace HR.UI
             Track(_menuBestLabel);
 
             Button(column.transform, "menu.play", () => PlayPressed?.Invoke(), UiBuilder.TouchTarget * 1.4f);
+
+            _hardcoreButton = Button(column.transform, "menu.hardcore",
+                                     () => HardcorePressed?.Invoke());
+            _hardcoreLockLabel = UiBuilder.CreateLabel("HardcoreLock", column.transform,
+                                                       string.Empty, UiBuilder.BodySize);
+            Track(_hardcoreLockLabel);
+
             Button(column.transform, "menu.themes", () => ThemesPressed?.Invoke());
             Button(column.transform, "menu.settings", () => SettingsPressed?.Invoke());
 
@@ -492,8 +503,43 @@ namespace HR.UI
 
         // ---------------------------------------------------------------- refresh
 
+        Button _hardcoreButton;
+        Text _hardcoreLockLabel;
+
+        /// <summary>Best in the ordinary game that opens the hardcore mode. Plan [HV-05].</summary>
+        public const int HardcoreUnlockBest = 30;
+
+        /// <summary>
+        /// Shows or greys the hardcore button.
+        ///
+        /// Greyed rather than hidden, and told why: a mode the player cannot see is a mode they
+        /// never work toward, and "best 30 in the normal game" is a goal where a missing button
+        /// is only an absence.
+        /// </summary>
+        void RefreshHardcore()
+        {
+            if (_hardcoreButton == null) return;
+
+            bool open = _score != null && _score.Best >= HardcoreUnlockBest;
+            _hardcoreButton.interactable = open;
+
+            var label = _hardcoreButton.GetComponentInChildren<Text>();
+            if (label != null)
+            {
+                var colour = label.color;
+                colour.a = open ? 1f : 0.45f;
+                label.color = colour;
+            }
+
+            if (_hardcoreLockLabel == null) return;
+            _hardcoreLockLabel.gameObject.SetActive(!open);
+            if (!open)
+                _hardcoreLockLabel.text = Strings.Format("hardcore.locked", HardcoreUnlockBest);
+        }
+
         void RefreshMenu()
         {
+            RefreshHardcore();
             if (_menuBestLabel == null || _score == null) return;
 
             // CONTRACT.md G-04: an empty "Best: 0" on a fresh install is noise, so it is absent

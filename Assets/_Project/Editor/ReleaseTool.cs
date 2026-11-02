@@ -179,7 +179,10 @@ namespace HR.Editor
 
             problems.AddRange(VerifyOrientation());
 
-            if (!EditorUserBuildSettings.buildAppBundle)
+            // An APK is refused for the STORE and allowed for a phone. Both are release builds
+            // in every other respect — same signing, same IL2CPP, same stripped manifest — and
+            // the only difference is that one can be sideloaded and the other cannot.
+            if (!EditorUserBuildSettings.buildAppBundle && !AllowApk)
                 problems.Add("Output format is APK; the store needs an app bundle.");
 
             if (EditorUserBuildSettings.development)
@@ -347,8 +350,37 @@ namespace HR.Editor
         [MenuItem("Hypnotic Rings/Release/Build Bundle")]
         public static void BuildMenu() => Build();
 
-        public static bool Build()
+        /// <summary>
+        /// A signed release APK instead of a bundle.
+        ///
+        /// Not a shipping format — Play takes bundles — but the only honest way to put the
+        /// game on a phone and judge how it feels. The dev APK exists and is the wrong tool:
+        /// it is a development build, so it profiles differently from the thing players get,
+        /// and a verdict on feel taken from it is a verdict on a different game.
+        ///
+        /// Everything else is the release path unchanged, including the preflight that refuses
+        /// to build while an agent-only package is still in the manifest.
+        /// </summary>
+        public static bool BuildApk() => Build(asApk: true);
+
+        public static void CIBuildApk()
         {
+            bool ok = BuildApk();
+            EditorApplication.Exit(ok ? 0 : 1);
+        }
+
+        public static bool Build() => Build(asApk: false);
+
+        /// <summary>Set only for the duration of an APK build, so Verify knows what was asked.</summary>
+        static bool AllowApk;
+
+        static bool Build(bool asApk)
+        {
+            AllowApk = asApk;
+            // The bundle switch is read by Verify as well, so it has to be set before the
+            // preflight rather than next to the build call.
+            EditorUserBuildSettings.buildAppBundle = !asApk;
+
             List<string> problems = Verify();
             if (problems.Count > 0)
             {
@@ -360,9 +392,9 @@ namespace HR.Editor
             Directory.CreateDirectory(ReleaseSettings.OutputDirectory);
 
             bool signed = ApplySigningFromEnvironment(out string signingNote);
-            string fileName = signed
-                ? ReleaseSettings.BundleName
-                : Path.GetFileNameWithoutExtension(ReleaseSettings.BundleName) + "-UNSIGNED.aab";
+            string stem = Path.GetFileNameWithoutExtension(ReleaseSettings.BundleName);
+            string extension = asApk ? ".apk" : ".aab";
+            string fileName = signed ? stem + extension : stem + "-UNSIGNED" + extension;
             string output = Path.Combine(ReleaseSettings.OutputDirectory, fileName);
 
             Debug.Log($"{Tag} Building {output} ({signingNote})");
@@ -385,6 +417,7 @@ namespace HR.Editor
             {
                 // Passwords never linger in the project settings file.
                 WipeSigningFromProjectSettings();
+                AllowApk = false;
             }
 
             bool ok = report.summary.result == BuildResult.Succeeded;
