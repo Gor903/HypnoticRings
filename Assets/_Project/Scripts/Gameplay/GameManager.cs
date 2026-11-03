@@ -22,9 +22,26 @@ namespace HR.Gameplay
         BallController _ball;
         ScoreKeeper _score;
         DifficultyCurve _curve;
+        DifficultyCurve _normalCurve;
+        DifficultyCurve _hardcoreCurve;
 
         int _seed;
         int _appliedDifficultyForScore = -1;
+
+        /// <summary>
+        /// Which rules this run is played under. Set before StartRun and never mid-run: a mode
+        /// that could change halfway would make the score mean two different things.
+        /// </summary>
+        public GameMode Mode { get; set; } = GameMode.Normal;
+
+        /// <summary>
+        /// Touches a ring is allowed before it kills. One in hardcore, and effectively no limit
+        /// otherwise — the ordinary game never ends a run on contact at all.
+        /// </summary>
+        public const int HardcoreTouchAllowance = 1;
+
+        /// <summary>Fires when a run ends on a second touch, with the ring's number.</summary>
+        public event Action<int> KilledByTouch;
 
         /// <summary>Fires on every state change, with the state left behind.</summary>
         public event Action<GameState, GameState> StateChanged;
@@ -50,17 +67,24 @@ namespace HR.Gameplay
             _tunnel = tunnel;
             _ball = ball;
             _score = new ScoreKeeper(best);
-            _curve = new DifficultyCurve(
+            _normalCurve = new DifficultyCurve(
                 _settings, config.difficulty != null ? config.difficulty.ToAnchors() : null);
+            _hardcoreCurve = new DifficultyCurve(_settings, DifficultyTable.HardcoreAnchors());
+            _curve = _normalCurve;
 
             _states.Changed += (from, to) => StateChanged?.Invoke(from, to);
             _tunnel.RingPassed += OnRingPassed;
+            _tunnel.RingsDissolved += OnRingsDissolved;
+            _tunnel.BallTouchedRing += OnBallTouchedRing;
             _states.Fire(GameTrigger.Loaded);
         }
 
         void OnDestroy()
         {
-            if (_tunnel != null) _tunnel.RingPassed -= OnRingPassed;
+            if (_tunnel == null) return;
+            _tunnel.RingPassed -= OnRingPassed;
+            _tunnel.RingsDissolved -= OnRingsDissolved;
+            _tunnel.BallTouchedRing -= OnBallTouchedRing;
         }
 
         /// <summary>Begins a run. Safe to call again — that is what Retry is.</summary>
@@ -69,6 +93,11 @@ namespace HR.Gameplay
             _seed = seed;
             RunCount++;
             _grace = 0.0;
+            _reliefLeft = 0.0;
+
+            // Picked once per run, from the mode set before it started. Swapping curves mid-run
+            // would change what the score counts while it was being counted.
+            _curve = Mode == GameMode.Hardcore ? _hardcoreCurve : _normalCurve;
 
             _score.BeginRun();
             _appliedDifficultyForScore = -1;
@@ -84,6 +113,21 @@ namespace HR.Gameplay
 
         /// <summary>CONTRACT.md G-02 and G-08: the grace a player gets back instead of a countdown.</summary>
         public const double ResumeGraceSeconds = 0.3;
+
+        /// <summary>
+        /// Seconds the tunnel is held after a ball is sacrificed — plan [G-29].
+        ///
+        /// Without it the reprieve is worth almost nothing: the surviving ball is in a ring that
+        /// is already most of the way to the centre, and the run ends again within a ring or
+        /// two. This is the same kind of mercy as the passability floor in [X-02], and it is
+        /// recorded as such rather than hidden.
+        /// </summary>
+        public const double ReliefSeconds = 0.6;
+
+        double _reliefLeft;
+
+        /// <summary>True while the tunnel is held still after a ball was lost.</summary>
+        public bool IsRecovering => _reliefLeft > 0.0;
 
         double _grace;
 
@@ -141,18 +185,70 @@ namespace HR.Gameplay
                 return;
             }
 
+            // The tunnel stands still while the player takes in that they lost a ball and not
+            // the run. Physics keeps running: the surviving ball is still flying.
+            if (_reliefLeft > 0.0)
+            {
+                _reliefLeft -= dt;
+                return;
+            }
+
             _tunnel.UserAngleDeg = userAngleDeg;
             _tunnel.Step(dt);
 
             ApplyDifficulty();
 
-            if (_tunnel.HasRingClosedOnCentre() || _tunnel.IsBallOutOfBounds())
-                _states.Fire(GameTrigger.Crushed);
+            if (_tunnel.IsBallOutOfBounds()) { _states.Fire(GameTrigger.Crushed); return; }
+
+            var closing = _tunnel.RingClosedOnCentre();
+            if (closing == null) return;
+
+            // A ring reaching the red circle is not automatically the end any more: with a
+            // second ball in play it may burst and take only the ball inside it. The rule is in
+            // HR.Core so it can be checked without crushing anything.
+            var outcome = SpareLife.Resolve(_tunnel.BallCount, _tunnel.BallsInside(closing));
+            if (outcome == CrushOutcome.Lost) { _states.Fire(GameTrigger.Crushed); return; }
+
+            _tunnel.SacrificeBallIn(closing);
+            _reliefLeft = ReliefSeconds;
         }
 
         void OnRingPassed(int ringIndex)
         {
             _score.AddRing();
+            Scored?.Invoke(_score.Score);
+        }
+
+        /// <summary>
+        /// Rings the super ring's wave took. Worth a point each, because the score is a count of
+        /// rings and these were rings — paying a bonus instead would split the score from the n
+        /// the difficulty curve and the unlock thresholds are written in.
+        /// </summary>
+        /// <summary>
+        /// The hardcore rule, and the only place it lives.
+        ///
+        /// Deliberately not inside the tunnel: the tunnel counts touches whatever mode is on,
+        /// because the ordinary game wants the same count for its knock sound. What a count
+        /// MEANS is a rule, and rules belong where the run is owned.
+        /// </summary>
+        void OnBallTouchedRing(int touches)
+        {
+            if (Mode != GameMode.Hardcore) return;
+
+            // Hot at the allowance, dead past it. The warning has to arrive on the touch that
+            // spends the allowance, not on the one that kills.
+            if (touches == HardcoreTouchAllowance) { _tunnel.SetHotRing(0, true); return; }
+            if (touches < HardcoreTouchAllowance) return;
+            if (!_states.TunnelRuns) return;
+
+            var ring = _tunnel.ResolveBallRing();
+            KilledByTouch?.Invoke(ring != null ? ring.SpawnIndex : -1);
+            _states.Fire(GameTrigger.Crushed);
+        }
+
+        void OnRingsDissolved(int count)
+        {
+            _score.AddRings(count);
             Scored?.Invoke(_score.Score);
         }
 

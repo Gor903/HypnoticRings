@@ -35,10 +35,16 @@ SERIES = {"weak": (42, 120, 214), "medium": (235, 104, 52), "strong": (27, 175, 
 LEVELS = ["weak", "medium", "strong"]
 LABEL_RU = {"weak": "слабый", "medium": "средний", "strong": "сильный"}
 
-# The expected bands, drawn so a reader sees the target and the result together. Same numbers
-# as BalanceSimulationTests, and they moved at D-059 for the reason stated there: this simulator
-# asks the pre-D-058 question, so its scale no longer sets the difficulty — the play-mode gate does.
-BANDS = {"weak": (8, 22), "medium": (55, 95)}
+# No bands any more, and that is the finding rather than an omission. They were recalibrated
+# three times — D-058, D-059, D-062 — always because this simulator asks the question the game
+# stopped asking at D-058: can the hand bring ONE opening to the bottom and hold it there. A
+# flying ball leaves through whichever way out it reaches, so every change made for it moves
+# this model without moving the game. With several openings per ring the gap reached a factor
+# of five in the opposite direction. See DECISIONS D-064.
+#
+# What the simulation still answers honestly is kept below: are the skill levels in order, and
+# is any ring unreachable. The difficulty itself is decided by the bot gate on real physics.
+BANDS = {}
 
 
 def font(size):
@@ -103,7 +109,9 @@ def histogram(runs):
     number belongs in a sentence, not in a chart — it is stated in the report instead.
     """
     f_title, f_small = font(15), font(12)
-    plotted = [lvl for lvl in LEVELS if lvl in BANDS]
+    # Everyone except the hand that always reaches the ceiling: its histogram is one bar with
+    # one fact in it, and sharing an axis with it squashes the other two into the left edge.
+    plotted = [lvl for lvl in LEVELS if lvl != "strong"]
 
     # Room above each facet for its band caption, and below for the axis label, so
     # neither lands on its neighbour.
@@ -136,15 +144,17 @@ def histogram(runs):
                f"разброс {st['min']}\u2013{st['max']}",
                font=f_title, fill=INK)
 
-        # The plan's expected band, behind everything, as context rather than data.
-        lo, hi = BANDS[level]
-        x0 = left + (right - left) * lo / top_score
-        x1 = left + (right - left) * hi / top_score
-        d.rectangle([x0, top, x1, bottom], fill=(238, 238, 234))
-        caption = f"ожидание плана {lo}\u2013{hi}"
-        d.text((x0, top - 42), caption, font=f_small, fill=INK_SOFT)
-        d.line([(x0, top - 28), (x0, top)], fill=(208, 208, 203), width=1)
-        d.line([(x1, top - 28), (x1, top)], fill=(208, 208, 203), width=1)
+        # No band is drawn: there is none to draw. Painting one anyway would put a target on
+        # the chart that nothing is actually aiming at.
+        band = BANDS.get(level)
+        if band:
+            lo, hi = band
+            x0 = left + (right - left) * lo / top_score
+            x1 = left + (right - left) * hi / top_score
+            d.rectangle([x0, top, x1, bottom], fill=(238, 238, 234))
+            d.text((x0, top - 42), f"ожидание плана {lo}\u2013{hi}", font=f_small, fill=INK_SOFT)
+            d.line([(x0, top - 28), (x0, top)], fill=(208, 208, 203), width=1)
+            d.line([(x1, top - 28), (x1, top)], fill=(208, 208, 203), width=1)
 
         # Horizontal guides carry their own values, which is more use than the word "runs".
         for g in range(1, 5):
@@ -246,17 +256,20 @@ def write_report(runs, rows):
                  "`benchmarks/balance-raw.csv` и `benchmarks/balance-curve.csv`.\n")
 
     lines.append("## Результат\n")
-    lines.append("| Уровень | Прогонов | Среднее | Медиана | 10-й проц. | 90-й проц. | Разброс | Ожидание плана | |")
+    lines.append("| Уровень | Прогонов | Среднее | Медиана | 10-й проц. | 90-й проц. | Разброс | Что это проверяет | |")
     lines.append("|---|---:|---:|---:|---:|---:|---:|---:|---|")
     for level in LEVELS:
         s = by_level[level]
-        band = BANDS.get(level)
-        if band:
-            expected = f"{band[0]}–{band[1]}"
-            ok = "✅" if band[0] <= s["mean"] <= band[1] else "❌"
-        else:
-            expected = "не падает"
+        # Each level is judged by what it can actually answer, not by a number it once hit.
+        # The strong hand is the only independent check in the file: it carries no noise, so
+        # if it ever stops reaching the ceiling the curve has produced a ring nobody can clear.
+        if level == "strong":
+            expected = "доходит до потолка"
             ok = "✅" if s["min"] >= cap else "❌"
+        else:
+            stronger = by_level.get("medium" if level == "weak" else "strong")
+            expected = "слабее следующего"
+            ok = "✅" if stronger and s["mean"] < stronger["mean"] else "❌"
         lines.append(f"| {LABEL_RU[level]} | {s['n']} | {s['mean']:.1f} | {s['p50']} | "
                      f"{s['p10']} | {s['p90']} | {s['min']}–{s['max']} | {expected} | {ok} |")
     lines.append("")
@@ -289,15 +302,21 @@ def write_report(runs, rows):
     lines.append("## Что эти числа значат, а что нет\n")
     lines.append("**Значат.** Кривая монотонна и без скачков, непроходимых колец нет, "
                  "и три уровня мастерства упорядочены так, как должны быть.\n")
-    lines.append("**Не значат.** Калибровка «среднего» и «слабого» ботов — это *определение* "
-                 "того, что мы называем средним и слабым игроком, а не независимое "
-                 "подтверждение сложности. Первый замер задал параметры; дальше эти числа "
-                 "работают как страховка от регрессии: если правка кривой сдвинет среднее "
-                 "за пределы диапазона, это будет видно. Независимая проверка здесь ровно "
-                 "одна — сильный бот без шума, который не падает нигде.\n")
+    lines.append("**Не значат.** Абсолютные числа здесь не измеряют сложность игры и больше "
+                 "не притворяются, что измеряют. Полосы ожиданий перекалибровывались трижды "
+                 "(D-058, D-059, D-062) и сняты в D-064: симулятор спрашивает то, что игра "
+                 "спрашивать перестала — может ли рука подвести **одно** отверстие к низу и "
+                 "удержать. Летающий шарик выходит в то, до которого долетел, поэтому каждая "
+                 "правка в его пользу двигает модель, не двигая игру. С многоотверстными "
+                 "кольцами расхождение дошло до пятикратного и сменило знак.\n")
+    lines.append("**Где измеряется сложность.** В бот-гейте на настоящей физике "
+                 "(`GestureDrivingTests`): средний бот **293–297 из 300**, слабый **98 из "
+                 "100**. Разброс между прогонами около ±5, поэтому сравнивать слайсы одним "
+                 "прогоном нельзя — только полосой.\n")
     lines.append("**Чего симуляция не моделирует.** Контакт: трение, уводящее шарик с "
-                 "нижней точки, отскок, удары о кромку. Это проверяется отдельно — "
-                 "PlayMode-тестами на настоящей физике.\n")
+                 "нижней точки, отскок, удары о кромку, и выбор между несколькими "
+                 "отверстиями. Это проверяется отдельно — PlayMode-тестами на настоящей "
+                 "физике.\n")
 
     with open(REPORT, "w", encoding="utf-8") as handle:
         handle.write("\n".join(lines))

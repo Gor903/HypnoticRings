@@ -7,19 +7,39 @@ namespace HR.Core
     public readonly struct CurveAnchor
     {
         public readonly int Rings;
-        public readonly double CompressionSpeed;
+
+        /// <summary>Corridor width between neighbouring rings. Tightens as a run goes on.</summary>
+        public readonly double Clearance;
+
+        /// <summary>
+        /// Seconds a ring is meant to last. This is the dial a designer actually has an opinion
+        /// about — "a ring every two seconds" — whereas the compression speed that produces it
+        /// is arithmetic, and arithmetic that changes whenever the corridor does.
+        /// </summary>
+        public readonly double RingInterval;
+
         public readonly double MaxCompressionSpeed;
         public readonly double GapArcWidth;
         public readonly double AutoSpinDeg;
 
-        public CurveAnchor(int rings, double compressionSpeed, double maxCompressionSpeed,
-                           double gapArcWidth, double autoSpinDeg)
+        /// <summary>Chance a ring is cut with more than one opening, 0 to 1.</summary>
+        public readonly double MultiGapChance;
+
+        /// <summary>Of those, the share cut with three rather than two.</summary>
+        public readonly double TripleShare;
+
+        public CurveAnchor(int rings, double clearance, double ringInterval,
+                           double maxCompressionSpeed, double gapArcWidth, double autoSpinDeg,
+                           double multiGapChance = 0.0, double tripleShare = 0.0)
         {
             Rings = rings;
-            CompressionSpeed = compressionSpeed;
+            Clearance = clearance;
+            RingInterval = ringInterval;
             MaxCompressionSpeed = maxCompressionSpeed;
             GapArcWidth = gapArcWidth;
             AutoSpinDeg = autoSpinDeg;
+            MultiGapChance = multiGapChance;
+            TripleShare = tripleShare;
         }
     }
 
@@ -46,10 +66,10 @@ namespace HR.Core
         /// </summary>
         public static IReadOnlyList<CurveAnchor> DefaultAnchors { get; } = new[]
         {
-            new CurveAnchor(0, 0.45, 2.0, 4.10, 0.0),
-            new CurveAnchor(10, 0.55, 3.0, 3.70, 15.0),
-            new CurveAnchor(30, 0.70, 4.0, 3.27, 40.0),
-            new CurveAnchor(80, 0.85, 5.0, 2.60, 70.0),
+            new CurveAnchor(0, 1.10, 3.00, 2.0, 4.32, 0.0, 0.00, 0.00),
+            new CurveAnchor(10, 1.05, 2.45, 3.0, 3.90, 15.0, 0.25, 0.00),
+            new CurveAnchor(30, 0.96, 1.93, 4.0, 3.48, 40.0, 0.36, 0.25),
+            new CurveAnchor(80, 0.72, 1.59, 5.0, 2.80, 70.0, 0.40, 0.25),
         };
 
         /// <summary>Rings played with the training wheels on — no spin at all (CONTRACT.md §2.7).</summary>
@@ -73,6 +93,11 @@ namespace HR.Core
 
             _anchors = new CurveAnchor[rows.Count];
             for (int i = 0; i < rows.Count; i++) _anchors[i] = rows[i];
+
+            var against = ValidateAgainstSettings();
+            if (against.Count > 0)
+                throw new ArgumentException("difficulty table does not fit this tunnel: "
+                                            + string.Join("; ", against));
         }
 
         /// <summary>
@@ -93,11 +118,12 @@ namespace HR.Core
             {
                 if (i > 0 && anchors[i].Rings <= anchors[i - 1].Rings)
                     problems.Add($"row {i} is at {anchors[i].Rings} rings, not past {anchors[i - 1].Rings}");
-                if (anchors[i].CompressionSpeed <= 0.0)
-                    problems.Add($"row {i} has a compression speed of {anchors[i].CompressionSpeed}");
-                if (anchors[i].MaxCompressionSpeed < anchors[i].CompressionSpeed)
-                    problems.Add($"row {i} caps retraction at {anchors[i].MaxCompressionSpeed}, "
-                                 + $"below its own speed {anchors[i].CompressionSpeed}");
+                if (anchors[i].RingInterval <= 0.0)
+                    problems.Add($"row {i} asks for a ring every {anchors[i].RingInterval} seconds");
+                if (anchors[i].Clearance <= 0.0)
+                    problems.Add($"row {i} has a corridor of {anchors[i].Clearance}");
+                if (anchors[i].MaxCompressionSpeed <= 0.0)
+                    problems.Add($"row {i} caps retraction at {anchors[i].MaxCompressionSpeed}");
                 if (anchors[i].GapArcWidth <= 0.0)
                     problems.Add($"row {i} has an opening of {anchors[i].GapArcWidth}");
             }
@@ -105,10 +131,65 @@ namespace HR.Core
             return problems;
         }
 
+        /// <summary>
+        /// What a table has to satisfy against a particular tunnel, as opposed to on its own.
+        ///
+        /// Separate from <see cref="Validate"/> because these two questions need the thickness
+        /// and the ball, and a row cannot answer them alone: the same interval is a sensible
+        /// speed on one tunnel and an impossible one on another.
+        /// </summary>
+        List<string> ValidateAgainstSettings()
+        {
+            var problems = new List<string>();
+            double floor = _settings.BallRadius * 2.0 * TunnelSettings.CorridorFloorInDiameters;
+
+            for (int i = 0; i < _anchors.Length; i++)
+            {
+                var row = _anchors[i];
+                if (row.Clearance < floor)
+                    problems.Add($"row {i} corridor {row.Clearance} is under the floor {floor:F3}");
+
+                double vBase = _settings.StepFor(row.Clearance) / row.RingInterval;
+                if (row.MaxCompressionSpeed < vBase)
+                    problems.Add($"row {i} caps retraction at {row.MaxCompressionSpeed}, below the "
+                                 + $"{vBase:F3} its own corridor and interval produce");
+            }
+
+            return problems;
+        }
+
         public int Ceiling => _anchors[_anchors.Length - 1].Rings;
 
-        public double CompressionSpeedAt(int rings) => Sample(rings, a => a.CompressionSpeed);
+        /// <summary>Corridor width at this point in a run, never below the playable floor.</summary>
+        public double ClearanceAt(int rings)
+        {
+            double floor = _settings.BallRadius * 2.0 * TunnelSettings.CorridorFloorInDiameters;
+            double sampled = Sample(rings, a => a.Clearance);
+            return sampled < floor ? floor : sampled;
+        }
+
+        /// <summary>Distance between neighbouring rings at this point in a run.</summary>
+        public double StepAt(int rings) => _settings.StepFor(ClearanceAt(rings));
+
+        public double RingIntervalAt(int rings) => Sample(rings, a => a.RingInterval);
+
+        /// <summary>
+        /// Derived, not stored: the speed that delivers a ring every <see cref="RingIntervalAt"/>
+        /// seconds across a corridor of <see cref="StepAt"/>. Storing it as well would be a third
+        /// number that has to be kept consistent with the other two by hand, and the first time
+        /// somebody tightened the corridor without touching it the tunnel would quietly change
+        /// tempo.
+        /// </summary>
+        public double CompressionSpeedAt(int rings) => StepAt(rings) / RingIntervalAt(rings);
+
         public double MaxCompressionSpeedAt(int rings) => Sample(rings, a => a.MaxCompressionSpeed);
+
+        /// <summary>
+        /// Chance of more than one opening. Flat zero until the first anchor that asks for it,
+        /// because a second way out on ring three teaches the wrong lesson about rings.
+        /// </summary>
+        public double MultiGapChanceAt(int rings) => Sample(rings, a => a.MultiGapChance);
+        public double TripleShareAt(int rings) => Sample(rings, a => a.TripleShare);
         public double GapArcWidthAt(int rings) => Math.Max(_settings.MinGapWidth, Sample(rings, a => a.GapArcWidth));
 
         public double AutoSpinAt(int rings)
@@ -129,7 +210,13 @@ namespace HR.Core
             AutoSpinAt(rings),
             rings >= AlternatingFrom && rings < RandomDirectionFrom,
             TimeBudgetAt(rings),
-            _settings.ComfortSpinDeg);
+            _settings.ComfortSpinDeg,
+            ClearanceAt(rings),
+            StepAt(rings),
+            MultiGapChanceAt(rings),
+            TripleShareAt(rings),
+            _settings.Thickness,
+            _settings.TargetRadius);
 
         /// <summary>
         /// Smooth step between anchors. Linear would satisfy the letter of "no large jumps" but

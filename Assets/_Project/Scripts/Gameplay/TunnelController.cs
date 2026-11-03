@@ -20,15 +20,28 @@ namespace HR.Gameplay
 
         GameConfig _config;
         TunnelSettings _settings;
-        BallController _ball;
+
+        // Up to two balls, in fixed slots. The second one is the bead's reward and it arrives
+        // mid-run, so the array exists from the start and the count says how much of it is real.
+        const int MaxBalls = 2;
+        readonly BallController[] _balls = new BallController[MaxBalls];
+        int _ballCount;
+
+        /// <summary>The first ball. Most of the game has exactly one, and the bot steers it.</summary>
+        BallController _ball => _ballCount > 0 ? _balls[0] : null;
         RingPool _pool;
         RingGenerator _generator;
         DifficultySnapshot _difficulty;
 
         int _nextSpawnIndex;
-        RingController _ballRing;
-        int _pendingIndex = -1;
-        double _pendingRadius;
+        // One latch per ball: each clears rings on its own, and a shared latch would let the
+        // ball that happens to be ahead swallow the other one's pass.
+        readonly int[] _pendingIndex = { -1, -1 };
+        readonly double[] _pendingRadius = new double[MaxBalls];
+        readonly RingController[] _ballRings = new RingController[MaxBalls];
+        readonly bool[] _pendingWasSuper = new bool[MaxBalls];
+
+        // Scoring is shared: a ring is worth a point once, whichever ball cleared it.
         int _lastPassedIndex = -1;
         Color[] _ringColours = { Color.white };
 
@@ -40,12 +53,48 @@ namespace HR.Gameplay
         /// <summary>Fires once per ring cleared, with that ring's spawn index.</summary>
         public event Action<int> RingPassed;
 
+        /// <summary>
+        /// Fires when a bead has been picked up and the spare ball is in play. The sound and
+        /// the buzz hang off this rather than off the tunnel, which does not own either.
+        /// </summary>
+        public event Action BeadTaken;
+
+        /// <summary>
+        /// Fires when a ring burst and took a ball with it while the run carried on. Distinct
+        /// from the run ending: the player has to be told they lost something, not everything.
+        /// </summary>
+        public event Action BallLost;
+
+        /// <summary>
+        /// Fires when a ball is turned back by its ring, with how many times that ring has
+        /// turned it now. Hardcore ends a run on the second one; the ordinary game only listens
+        /// so it can make a noise.
+        /// </summary>
+        public event Action<int> BallTouchedRing;
+
+        /// <summary>
+        /// Fires when a super ring's wave has taken rings the player will now never meet, with
+        /// how many. They are worth a point each: the score stays equal to the number of the
+        /// ring the ball is in, so difficulty and unlock thresholds keep meaning what they say.
+        /// </summary>
+        public event Action<int> RingsDissolved;
+
         public int PassedCount { get; private set; }
         public double BaseCompressionSpeed { get; set; }
         public double UserAngleDeg { get; set; }
         public bool CompressionEnabled { get; set; } = true;
         public bool RotationEnabled { get; set; } = true;
         public bool ShadingEnabled { get; set; } = true;
+
+        /// <summary>
+        /// Distance between neighbouring rings right now.
+        ///
+        /// It used to be TunnelSettings.Step — one number for a whole run. The corridor now
+        /// narrows with difficulty, so the live value belongs to the snapshot and every place
+        /// that spaces, spawns or fades rings has to read the same one. The fallback is for
+        /// fixtures that drive the tunnel before any difficulty has been applied.
+        /// </summary>
+        public double StepNow => _difficulty.Step > 0.0 ? _difficulty.Step : _settings.Step;
 
         public IReadOnlyList<RingController> Rings => _rings;
         public double LastCompressionSpeed { get; private set; }
@@ -57,7 +106,8 @@ namespace HR.Gameplay
         {
             _config = config;
             _settings = config.ToSettings();
-            _ball = ball;
+            _balls[0] = ball;
+            _ballCount = ball != null ? 1 : 0;
             _pool = pool;
             BaseCompressionSpeed = config.baseCompressionSpeed;
             _difficulty = DifficultySnapshot.Opening;
@@ -73,6 +123,60 @@ namespace HR.Gameplay
             if (_ringColours.Length != colours.Count) _ringColours = new Color[colours.Count];
             for (int i = 0; i < colours.Count; i++) _ringColours[i] = colours[i];
             ForceReshade();
+        }
+
+        /// <summary>The reward ring's ink, which the theme owns like every other colour.</summary>
+        public void SetSuperColour(Color colour)
+        {
+            _superColour = colour;
+            ForceReshade();
+        }
+
+        Color _superColour = new Color(0.91f, 0.64f, 0.09f);
+        Color _hotColour = new Color(1f, 0.231f, 0.188f);
+
+        /// <summary>How much of the danger colour a spent ring takes. Plan [HV-01].</summary>
+        public const float HotMix = 0.7f;
+
+        /// <summary>The danger colour, which is the red circle's — one idea, one colour.</summary>
+        public void SetHotColour(Color colour) { _hotColour = colour; ForceReshade(); }
+
+        /// <summary>
+        /// Marks the ring a ball is in as spent, or not. Driven from outside because whether a
+        /// ring is spent depends on the mode's allowance, and the tunnel does not own rules.
+        /// </summary>
+        public void SetHotRing(int ballSlot, bool hot)
+        {
+            if (ballSlot < 0 || ballSlot >= _ballCount) return;
+            var ring = ResolveRingFor(_balls[ballSlot]);
+            if (ring != null) ring.SetHot(hot);
+        }
+        double _depthFade = 1.0;
+        float _haloWidth;
+        float _haloStrength;
+
+        /// <summary>
+        /// How much of the tunnel a theme wants to keep visible, and how wide a halo it wants.
+        ///
+        /// Both arrive together because both are the same decision: a palette that glows wants
+        /// its far rings to stay, and one that does not wants them gone.
+        /// </summary>
+        public void SetDepthAndGlow(double depthFade, double glow)
+        {
+            _depthFade = depthFade;
+            _haloStrength = (float)glow;
+            _haloWidth = (float)(_settings.Thickness * glow);
+
+            for (int i = 0; i < _rings.Count; i++) ApplyHaloTo(_rings[i]);
+            ForceReshade();
+        }
+
+        void ApplyHaloTo(RingController ring)
+        {
+            ring.HaloBackground = _fadeToward;
+            ring.HaloStrength = Mathf.Lerp(0.2f, 0.5f, _haloStrength);
+            ring.SetHaloWidth(_haloWidth);
+            ring.InvalidateShading();
         }
 
         /// <summary>The colour distant rings fade into — the theme's background.</summary>
@@ -109,25 +213,44 @@ namespace HR.Gameplay
             _generator = new RingGenerator(seed);
             _nextSpawnIndex = 0;
             PassedCount = 0;
-            _ballRing = null;
-            _pendingIndex = -1;
-            _lastPassedIndex = -1;
-
-            // The ball's own ring, then the ones ahead. Nothing inside it: a ring the ball has
-            // left is retired the moment it leaves, so an opening ring inside the ball would be
-            // the only one of its kind in the whole run and the first level would play unlike
-            // every other.
-            for (int i = 0; i <= _settings.RingsAhead; i++)
+            for (int i = 0; i < MaxBalls; i++)
             {
-                double radius = _settings.TargetRadius + _settings.Step * i;
+                _ballRings[i] = null;
+                _pendingIndex[i] = -1;
+                _pendingWasSuper[i] = false;
+            }
+            _lastPassedIndex = -1;
+            _restLeft = 0.0;
+            for (int i = 0; i < _waveCount; i++) _wave[i] = null;
+            _waveCount = 0;
+
+            // A run starts with one ball, whatever the last one ended with. Without this the
+            // spare survives into the next run: the bead's ball is still awake, the count is
+            // still two, and the player is handed a second chance they did not earn and a
+            // second ball they did not ask for.
+            if (_balls[1] != null) _balls[1].gameObject.SetActive(false);
+            _ballCount = _balls[0] != null ? 1 : 0;
+
+            // Touch tallies are per ring, and ring numbers start over with the run. Left alone,
+            // the ledger still believes it is watching ring zero and keeps the count it ended
+            // the last run with — which in hardcore means starting a run already one touch down.
+            _ledgerClock = 0.0;
+            for (int i = 0; i < MaxBalls; i++) _ledgers[i].Reset();
+
+            // The ball's own ring, then outwards until the tunnel reaches the edge of the frame.
+            // Nothing inside it: a ring the ball has left is retired the moment it leaves, so an
+            // opening ring inside the ball would be the only one of its kind in the whole run and
+            // the first level would play unlike every other.
+            for (double radius = _settings.TargetRadius; radius <= OuterLimit; radius += StepNow)
+            {
                 if (radius <= _settings.Thickness) continue;
                 SpawnAt(radius);
             }
 
             var band = BallLaunch.BandFor(_settings);
             _ball.Launch(BallLaunch.For(seed, band.Inner, band.Outer, _config.cruiseSpeed));
-            _ballRing = ResolveBallRing();
-            ApplyShading(_ballRing);
+            for (int i = 0; i < _ballCount; i++) _ballRings[i] = ResolveRingFor(_balls[i]);
+            ApplyShading(InnermostOccupiedRing());
         }
 
         /// <summary>
@@ -170,6 +293,10 @@ namespace HR.Gameplay
             // is five scans of the ring list per step for an answer that cannot change mid-step.
             var ballRing = ResolveBallRing();
 
+            StepRest(dt);
+            StepWave(dt);
+            StepBeads();
+            StepLedgers(dt);
             if (CompressionEnabled) Compress(dt, ballRing);
             if (RotationEnabled) Rotate(dt);
             ApplySolidity(ballRing);
@@ -181,12 +308,15 @@ namespace HR.Gameplay
                 Fill(ballRing);
             }
 
-            DetectPass(ResolveBallRing());
+            DetectPass();
             if (ShadingEnabled) ApplyShading(ballRing);
         }
 
         void Compress(double dt, RingController ballRing)
         {
+            // The innermost occupied ring, not the first ball's: a ball that has run ahead must
+            // not drag the tunnel in after it, and the danger is always whatever is closest to
+            // the red circle with somebody inside it. Plan [G-33].
             double ballRingRadius = ballRing != null ? ballRing.Radius : _settings.TargetRadius;
 
             // One speed for every ring, which is what keeps the corridor width constant.
@@ -195,10 +325,12 @@ namespace HR.Gameplay
             // config's value is only the floor a table may never go under.
             double ceiling = Math.Max(_difficulty.MaxCompressionSpeed, BaseCompressionSpeed);
 
+            // The pull is derived from the live step, not stored: see TunnelMath.PullFor.
             LastCompressionSpeed = TunnelMath.CompressionSpeed(
-                BaseCompressionSpeed, _settings.PullToCentre, ceiling,
+                BaseCompressionSpeed, TunnelMath.PullFor(_settings.PullPerStep, StepNow), ceiling,
                 ballRingRadius, _settings.TargetRadius);
 
+            LastCompressionSpeed *= RestFactor;
             double delta = LastCompressionSpeed * dt;
             for (int i = 0; i < _rings.Count; i++)
             {
@@ -217,11 +349,162 @@ namespace HR.Gameplay
         /// </summary>
         void ApplySolidity(RingController ballRing)
         {
-            double reference = ballRing != null ? ballRing.Radius : OutermostRadius();
-            double limit = reference + _settings.Step * SolidRingsOutside;
+            double step = StepNow;
 
             for (int i = 0; i < _rings.Count; i++)
-                _rings[i].SetSolid(_rings[i].Radius <= limit);
+            {
+                var ring = _rings[i];
+                bool solid = false;
+
+                // A ring is a wall if SOME ball could reach it: its own ring, or one of the two
+                // beyond it. Stated per ball rather than from a single reference, because with
+                // two balls there is no single "here" — and a ring that is somebody's own ring
+                // is covered by its own clause, which is what keeps an occupied inner ring solid
+                // for the ball still in it. Plan [G-11].
+                for (int b = 0; b < _ballCount && !solid; b++)
+                {
+                    var own = ResolveRingFor(_balls[b]);
+
+                    // A ball with no ring is outside the whole tunnel, and the previous rule
+                    // made every ring passable for it — nothing was anybody's own ring, so
+                    // nothing was a wall, and a ball that got out once was gone for good. The
+                    // outermost rings become its wall instead, which is what the tunnel would
+                    // have been if it had never escaped.
+                    if (own == null)
+                    {
+                        solid = ring.Radius >= OutermostRadius() - step * SolidRingsOutside;
+                        continue;
+                    }
+
+                    // One step further in than the ball's own ring, not level with it. The ring
+                    // a ball is in the middle of crossing is no longer "its" ring — the moment
+                    // its centre passes the inner surface, the next ring out becomes that — and
+                    // keying solidity on ownership alone switched off the walls of the very ring
+                    // the ball was inside. It stays a wall until it dissolves, which now happens
+                    // only once the ball has genuinely cleared it.
+                    solid = ring.Radius >= own.Radius - step - 1e-6
+                            && ring.Radius <= own.Radius + step * SolidRingsOutside;
+                }
+
+                ring.SetSolid(solid);
+            }
+        }
+
+        /// <summary>
+        /// The occupied ring closest to the centre — the one the compression law and the danger
+        /// are both measured from. Null when no ball is inside anything.
+        /// </summary>
+        public RingController InnermostOccupiedRing()
+        {
+            RingController best = null;
+            for (int b = 0; b < _ballCount; b++)
+            {
+                var ring = ResolveRingFor(_balls[b]);
+                if (ring == null) continue;
+                if (best == null || ring.Radius < best.Radius) best = ring;
+            }
+            return best;
+        }
+
+        /// <summary>Balls in play right now: one, or two while a bead is being carried.</summary>
+        public int BallCount => _ballCount;
+
+        public BallController BallAt(int index) => _balls[index];
+
+        /// <summary>Seconds left of the rest a super ring bought, counting the fade back.</summary>
+        double _restLeft;
+
+        // The wave of dissolving rings, as a fixed queue. Sized once at the largest the config
+        // allows, because a list that grows is an allocation and this fires mid-run.
+        const int MaxWave = 5;
+        readonly RingController[] _wave = new RingController[MaxWave];
+        readonly double[] _waveDelay = new double[MaxWave];
+        int _waveCount;
+
+        /// <summary>
+        /// Starts the reward for clearing a super ring: the next few rings let the ball through
+        /// without being cleared, one after another rather than all at once.
+        ///
+        /// Staggered because three rings vanishing on the same frame reads as a glitch, and
+        /// because the wave travelling outwards is the thing that says what just happened.
+        /// </summary>
+        void BeginWave(RingController ballRing)
+        {
+            if (_config == null) return;
+
+            int wanted = Mathf.Clamp(_config.superDissolveCount, 0, MaxWave);
+            if (wanted == 0) return;
+
+            _waveCount = 0;
+            double reference = ballRing != null ? ballRing.Radius : OutermostRadius();
+
+            // Outwards from the ball, nearest first: these are the rings it would have met next.
+            for (int picked = 0; picked < wanted; picked++)
+            {
+                RingController best = null;
+                for (int i = 0; i < _rings.Count; i++)
+                {
+                    var ring = _rings[i];
+                    if (ring == ballRing || ring.IsDissolving) continue;
+                    if (ring.Radius <= reference + 1e-6) continue;
+                    if (AlreadyInWave(ring)) continue;
+                    if (best == null || ring.Radius < best.Radius) best = ring;
+                }
+
+                if (best == null) break;
+                _wave[_waveCount] = best;
+                _waveDelay[_waveCount] = _config.superWaveStagger * _waveCount;
+                _waveCount++;
+            }
+
+            _restLeft = _config.superSlowSeconds + _config.superSlowReturnSeconds;
+            if (_waveCount > 0) RingsDissolved?.Invoke(_waveCount);
+        }
+
+        bool AlreadyInWave(RingController ring)
+        {
+            for (int i = 0; i < _waveCount; i++)
+                if (ReferenceEquals(_wave[i], ring)) return true;
+            return false;
+        }
+
+        void StepWave(double dt)
+        {
+            for (int i = 0; i < _waveCount; i++)
+            {
+                if (_wave[i] == null) continue;
+
+                _waveDelay[i] -= dt;
+                if (_waveDelay[i] > 0.0) continue;
+
+                _wave[i].BeginDissolve(_config.dissolveSeconds);
+                _wave[i] = null;
+            }
+        }
+
+        /// <summary>
+        /// How much of normal compression is running right now.
+        ///
+        /// A flat multiplier that snapped back to one would read as the tunnel being shoved; the
+        /// last second eases it back instead, so the rest ends rather than stops.
+        /// </summary>
+        double RestFactor
+        {
+            get
+            {
+                if (_restLeft <= 0.0 || _config == null) return 1.0;
+
+                double fade = _config.superSlowReturnSeconds;
+                if (fade <= 0.0 || _restLeft > fade) return _config.superSlowFactor;
+
+                double t = _restLeft / fade;
+                return _config.superSlowFactor + (1.0 - _config.superSlowFactor) * (1.0 - t);
+            }
+        }
+
+        void StepRest(double dt)
+        {
+            if (_restLeft > 0.0) _restLeft -= dt;
         }
 
         void Rotate(double dt)
@@ -282,28 +565,246 @@ namespace HR.Gameplay
             return ballRing;
         }
 
-        /// <summary>Keeps the required number of rings outside the ball's ring.</summary>
+        /// <summary>
+        /// Grows the tunnel outwards until it reaches the edge of the frame.
+        ///
+        /// Counted by radius rather than by number of rings, because the corridor narrows over a
+        /// run: a fixed count would reach less and less far out, and the tunnel would visibly
+        /// stop short of the frame edge exactly when it got densest. How many rings that is
+        /// follows from the step, which is the right way round.
+        /// </summary>
         void Fill(RingController ballRing)
         {
-            double reference = ballRing != null ? ballRing.Radius : OutermostRadius();
+            double step = StepNow;
+            if (step <= 0.0) return;
 
-            int ahead = 0;
+            // Bounded so a nonsense step cannot spin here forever. The bound is generous: it is
+            // reached only if something has already gone wrong with the geometry.
+            int guard = MaxRingsInFrame;
+            while (OutermostRadius() + step <= OuterLimit && guard-- > 0)
+                SpawnAt(OutermostRadius() + step);
+        }
+
+        /// <summary>
+        /// Furthest a ring is spawned to. Beyond it the tunnel is off-screen, so a ring there is
+        /// geometry nobody sees.
+        /// </summary>
+        double OuterLimit => _config != null && _config.outerRadiusLimit > _settings.TargetRadius
+            ? _config.outerRadiusLimit
+            : _settings.TargetRadius + _settings.Step * _settings.RingsAhead;
+
+        /// <summary>Hard ceiling on rings drawn at once, as a loop guard rather than a design number.</summary>
+        public const int MaxRingsInFrame = 32;
+
+        /// <summary>
+        /// How many rings stand between the ball's ring and the edge of the frame right now.
+        ///
+        /// The depth fade needs this to know how far out "just arrived" is. It used to be a
+        /// configured count; it is now a consequence of the step, so a denser tunnel gets more
+        /// rings rather than a shorter one.
+        /// </summary>
+        int RingsAheadNow(double reference)
+        {
+            double step = StepNow;
+            if (step <= 0.0) return _settings.RingsAhead;
+            int ahead = (int)((OuterLimit - reference) / step);
+            return ahead > 0 ? ahead : 1;
+        }
+
+        Material _beadMaterial;
+
+        /// <summary>The bead's own material, so the theme can colour it apart from the rings.</summary>
+        public void SetBeadMaterial(Material material) => _beadMaterial = material;
+
+        /// <summary>
+        /// Whether a bead may exist right now.
+        ///
+        /// Two conditions, both about not wasting one: there is no room for a third ball, and a
+        /// bead already in the tunnel has not been collected. A second bead on screen would
+        /// promise something the game cannot give.
+        /// </summary>
+        bool MayCarryBead()
+        {
+            if (_ballCount >= MaxBalls) return false;
             for (int i = 0; i < _rings.Count; i++)
-                if (!_rings[i].IsDissolving && _rings[i].Radius > reference + 1e-6) ahead++;
+                if (_rings[i].HasBead) return false;
+            return true;
+        }
 
-            while (ahead < _settings.RingsAhead)
+        /// <summary>
+        /// Picks up a bead the moment a ball is close enough, and puts the second ball into the
+        /// corridor the first one is in.
+        ///
+        /// Checked by distance rather than by a trigger collider: a trigger is another body for
+        /// Box2D to track every step for an event that happens a handful of times a run, and a
+        /// distance test is deterministic in a way trigger ordering is not.
+        /// </summary>
+        void StepBeads()
+        {
+            if (_ballCount == 0 || _ballCount >= MaxBalls) return;
+
+            double reach = _settings.BallRadius + _settings.BallRadius * 0.6;
+            double reachSqr = reach * reach;
+
+            for (int i = 0; i < _rings.Count; i++)
             {
-                SpawnAt(OutermostRadius() + _settings.Step);
-                ahead++;
+                var ring = _rings[i];
+                if (!ring.HasBead) continue;
+
+                for (int b = 0; b < _ballCount; b++)
+                {
+                    var ball = _balls[b];
+                    if (ball == null) continue;
+
+                    Vector3 delta = ring.BeadWorldPosition - ball.transform.position;
+                    if (delta.sqrMagnitude > reachSqr) continue;
+
+                    ring.TakeBead();
+                    SpawnSecondBall(ball);
+                    return;
+                }
             }
         }
+
+        /// <summary>
+        /// Wakes the spare ball where the first one is, heading somewhere else.
+        ///
+        /// Somewhere else matters: born on the same heading it would shadow the first ball for
+        /// the rest of the run and be worth nothing. The offset is fixed rather than random so a
+        /// seed still replays.
+        /// </summary>
+        void SpawnSecondBall(BallController from)
+        {
+            if (_balls[1] == null || _ballCount >= MaxBalls) return;
+
+            var spare = _balls[1];
+            spare.gameObject.SetActive(true);
+            spare.Place(from.transform.position);
+
+            Vector2 heading = from.Body.linearVelocity;
+            if (heading.sqrMagnitude < 1e-6) heading = Vector2.right;
+            heading = Quaternion.Euler(0f, 0f, 90f) * heading.normalized;
+            spare.Body.linearVelocity = heading * (float)_config.cruiseSpeed;
+
+            _ballCount = 2;
+            _ballRings[1] = ResolveRingFor(spare);
+            _pendingIndex[1] = -1;
+            BeadTaken?.Invoke();
+        }
+
+        /// <summary>
+        /// Registers the spare ball the bead will wake. Built with the scene and left asleep:
+        /// a run must not create one, and a run that never finds a bead must not pay for it.
+        /// </summary>
+        public void RegisterSpareBall(BallController spare)
+        {
+            _balls[1] = spare;
+            if (spare != null) spare.gameObject.SetActive(false);
+        }
+
+        /// <summary>
+        /// Takes a ball out of play — the ring it was in has closed on the centre and burst.
+        /// </summary>
+        public void SacrificeBallIn(RingController ring)
+        {
+            for (int b = _ballCount - 1; b >= 0; b--)
+            {
+                var ball = _balls[b];
+                if (ball == null) continue;
+                if (!ReferenceEquals(ResolveRingFor(ball), ring)) continue;
+
+                ball.gameObject.SetActive(false);
+
+                // Slot 0 is the one the bot and the camera follow, so the survivor moves into it
+                // rather than the game having to remember which slot is alive.
+                if (b == 0 && _ballCount > 1)
+                {
+                    _balls[0] = _balls[1];
+                    _balls[1] = ball;
+                    _ballRings[0] = _ballRings[1];
+                    _pendingIndex[0] = _pendingIndex[1];
+                    _pendingRadius[0] = _pendingRadius[1];
+                    _pendingWasSuper[0] = _pendingWasSuper[1];
+                }
+
+                _ballCount--;
+                _pendingIndex[_ballCount] = -1;
+                _ballRings[_ballCount] = null;
+
+                _rings.Remove(ring);
+                if (_pool != null) _pool.Return(ring);
+
+                BallLost?.Invoke();
+                return;
+            }
+        }
+
+        readonly TouchLedger[] _ledgers = { new TouchLedger(), new TouchLedger() };
+        double _ledgerClock;
+
+        /// <summary>How many times the ring a ball is in has turned it back.</summary>
+        public int TouchesOn(int ballSlot) =>
+            ballSlot >= 0 && ballSlot < MaxBalls ? _ledgers[ballSlot].Touches : 0;
+
+        /// <summary>
+        /// Watches each ball for the moment its ring turns it back.
+        ///
+        /// Contact is decided geometrically rather than by a collision callback, for the same
+        /// reason the ledger counts reversals rather than events: a ring is a row of colliders,
+        /// and the engine's idea of "a contact" is an artefact of where the seams happen to be.
+        /// The ball is against the wall when its own edge reaches the ring's inner surface, and
+        /// that is a fact about the tunnel rather than about Box2D.
+        /// </summary>
+        void StepLedgers(double dt)
+        {
+            _ledgerClock += dt;
+
+            for (int b = 0; b < _ballCount; b++)
+            {
+                var ball = _balls[b];
+                var ring = ResolveRingFor(ball);
+                if (ball == null || ring == null) { _ledgers[b].Reset(); continue; }
+
+                _ledgers[b].Watch(ring.SpawnIndex);
+
+                double distance = ball.DistanceToCentre;
+                if (distance <= 1e-6) continue;
+
+                Vector2 position = ball.Body.position;
+                Vector2 outward = new Vector2((float)(position.x / distance), (float)(position.y / distance));
+                double radial = Vector2.Dot(ball.Body.linearVelocity, outward);
+
+                double innerSurface = ring.Radius - _settings.Thickness * 0.5;
+                bool touching = distance + _settings.BallRadius >= innerSurface - ContactSlack;
+
+                if (_ledgers[b].Step(_ledgerClock, radial, touching))
+                    BallTouchedRing?.Invoke(_ledgers[b].Touches);
+            }
+        }
+
+        /// <summary>
+        /// How close to the wall still counts as against it, in world units.
+        ///
+        /// Box2D keeps a small separation between touching bodies, so an exact test would miss
+        /// every real contact by a hair. Small enough that open flight is never mistaken for a
+        /// bounce.
+        /// </summary>
+        public const double ContactSlack = 0.02;
 
         void SpawnAt(double radius)
         {
             var ring = _pool.Rent();
             var spec = _generator.Next(_difficulty, PreviousSpin());
             ring.SpawnIndex = _nextSpawnIndex++;
-            ring.Configure(radius, spec.GapCentreDeg, spec.GapArcWidth, spec.AutoSpinDeg);
+            ring.Configure(radius, spec.Gaps, spec.AutoSpinDeg, spec.Kind);
+
+            // The generator marks where a bead COULD go; whether one is actually there depends
+            // on live state it must not see, or it would stop being a function of its seed.
+            ApplyHaloTo(ring);
+
+            if (spec.BeadGap >= 0 && MayCarryBead())
+                ring.SetBead(spec.BeadGap, _beadMaterial, (float)(_settings.BallRadius * 0.6));
+
             _rings.Add(ring);
         }
 
@@ -338,46 +839,106 @@ namespace HR.Gameplay
         /// ring's outer edge plus the margin. Testing both at once therefore never fires at all.
         /// So the departure is latched, and the clearance is checked on later steps.
         /// </summary>
-        void DetectPass(RingController current)
+        void DetectPass()
         {
+            for (int slot = 0; slot < _ballCount; slot++) DetectPassFor(slot);
+        }
+
+        void DetectPassFor(int slot)
+        {
+            var ball = _balls[slot];
+            if (ball == null) return;
+
+            var current = ResolveRingFor(ball);
             if (current == null) return;
 
-            if (_ballRing == null)
+            if (_ballRings[slot] == null)
             {
-                _ballRing = current;
+                _ballRings[slot] = current;
                 return;
             }
 
-            if (!ReferenceEquals(current, _ballRing))
+            if (!ReferenceEquals(current, _ballRings[slot]))
             {
-                if (current.Radius > _ballRing.Radius + 1e-6)
+                var left = _ballRings[slot];
+                if (current.Radius > left.Radius + 1e-6)
                 {
                     // Radius captured here, not read later: the ring it left keeps shrinking,
                     // and measuring against a moving target would make the test drift easier.
                     // Capturing it is also what lets the ring itself go away — the latch holds a
                     // number and an index, never the object.
-                    _pendingIndex = _ballRing.SpawnIndex;
-                    _pendingRadius = _ballRing.Radius;
-                    _ballRing.BeginDissolve(_config.dissolveSeconds);
+                    _pendingIndex[slot] = left.SpawnIndex;
+                    _pendingRadius[slot] = left.Radius;
+                    _pendingWasSuper[slot] = left.Kind == RingKind.Super;
                 }
-                _ballRing = current;
+                _ballRings[slot] = current;
             }
 
-            if (_pendingIndex < 0) return;
+            if (_pendingIndex[slot] < 0) return;
 
             // Scoring only ever moves forward. A ball that is pushed back inside a ring and
             // comes out again would otherwise be counted twice for the same ring, which is
-            // exactly what "fires once per ring" forbids.
-            if (_pendingIndex <= _lastPassedIndex) { _pendingIndex = -1; return; }
+            // exactly what "fires once per ring" forbids. Shared across balls on purpose: the
+            // second ball to leave a ring is following, not scoring.
+            if (_pendingIndex[slot] <= _lastPassedIndex) { _pendingIndex[slot] = -1; return; }
 
-            if (TunnelMath.HasClearedRing(_ball.DistanceToCentre, _pendingRadius,
+            if (TunnelMath.HasClearedRing(ball.DistanceToCentre, _pendingRadius[slot],
                                           _settings.Thickness, _settings.PassMargin))
             {
                 PassedCount++;
-                _lastPassedIndex = _pendingIndex;
-                RingPassed?.Invoke(_pendingIndex);
-                _pendingIndex = -1;
+                _lastPassedIndex = _pendingIndex[slot];
+
+                // The ring goes now, not when the ball first poked into its opening.
+                //
+                // It used to dissolve at the moment the ball's centre crossed its inner surface
+                // — while the ball was still level with the ring, halfway through the gap. Two
+                // things followed, and both were reported from the phone. The ring appeared to
+                // vanish as the ball reached the NEXT one, because that is when the eye catches
+                // up with it. And its colliders went off while the ball was still inside it, so
+                // a ball lined up with the next opening could run the whole tunnel without ever
+                // meeting a wall.
+                DissolvePassed(_pendingIndex[slot], slot);
+
+                RingPassed?.Invoke(_pendingIndex[slot]);
+                if (_pendingWasSuper[slot]) BeginWave(current);
+                _pendingWasSuper[slot] = false;
+                _pendingIndex[slot] = -1;
             }
+        }
+
+        /// <summary>
+        /// Retires the ring a ball has just cleared, by its number rather than by holding it.
+        ///
+        /// By number because the latch deliberately keeps no reference: between the ball
+        /// leaving and the pass being confirmed the ring may have been culled, dissolved by a
+        /// super ring's wave, or burst around the other ball.
+        /// </summary>
+        void DissolvePassed(int spawnIndex, int slot)
+        {
+            for (int i = 0; i < _rings.Count; i++)
+            {
+                var ring = _rings[i];
+                if (ring.SpawnIndex != spawnIndex) continue;
+                if (ring.IsDissolving) return;
+
+                // Not while the other ball is still inside it: it would find itself in open
+                // space with no wall to bounce off.
+                if (IsOwnedByAnother(ring, slot)) return;
+
+                ring.BeginDissolve(_config.dissolveSeconds);
+                return;
+            }
+        }
+
+        /// <summary>Whether any other ball still calls this ring its own.</summary>
+        bool IsOwnedByAnother(RingController ring, int exceptSlot)
+        {
+            for (int i = 0; i < _ballCount; i++)
+            {
+                if (i == exceptSlot || _balls[i] == null) continue;
+                if (ReferenceEquals(ResolveRingFor(_balls[i]), ring)) return true;
+            }
+            return false;
         }
 
         void ApplyShading(RingController ballRing)
@@ -387,8 +948,10 @@ namespace HR.Gameplay
             for (int i = 0; i < _rings.Count; i++)
             {
                 var ring = _rings[i];
+                // How many rings are ahead follows from the step and the frame, so the fade-in
+                // window stays one ring wide however dense the tunnel has become.
                 double alpha = DepthShading.AlphaFor(ring.Radius, reference, _settings.VanishRadius,
-                                                     _settings.Step, _settings.RingsAhead);
+                                                     StepNow, RingsAheadNow(reference), _depthFade);
 
                 // A ring the ball has left is already not a wall; the fade is the only part of
                 // it the player still sees, so it rides on top of the depth cue rather than
@@ -396,7 +959,16 @@ namespace HR.Gameplay
                 if (ring.IsDissolving) alpha *= 1.0 - ring.DissolveProgress;
                 int slot = ((ring.SpawnIndex % _ringColours.Length) + _ringColours.Length)
                            % _ringColours.Length;
-                var colour = Color.Lerp(_fadeToward, _ringColours[slot], (float)alpha);
+
+                // A super ring keeps its own colour but not its own depth: it has to be
+                // recognisable from far out, and it still has to sit in the tunnel.
+                var ink = ring.Kind == RingKind.Super ? _superColour : _ringColours[slot];
+
+                // A ring that has used up its allowance burns. Mixed over its own ink rather
+                // than replacing it, so the ring stays recognisable as the one it was — the
+                // player has to see a change, not a different ring.
+                if (ring.IsHot) ink = Color.Lerp(ink, _hotColour, HotMix);
+                var colour = Color.Lerp(_fadeToward, ink, (float)alpha);
                 colour.a = 1f;
                 ring.ApplyShading(colour);
             }
@@ -406,11 +978,17 @@ namespace HR.Gameplay
         /// The ring the ball is resting on: the innermost ring still outside it. "Outside" is
         /// the direction gravity pulls, because the tunnel centre is above the ball.
         /// </summary>
-        public RingController ResolveBallRing()
-        {
-            if (_ball == null) return null;
+        /// <summary>The first ball's ring. Kept for the bot, the fixtures and the diagnostics.</summary>
+        public RingController ResolveBallRing() => ResolveRingFor(_ball);
 
-            double ballDistance = _ball.DistanceToCentre;
+        /// <summary>
+        /// The innermost ring that still encloses a given ball — the one it is flying inside.
+        /// </summary>
+        public RingController ResolveRingFor(BallController ball)
+        {
+            if (ball == null) return null;
+
+            double ballDistance = ball.DistanceToCentre;
             RingController best = null;
 
             for (int i = 0; i < _rings.Count; i++)
@@ -432,26 +1010,53 @@ namespace HR.Gameplay
         /// boundary is by a circle drawn at exactly that radius, and a rule they can watch is
         /// worth more than one that also depends on where the ball happened to be.
         /// </summary>
-        public bool HasRingClosedOnCentre()
+        public bool HasRingClosedOnCentre() => RingClosedOnCentre() != null;
+
+        /// <summary>
+        /// Bug guard from CONTRACT.md §1: no ball should ever get this far out.
+        /// Judged per ball against its own ring, because two balls are rarely in the same place.
+        /// </summary>
+        public bool IsBallOutOfBounds()
         {
-            double innermost = double.MaxValue;
+            for (int b = 0; b < _ballCount; b++)
+            {
+                var ball = _balls[b];
+                if (ball == null) continue;
+
+                var ring = ResolveRingFor(ball);
+                double reference = ring != null ? ring.Radius : OutermostRadius();
+                if (TunnelMath.IsOutOfBounds(ball.DistanceToCentre, reference, StepNow)) return true;
+            }
+            return false;
+        }
+
+        /// <summary>
+        /// The ring that has closed onto the red circle, or null. Returns WHICH ring rather than
+        /// a yes-or-no, because with a spare ball in play what happens next depends on who is
+        /// inside it — see <see cref="SpareLife"/> and plan [G-29].
+        /// </summary>
+        public RingController RingClosedOnCentre()
+        {
+            RingController innermost = null;
             for (int i = 0; i < _rings.Count; i++)
             {
                 var ring = _rings[i];
                 if (ring.IsDissolving) continue;
-                if (ring.Radius < innermost) innermost = ring.Radius;
+                if (innermost == null || ring.Radius < innermost.Radius) innermost = ring;
             }
 
-            if (innermost == double.MaxValue) return false;
-            return TunnelMath.HasReachedRed(innermost, _settings.Thickness, _settings.RedRadius);
+            if (innermost == null) return null;
+            return TunnelMath.HasReachedRed(innermost.Radius, _settings.Thickness, _settings.RedRadius)
+                ? innermost : null;
         }
 
-        /// <summary>Bug guard from CONTRACT.md §1: the ball should never get this far out.</summary>
-        public bool IsBallOutOfBounds()
+        /// <summary>How many balls are inside a given ring — what the spare-life rule asks for.</summary>
+        public int BallsInside(RingController ring)
         {
-            var ring = ResolveBallRing();
-            double reference = ring != null ? ring.Radius : OutermostRadius();
-            return TunnelMath.IsOutOfBounds(_ball.DistanceToCentre, reference, _settings.Step);
+            int n = 0;
+            for (int b = 0; b < _ballCount; b++)
+                if (ReferenceEquals(ResolveRingFor(_balls[b]), ring)) n++;
+            return n;
         }
     }
 }

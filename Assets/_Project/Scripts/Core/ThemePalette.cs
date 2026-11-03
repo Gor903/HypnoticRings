@@ -3,14 +3,7 @@ using System.Collections.Generic;
 
 namespace HR.Core
 {
-    /// <summary>How a segment's ends are drawn. Physics always rounds them; this is looks only.</summary>
-    public enum EndCapStyle
-    {
-        Round = 0,
-        Flat = 1,
-    }
-
-    /// <summary>
+        /// <summary>
     /// A theme's colours and the few looks-only switches that go with them, as plain data.
     ///
     /// Engine-free on purpose: every palette is then checkable by a test, which is the only way
@@ -35,19 +28,57 @@ namespace HR.Core
         public readonly Rgb BallOutline;
 
         public readonly Rgb Ui;
-        public readonly EndCapStyle EndCaps;
-        public readonly bool SegmentSeams;
 
-        /// <summary>How strongly rings behind the ball fade out, 0 to 1.</summary>
+        /// <summary>
+        /// Seconds for one shimmer cycle, or zero for a still palette.
+        ///
+        /// Floored well above the photosensitivity limit the plan sets ([G-34] item 2 and
+        /// [X-14]): a tunnel that pulses faster than this is a health question, not a style, and
+        /// the player is staring straight at it.
+        /// </summary>
+        public readonly double ShimmerSeconds;
+
+        /// <summary>How far the shimmer moves a ring's colour, 0 to 1. Small on purpose.</summary>
+        public readonly double ShimmerDepth;
+
+        /// <summary>Slowest a palette may pulse, in seconds per cycle.</summary>
+        public const double MinShimmerSeconds = 1.2;
+
+        /// <summary>
+        /// The super ring's own colour. A reward has to be recognisable before it is reached,
+        /// and the depth fade alone cannot say "this one is different" — it only says "this one
+        /// is near". Gold on dark themes, deep amber where gold would wash out.
+        /// </summary>
+        public readonly Rgb Super;
+
+        /// <summary>
+        /// The bead's colour. It has to read as a prize rather than as a stray ring fragment,
+        /// so it borrows the ball's ink: the thing it is about to become.
+        /// </summary>
+        public Rgb Bead => Ball;
+
+        /// <summary>
+        /// How strongly rings behind the ball fade out, 0 to 1.
+        ///
+        /// Scales the depth cue rather than replacing it: a theme can say how much of the tunnel
+        /// it wants to keep visible, but not which ring is nearest.
+        /// </summary>
         public readonly double DepthFade;
 
-        /// <summary>Halo around the ball, 0 to 1. Drawn as geometry, never as a full-screen pass.</summary>
+        /// <summary>
+        /// Halo around the ball and the rings, 0 to 1. Drawn as geometry, never as a
+        /// full-screen pass — a bloom pass on a phone costs more than the whole tunnel.
+        /// </summary>
         public readonly double Glow;
 
         public ThemePalette(Theme theme, string background, string[] ringColours, string ball,
-                            string ballOutline, string ui, EndCapStyle endCaps, bool segmentSeams,
-                            double depthFade, double glow)
+                            string ballOutline, string ui, double depthFade, double glow,
+                            string super = "#E8A317", double shimmerSeconds = 0.0,
+                            double shimmerDepth = 0.0)
         {
+            Super = Rgb.Parse(super);
+            ShimmerSeconds = shimmerSeconds;
+            ShimmerDepth = shimmerDepth;
             if (ringColours == null || ringColours.Length == 0)
                 throw new ArgumentException("a theme needs at least one ring colour", nameof(ringColours));
 
@@ -57,8 +88,6 @@ namespace HR.Core
             Ball = Rgb.Parse(ball);
             BallOutline = Rgb.Parse(ballOutline);
             Ui = Rgb.Parse(ui);
-            EndCaps = endCaps;
-            SegmentSeams = segmentSeams;
             DepthFade = depthFade;
             Glow = glow;
         }
@@ -109,17 +138,20 @@ namespace HR.Core
                 case Theme.Monochrome:
                     // Ball and rings are the same ink on purpose — the reference image is black
                     // rings on white. The background-coloured outline is what keeps them apart.
+                    // Gold on near-white is invisible; the reward ring reads as the only warm
+                    // ink in a monochrome tunnel instead.
                     return new ThemePalette(theme, "#FAFAFA", new[] { "#111111" }, "#111111",
-                        "#FAFAFA", "#111111", EndCapStyle.Round, false, 0.55, 0.0);
+                        "#FAFAFA", "#111111", 0.55, 0.0, "#9A6B00");
 
                 case Theme.Midnight:
                     return new ThemePalette(theme, "#0B1020", new[] { "#E8ECF4" }, "#FFB703",
-                        "#0B1020", "#E8ECF4", EndCapStyle.Round, false, 0.6, 0.0);
+                        "#0B1020", "#E8ECF4", 0.6, 0.15);
 
                 case Theme.Neon:
                     return new ThemePalette(theme, "#121A33",
                         new[] { "#2D7FF0", "#FFEC6B", "#2D7FF0", "#8B3FF0" }, "#C77DF2",
-                        "#121A33", "#FFFFFF", EndCapStyle.Flat, true, 0.5, 0.6);
+                        "#121A33", "#FFFFFF", 0.5, 0.6, "#E8A317",
+                        shimmerSeconds: 2.4, shimmerDepth: 0.10);
 
                 case Theme.Pastel:
                     // Deepened from the spec's pale originals, which sat at 1.2–1.8 against a
@@ -127,12 +159,21 @@ namespace HR.Core
                     // Hue and saturation are kept; only value moved. DECISIONS D-026.
                     return new ThemePalette(theme, "#FDF6F0",
                         new[] { "#B97E7E", "#6F91A3", "#76937C", "#9E8B65" }, "#5C5470",
-                        "#FDF6F0", "#5C5470", EndCapStyle.Round, false, 0.5, 0.0);
+                        "#FDF6F0", "#5C5470", 0.5, 0.0, "#A07400");
 
                 case Theme.Earth:
                     return new ThemePalette(theme, "#EADDC8",
                         new[] { "#3F5E3A", "#6B4F3A", "#8A7A52" }, "#C2562B",
-                        "#EADDC8", "#3B2F26", EndCapStyle.Round, false, 0.5, 0.0);
+                        "#EADDC8", "#3B2F26", 0.5, 0.0, "#8A5A00");
+
+                case Theme.Aurora:
+                    // Cold greens and violets on near-black, the way the thing it is named after
+                    // sits over a night sky. The slowest shimmer of the five that have one: the
+                    // point is a tunnel that breathes, not one that flickers.
+                    return new ThemePalette(theme, "#06121A",
+                        new[] { "#3FE0A8", "#5BC8F5", "#9B6BF0" }, "#F2F7FF",
+                        "#06121A", "#DFF5EC", 0.55, 0.45, "#F0B429",
+                        shimmerSeconds: 3.6, shimmerDepth: 0.14);
 
                 default:
                     throw new ArgumentOutOfRangeException(nameof(theme));
@@ -141,7 +182,7 @@ namespace HR.Core
 
         public static Theme[] All => new[]
         {
-            Theme.Monochrome, Theme.Midnight, Theme.Neon, Theme.Pastel, Theme.Earth,
+            Theme.Monochrome, Theme.Midnight, Theme.Neon, Theme.Pastel, Theme.Earth, Theme.Aurora,
         };
     }
 }

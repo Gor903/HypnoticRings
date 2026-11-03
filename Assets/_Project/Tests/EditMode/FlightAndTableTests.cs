@@ -153,7 +153,8 @@ namespace HR.Tests.EditMode
                 {
                     var expected = DifficultyCurve.DefaultAnchors[i];
                     Assert.AreEqual(expected.Rings, rows[i].Rings, $"row {i} rings");
-                    Assert.AreEqual(expected.CompressionSpeed, rows[i].CompressionSpeed, 1e-6, $"row {i} speed");
+                    Assert.AreEqual(expected.Clearance, rows[i].Clearance, 1e-6, $"row {i} corridor");
+                    Assert.AreEqual(expected.RingInterval, rows[i].RingInterval, 1e-6, $"row {i} interval");
                     Assert.AreEqual(expected.MaxCompressionSpeed, rows[i].MaxCompressionSpeed, 1e-6, $"row {i} ceiling");
                     Assert.AreEqual(expected.GapArcWidth, rows[i].GapArcWidth, 1e-6, $"row {i} opening");
                     Assert.AreEqual(expected.AutoSpinDeg, rows[i].AutoSpinDeg, 1e-6, $"row {i} spin");
@@ -170,13 +171,13 @@ namespace HR.Tests.EditMode
         {
             var backwards = new List<CurveAnchor>
             {
-                new CurveAnchor(10, 0.15, 1.0, 3.2, 0.0),
-                new CurveAnchor(0, 0.18, 1.6, 2.8, 12.0),
+                new CurveAnchor(10, 1.10, 3.0, 2.0, 3.2, 0.0),
+                new CurveAnchor(0, 1.05, 2.5, 3.0, 2.8, 12.0),
             };
             Assert.IsNotEmpty(DifficultyCurve.Validate(backwards));
             Assert.Throws<ArgumentException>(() => new DifficultyCurve(_settings, backwards));
 
-            var ceilingUnderSpeed = new List<CurveAnchor> { new CurveAnchor(0, 0.5, 0.2, 3.2, 0.0) };
+            var ceilingUnderSpeed = new List<CurveAnchor> { new CurveAnchor(0, 1.10, 0.0, 2.0, 3.2, 0.0) };
             Assert.IsNotEmpty(DifficultyCurve.Validate(ceilingUnderSpeed));
         }
 
@@ -185,7 +186,7 @@ namespace HR.Tests.EditMode
         {
             // The floor used to be unreachable, which read as dead. It is load-bearing now that
             // the rows live in an asset a balance pass can edit by hand.
-            var tooNarrow = new List<CurveAnchor> { new CurveAnchor(0, 0.15, 1.0, 0.1, 0.0) };
+            var tooNarrow = new List<CurveAnchor> { new CurveAnchor(0, 1.10, 3.0, 2.0, 0.1, 0.0) };
             var curve = new DifficultyCurve(_settings, tooNarrow);
 
             Assert.AreEqual(_settings.MinGapWidth, curve.GapArcWidthAt(0), 1e-9,

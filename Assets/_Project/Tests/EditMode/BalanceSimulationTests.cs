@@ -73,27 +73,36 @@ namespace HR.Tests.EditMode
             Assert.Less(medium, strong, $"medium {medium:F1} did not score below strong {strong:F1}");
         }
 
+        /// <summary>
+        /// The absolute bands are gone, and that is a finding rather than a surrender.
+        ///
+        /// They were recalibrated three times — 25–60 at D-058, 55–95 at D-059, 110–165 at
+        /// D-062 — always for the same reason. This simulator asks the question the game stopped
+        /// asking: can the hand bring one opening to the bottom of the ring and hold it there.
+        /// A ball that flies leaves through whichever way out it reaches, so every change made
+        /// for the flying ball moves this model without moving the game.
+        ///
+        /// Several openings per ring broke it outright. The model now reads 26 where the gate on
+        /// real physics reads 293 out of 300 — a factor of five, in the opposite direction from
+        /// last time. A fourth recalibration would be a number chosen to make a red test green.
+        ///
+        /// What the simulator still measures honestly is kept: that a better hand scores better,
+        /// that no ring is unreachable, and that a seed replays. Those are properties of the
+        /// model that would catch a real control-law bug, and two of them already have. Whether
+        /// the thing earns its place at all is the balance slice's call. See DECISIONS D-064.
+        /// </summary>
         [Test]
-        public void The_average_hand_lands_in_the_band_it_is_defined_by()
+        public void A_better_hand_is_worth_a_sensible_multiple_of_a_worse_one()
         {
-            // The band moved 25–60 → 55–95 at D-059, and the honest reading of that is that this
-            // simulator no longer sets the difficulty. It asks the pre-D-058 question — can the
-            // hand bring the opening to the bottom and hold it there — and the answer got easy,
-            // because the openings had to be widened in ANGLE for a ball that now leaves through
-            // whichever one it happens to reach. Measured here: 73.8 against 69% at the play-mode
-            // gate on the same numbers. Tightening the game until this band was happy again would
-            // be tuning against a model of a game nobody plays; the gate is the one that decides.
-            double mean = MeanScore(BotBrain.Medium);
-            Assert.GreaterOrEqual(mean, 55.0, $"medium averages {mean:F1}, under the band");
-            Assert.LessOrEqual(mean, 95.0, $"medium averages {mean:F1}, over the band");
-        }
+            double weak = MeanScore(BotBrain.Weak);
+            double medium = MeanScore(BotBrain.Medium);
 
-        [Test]
-        public void The_weakest_hand_lands_in_the_band_it_is_defined_by()
-        {
-            double mean = MeanScore(BotBrain.Weak);
-            Assert.GreaterOrEqual(mean, 8.0, $"weak averages {mean:F1}, under the band");
-            Assert.LessOrEqual(mean, 22.0, $"weak averages {mean:F1}, over the band");
+            // Relative, because relative is what survived the model going stale. A medium hand
+            // that scores like a weak one, or a hundred times it, means the control law broke —
+            // which is the class of bug this file exists to catch.
+            double ratio = medium / weak;
+            Assert.Greater(ratio, 1.2, $"medium {medium:F1} is barely above weak {weak:F1}");
+            Assert.Less(ratio, 20.0, $"medium {medium:F1} is {ratio:F1} times weak {weak:F1}");
         }
 
         [Test]

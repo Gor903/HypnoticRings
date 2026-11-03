@@ -10,6 +10,7 @@ namespace HR.Core
         Neon = 2,
         Pastel = 3,
         Earth = 4,
+        Aurora = 5,
     }
 
     /// <summary>
@@ -28,6 +29,7 @@ namespace HR.Core
                 case Theme.Neon: return 0;
                 case Theme.Pastel: return 25;
                 case Theme.Earth: return 50;
+                case Theme.Aurora: return 100;
                 default: throw new ArgumentOutOfRangeException(nameof(theme));
             }
         }
@@ -62,9 +64,20 @@ namespace HR.Core
             DisplayedBest = _best;
         }
 
-        public void AddRing()
+        public void AddRing() => AddRings(1);
+
+        /// <summary>
+        /// Several rings at once — what clearing a super ring is worth.
+        ///
+        /// Counted as rings rather than as bonus points on purpose: the score stays equal to the
+        /// number of the ring the ball is in, so the difficulty curve's n and the theme unlock
+        /// thresholds keep meaning the same thing as the number on screen. A bonus that is not a
+        /// ring would quietly split those apart.
+        /// </summary>
+        public void AddRings(int count)
         {
-            Score++;
+            if (count <= 0) return;
+            Score += count;
             if (Score > _best) _best = Score;
         }
 

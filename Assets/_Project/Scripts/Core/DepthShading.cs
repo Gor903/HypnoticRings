@@ -17,8 +17,23 @@ namespace HR.Core
         /// player is reading. Rings behind fade out as they collapse towards the centre; rings
         /// ahead fade in as they arrive, so nothing ever pops into existence.
         /// </summary>
+        /// <summary>
+        /// <paramref name="fade"/> is the theme's appetite for depth, 0 to 1. At zero the whole
+        /// tunnel stays at full strength; at one a distant ring vanishes into the background.
+        /// It scales the cue and never reorders it: a palette may say how much of the tunnel to
+        /// keep, not which ring is nearest.
+        /// </summary>
         public static double AlphaFor(double ringRadius, double ballRingRadius, double vanishRadius,
-                                      double step, int ringsAhead)
+                                      double step, int ringsAhead, double fade = 1.0)
+        {
+            double alpha = RawAlphaFor(ringRadius, ballRingRadius, vanishRadius, step, ringsAhead);
+            if (fade >= 1.0) return alpha;
+            if (fade <= 0.0) return 1.0;
+            return 1.0 - (1.0 - alpha) * fade;
+        }
+
+        static double RawAlphaFor(double ringRadius, double ballRingRadius, double vanishRadius,
+                                  double step, int ringsAhead)
         {
             if (step <= 0.0) return 1.0;
 

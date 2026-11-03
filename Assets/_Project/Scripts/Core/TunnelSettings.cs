@@ -20,7 +20,15 @@ namespace HR.Core
         public readonly double RedRadius;
         public readonly double PassMargin;
         public readonly double MinGapWidth;
-        public readonly double PullToCentre;
+        /// <summary>
+        /// Retraction pull, expressed per step rather than absolutely.
+        ///
+        /// The pull term of the compression law is k·(R−R_target), and after a pass R is exactly
+        /// one step out. Holding k fixed while the step shrinks would make the snap-back weaker
+        /// the further a run goes, purely as a side effect of the corridor tightening. Holding
+        /// this product fixed keeps the snap-back feeling the same: k = PullPerStep / step.
+        /// </summary>
+        public readonly double PullPerStep;
         public readonly double MaxCompressionSpeed;
         public readonly double ComfortSpinDeg;
         public readonly double MaxBallSpeed;
@@ -31,7 +39,7 @@ namespace HR.Core
 
         public TunnelSettings(double thickness, double clearance, double targetRadius, double vanishRadius,
                               double ballRadius, double redRadius, double passMargin, double minGapWidth,
-                              double pullToCentre, double maxCompressionSpeed, double comfortSpinDeg,
+                              double pullPerStep, double maxCompressionSpeed, double comfortSpinDeg,
                               double maxBallSpeed, double maxArcStepDeg, double maxSegmentSweepDeg,
                               int ringsAhead, int capPoints)
         {
@@ -43,7 +51,7 @@ namespace HR.Core
             RedRadius = redRadius;
             PassMargin = passMargin;
             MinGapWidth = minGapWidth;
-            PullToCentre = pullToCentre;
+            PullPerStep = pullPerStep;
             MaxCompressionSpeed = maxCompressionSpeed;
             ComfortSpinDeg = comfortSpinDeg;
             MaxBallSpeed = maxBallSpeed;
@@ -53,8 +61,21 @@ namespace HR.Core
             CapPoints = capPoints;
         }
 
-        /// <summary>Distance between the centre lines of neighbouring rings.</summary>
+        /// <summary>
+        /// Narrowest corridor the difficulty curve may ask for, in ball diameters. One of the
+        /// generator's hard floors rather than a taste setting.
+        /// </summary>
+        public const double CorridorFloorInDiameters = 1.3;
+
+        /// <summary>
+        /// Distance between the centre lines of neighbouring rings, at the opening corridor
+        /// width. Once a run is going the corridor narrows with difficulty, so the live step
+        /// comes from the snapshot — this is the starting value and what Validate reasons about.
+        /// </summary>
         public double Step => Clearance + Thickness;
+
+        /// <summary>Step for a given corridor width, which is the one that moves over a run.</summary>
+        public double StepFor(double clearance) => clearance + Thickness;
 
         /// <summary>
         /// Radius at which a ring's inner edge touches the red circle, which ends the run.
@@ -63,10 +84,10 @@ namespace HR.Core
         public double CrushRadius => RedRadius + Thickness * 0.5;
 
         public static TunnelSettings Default => new TunnelSettings(
-            thickness: 0.40, clearance: 0.95, targetRadius: 3.0, vanishRadius: 1.05,
+            thickness: 0.18, clearance: 1.10, targetRadius: 3.0, vanishRadius: 1.05,
             ballRadius: 0.27, redRadius: 0.75, passMargin: 0.22, minGapWidth: 0.80,
-            pullToCentre: 3.0, maxCompressionSpeed: 5.0, comfortSpinDeg: 300.0,
-            maxBallSpeed: 16.0, maxArcStepDeg: 7.5, maxSegmentSweepDeg: 120.0,
+            pullPerStep: 4.05, maxCompressionSpeed: 5.0, comfortSpinDeg: 300.0,
+            maxBallSpeed: 14.0, maxArcStepDeg: 7.5, maxSegmentSweepDeg: 120.0,
             ringsAhead: 9, capPoints: 4);
 
         /// <summary>
@@ -81,9 +102,13 @@ namespace HR.Core
             if (Thickness <= 0) problems.Add("thickness must be positive");
             if (BallRadius <= 0) problems.Add("ball radius must be positive");
 
-            // The corridor has to admit the ball with room to move, or it is a wall.
-            if (Clearance <= BallRadius * 2)
-                problems.Add($"clearance {Clearance} does not fit a ball of diameter {BallRadius * 2}");
+            // The corridor has to admit the ball with room to move, or it is a wall. A corridor
+            // exactly one ball wide technically fits and is unplayable: the ball can only travel
+            // along it, never across, so the floor is a share above the diameter rather than the
+            // diameter itself.
+            if (Clearance < BallRadius * 2 * CorridorFloorInDiameters)
+                problems.Add($"clearance {Clearance} is under {CorridorFloorInDiameters} ball "
+                             + $"diameters ({BallRadius * 2 * CorridorFloorInDiameters:F3})");
 
             // Narrower than the ball and no gap is ever passable, whatever the difficulty curve says.
             if (MinGapWidth < BallRadius * 2)

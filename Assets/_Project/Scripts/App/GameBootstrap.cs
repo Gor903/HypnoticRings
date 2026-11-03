@@ -30,6 +30,7 @@ namespace HR.App
         GameManager _game;
         TunnelController _tunnel;
         BallController _ball;
+        BallController _spareBall;
         InputController _input;
         ThemeApplier _themes;
         GameUi _ui;
@@ -126,6 +127,16 @@ namespace HR.App
 
             _ball = TunnelFactory.CreateBall(config, transform, ballPhysics, material, settings);
 
+            // The spare the bead wakes. Built with the scene and left asleep: a run must never
+            // create one, and a run that never finds a bead must not pay for it either.
+            _spareBall = TunnelFactory.CreateBall(config, transform, ballPhysics, material, settings);
+            _spareBall.name = "SpareBall";
+
+            // The two never collide with each other. Plan [G-33]: they are two chances, not two
+            // objects in a pinball machine — a bounce between them would be unreadable.
+            Physics2D.IgnoreCollision(_ball.GetComponent<Collider2D>(),
+                                      _spareBall.GetComponent<Collider2D>(), true);
+
             var centreGo = new GameObject("Centre");
             _centre = centreGo.AddComponent<CentreMarker>();
             _centre.Initialise(config, transform, material);
@@ -135,6 +146,8 @@ namespace HR.App
             _tunnel = tunnelGo.AddComponent<TunnelController>();
             var pool = new RingPool(config, tunnelGo.transform, material);
             _tunnel.Initialise(config, _ball, pool);
+            _tunnel.RegisterSpareBall(_spareBall);
+            _tunnel.SetBeadMaterial(material);
             _ringPhysics = ringPhysics;
 
             var gameGo = new GameObject("Game");
@@ -209,7 +222,12 @@ namespace HR.App
 
         void Wire()
         {
-            _ui.PlayPressed += StartRun;
+            _ui.PlayPressed += () => { _game.Mode = GameMode.Normal; StartRun(); };
+            _ui.HardcorePressed += () => { _game.Mode = GameMode.Hardcore; StartRun(); };
+
+            // Retry keeps the mode it was playing: a player who just lost a hardcore run wants
+            // another hardcore run, and silently dropping them into the ordinary game would be
+            // the worst possible answer to pressing the biggest button on the screen.
             _ui.RetryPressed += StartRun;
             _ui.PausePressed += () => { _game.Pause(); _input.Cancel(); _ui.Show(_game.State); };
             _ui.ResumePressed += () => { _game.Resume(); _ui.Show(_game.State); };
@@ -250,6 +268,10 @@ namespace HR.App
             };
 
             _ball.Struck += _ => _audio.PlayKnock();
+            _spareBall.Struck += _ => _audio.PlayKnock();
+
+            _tunnel.BeadTaken += () => { _audio.PlayPass(Time.timeAsDouble); _haptics.Pass(); };
+            _tunnel.BallLost += () => { _audio.PlayLose(); _effects.Shake(); _haptics.Lose(); };
 
             _game.Scored += score =>
             {
@@ -261,6 +283,21 @@ namespace HR.App
                 if (!_settings.hintSeen) { _settings.hintSeen = true; _ui.ShowHint(false); Persist(); }
             };
 
+            _game.KilledByTouch += ring =>
+            {
+                _haptics.Lose();
+                _audio.PlayLose();
+            };
+
+            _tunnel.BallTouchedRing += touches =>
+            {
+                // The ordinary game already knocks on contact through BallController.Struck.
+                // This is the hardcore warning: the touch that spends the allowance sounds
+                // different from the one that does not.
+                if (_game.Mode == GameMode.Hardcore && touches == GameManager.HardcoreTouchAllowance)
+                    _haptics.Pass();
+            };
+
             _game.StateChanged += (_, to) =>
             {
                 _ui.Show(to);
@@ -268,6 +305,8 @@ namespace HR.App
                 if (to == GameState.Paused) _audio.ResetStreak();
                 if (to == GameState.GameOver)
                 {
+                    if (_game.Mode == GameMode.Hardcore && _game.Score > _settings.hardcoreBest)
+                        _settings.hardcoreBest = _game.Score;
                     _audio.PlayLose();
                     _effects.Shake();
                     _effects.Collapse(_tunnel.transform, _ball.transform.position);
@@ -290,6 +329,9 @@ namespace HR.App
             bool inPlay = state == GameState.Playing || state == GameState.Paused
                           || state == GameState.GameOver;
             if (_ball != null) _ball.gameObject.SetActive(inPlay);
+            // The spare only ever appears through a bead, so it stays hidden here and the
+            // tunnel is what wakes it.
+            if (!inPlay && _spareBall != null) _spareBall.gameObject.SetActive(false);
             if (_centre != null) _centre.gameObject.SetActive(inPlay);
         }
 
@@ -358,7 +400,12 @@ namespace HR.App
                 // game itself has stopped.
                 _effects.Tick(Time.deltaTime);
             }
-            else if (_game.State == GameState.Menu && _effects.Enabled)
+            // The palette breathes wherever the tunnel is visible, menu included — it is the
+            // same tunnel, and a theme that only moved during a run would read as a glitch the
+            // moment the player pressed Play.
+            if (_effects.Enabled) _themes.Tick(Time.deltaTime);
+
+            if (_game.State == GameState.Menu && _effects.Enabled)
             {
                 // Spec 10.2 asks for slowly turning rings behind the menu. Rotating the whole
                 // tunnel object is purely visual — no ring moves relative to another, and the

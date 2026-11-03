@@ -12,15 +12,16 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 6112baaa6132f3a23ac64e7581d2cc90, type: 3}
   m_Name: GameConfig
   m_EditorClassIdentifier: HR.Gameplay::HR.Gameplay.GameConfig
-  thickness: 0.4
-  clearance: 0.95
+  thickness: 0.18
+  clearance: 1.1
   targetRadius: 3
   vanishRadius: 1.05
   ringsAhead: 9
+  outerRadiusLimit: 15.2
   orthoSize: 10
   centreHeightFraction: 0.72
   ballRadius: 0.27
-  maxBallSpeed: 16
+  maxBallSpeed: 14
   cruiseSpeed: 10
   cruiseAccel: 5
   ballGravityScale: 0.15
@@ -34,9 +35,14 @@ MonoBehaviour:
   redColour: {r: 1, g: 0.231, b: 0.188, a: 1}
   dissolveSeconds: 0.25
   difficulty: {fileID: 11400000, guid: 3511f762f7fcf2ee13c5e4ea71ed5391, type: 2}
-  baseCompressionSpeed: 0.45
-  pullToCentre: 3
+  baseCompressionSpeed: 0.427
+  pullPerStep: 4.05
   maxCompressionSpeed: 5
+  superDissolveCount: 3
+  superWaveStagger: 0.1
+  superSlowFactor: 0.4
+  superSlowSeconds: 3.5
+  superSlowReturnSeconds: 1
   minGapWidth: 0.8
   comfortSpinDeg: 300
   sensitivity: 3
@@ -46,5 +52,15 @@ MonoBehaviour:
   maxArcStepDeg: 7.5
   maxSegmentSweepDeg: 120
   capPoints: 4
+  trailPoints: 8
+  trailFadeSeconds: 0.22
+  passFlashSeconds: 0.12
+  scorePulseScale: 1.15
+  scorePulseSeconds: 0.15
+  crushShakeAmplitude: 0.08
+  crushSeconds: 0.4
+  transitionSeconds: 0.35
+  vibratePassMs: 20
+  vibrateLoseMs: 60
   compressionMode: 2
   rebuildThreshold: 0.02

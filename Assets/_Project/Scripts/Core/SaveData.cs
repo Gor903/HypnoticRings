@@ -45,6 +45,12 @@ namespace HR.Core
         /// <summary>The swipe hint shows once, ever (CONTRACT.md §3).</summary>
         public bool hintSeen;
 
+        /// <summary>Best in hardcore, kept apart: it is a different game with a different scale.</summary>
+        public int hardcoreBest;
+
+        /// <summary>Whether the hardcore rule has been explained once.</summary>
+        public bool hardcoreHintSeen;
+
         /// <summary>CONTRACT.md G-05 lists every one of these.</summary>
         public static SaveData Defaults() => new SaveData
         {

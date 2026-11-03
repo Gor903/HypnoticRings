@@ -25,6 +25,7 @@ namespace HR.Gameplay
         RingSegment[] _segments;
         ArcSpan[] _spans;
         Gap[] _gaps;
+        RingGaps _openings;
         TunnelSettings _settings;
 
         CompressionMode _mode;
@@ -61,8 +62,139 @@ namespace HR.Gameplay
         public double GapArcWidth { get; private set; }
         public double AutoSpinDeg { get => _autoSpinDeg; set => _autoSpinDeg = value; }
 
+        /// <summary>How many ways out this ring has.</summary>
+        public int GapCount => _gapCount;
+
+        /// <summary>What the generator made this ring for. Colour and the wave both read it.</summary>
+        public RingKind Kind { get; private set; }
+
+        /// <summary>Which opening carries the bead, or -1. Set by the tunnel, not the generator.</summary>
+        public int BeadGap { get; private set; } = -1;
+
+        /// <summary>True while a bead is sitting in this ring waiting to be taken.</summary>
+        public bool HasBead => BeadGap >= 0 && _bead != null && _bead.activeSelf;
+
+        GameObject _bead;
+        Transform _beadTransform;
+
+        /// <summary>
+        /// Puts a bead in one of this ring's openings, or takes it away.
+        ///
+        /// The object is built once with the ring and then only shown and hidden: a bead is
+        /// created every few rings for a whole run, and creating one each time is the kind of
+        /// per-ring allocation an endless game turns into a leak.
+        /// </summary>
+        public void SetBead(int gapIndex, Material material, float radius)
+        {
+            BeadGap = gapIndex;
+
+            if (gapIndex < 0)
+            {
+                if (_bead != null) _bead.SetActive(false);
+                return;
+            }
+
+            if (_bead == null)
+            {
+                _bead = new GameObject("Bead", typeof(MeshFilter), typeof(MeshRenderer));
+                _bead.transform.SetParent(transform, false);
+                _bead.GetComponent<MeshFilter>().sharedMesh = TunnelFactory.BuildDiscMesh(radius, 12);
+                _bead.GetComponent<MeshRenderer>().sharedMaterial = material;
+                _beadTransform = _bead.transform;
+            }
+
+            _bead.SetActive(true);
+            PlaceBead();
+        }
+
+        /// <summary>Taken. The ring keeps the slot so nothing tries to hand out a second one.</summary>
+        public void TakeBead()
+        {
+            if (_bead != null) _bead.SetActive(false);
+            BeadGap = -1;
+        }
+
+        /// <summary>
+        /// Keeps the bead in its opening as the ring shrinks.
+        ///
+        /// A child of the ring, so rotation is free — the bead turns with the finger like the
+        /// opening it sits in. Only the radius has to be followed.
+        /// </summary>
+        void PlaceBead()
+        {
+            if (_beadTransform == null || BeadGap < 0 || BeadGap >= _gapCount) return;
+
+            double rad = _openings[BeadGap].CentreDeg / TunnelMath.DegPerRad;
+            _beadTransform.localPosition = new Vector3(
+                (float)(System.Math.Cos(rad) * _radius), (float)(System.Math.Sin(rad) * _radius), 0f);
+        }
+
+        /// <summary>Where the bead is in the world, for the pick-up test.</summary>
+        public Vector3 BeadWorldPosition =>
+            _beadTransform != null ? _beadTransform.position : transform.position;
+
         /// <summary>World-space angle of the first gap's centre, which is what the ball cares about.</summary>
         public double GapCentreWorldDeg => TunnelMath.NormalizeDeg(GapCentreLocalDeg + TotalRotationDeg);
+
+        /// <summary>World-space centre of a particular opening.</summary>
+        public double GapCentreWorldDegAt(int index) =>
+            TunnelMath.NormalizeDeg(_openings[index].CentreDeg + TotalRotationDeg);
+
+        /// <summary>
+        /// How far the ring must turn to put the nearest opening under a heading, in degrees.
+        ///
+        /// To the nearest EDGE, not to the centre, and the difference is the whole point of a
+        /// wide opening. A player does not have to line the middle of a gap up with the ball;
+        /// they have to get any part of it there. Measuring to the centre makes a 120° opening
+        /// look exactly as demanding as a 20° one, which is how an instrument can report that
+        /// widening the gaps made the game harder.
+        ///
+        /// Zero when the heading is already inside an opening.
+        /// </summary>
+        public double TurnToNearestGapDeg(double towardsDeg)
+        {
+            if (_gapCount <= 0) return 180.0;
+
+            double best = double.MaxValue;
+            for (int i = 0; i < _gapCount; i++)
+            {
+                double toCentre = System.Math.Abs(TunnelMath.ShortestDeltaDeg(
+                    GapCentreWorldDegAt(i), towardsDeg));
+
+                // The built width at this radius, which is what the ball actually meets.
+                double half = _gaps[i].WidthDeg * 0.5;
+                double turn = System.Math.Max(0.0, toCentre - half);
+                if (turn < best) best = turn;
+            }
+
+            return best;
+        }
+
+        /// <summary>
+        /// The opening nearest a given heading, which is the one a player would actually aim for.
+        ///
+        /// Without this the bot keeps steering at slot zero and a ring with three ways out plays
+        /// harder than a ring with one — the measurement would say multi-gap rings are a penalty
+        /// when for a human they are a gift.
+        /// </summary>
+        public double NearestGapWorldDeg(double towardsDeg)
+        {
+            if (_gapCount <= 0) return GapCentreWorldDeg;
+
+            double best = GapCentreWorldDegAt(0);
+            double bestDistance = System.Math.Abs(TunnelMath.ShortestDeltaDeg(best, towardsDeg));
+
+            for (int i = 1; i < _gapCount; i++)
+            {
+                double candidate = GapCentreWorldDegAt(i);
+                double distance = System.Math.Abs(TunnelMath.ShortestDeltaDeg(candidate, towardsDeg));
+                if (distance >= bestDistance) continue;
+                best = candidate;
+                bestDistance = distance;
+            }
+
+            return best;
+        }
 
         public double TotalRotationDeg { get; private set; }
 
@@ -133,9 +265,11 @@ namespace HR.Gameplay
             _body.bodyType = RigidbodyType2D.Kinematic;
             _body.useFullKinematicContacts = true;
 
-            // One gap per ring, and the array says so. It held two for a second opening that
-            // was never built, which also made every ring carry a segment it could not use.
-            _gaps = new Gap[1];
+            // Up to three, and every ring carries the segments for three whether it uses them
+            // or not: the spare ones sit deactivated, which costs a GameObject and no frame time,
+            // whereas growing the array later would mean building geometry mid-run.
+            _gaps = new Gap[RingGaps.MaxGaps];
+            _openings = new RingGaps();
             int maxSegments = RingSegmentation.UpperBoundSegments(_gaps.Length, _settings.MaxSegmentSweepDeg);
             _spans = new ArcSpan[maxSegments];
             _segments = new RingSegment[maxSegments];
@@ -154,24 +288,41 @@ namespace HR.Gameplay
             }
         }
 
-        /// <summary>Places the ring. Gap width is the opening at the target radius — CONTRACT.md §2.2.</summary>
+        /// <summary>Places the ring with one opening — the shape most rings have.</summary>
         public void Configure(double radius, double gapCentreLocalDeg, double gapArcWidth, double autoSpinDeg)
-            => Place(radius, gapCentreLocalDeg, gapArcWidth, autoSpinDeg, gapCount: 1);
+        {
+            Kind = RingKind.Plain;
+            Place(radius, RingGaps.One(gapCentreLocalDeg, gapArcWidth), autoSpinDeg);
+        }
+
+        /// <summary>Places the ring with however many openings the generator decided on.</summary>
+        public void Configure(double radius, in RingGaps gaps, double autoSpinDeg,
+                              RingKind kind = RingKind.Plain)
+        {
+            Kind = kind;
+            Place(radius, gaps, autoSpinDeg);
+        }
 
         /// <summary>
         /// A ring with no way out. Not a game state — it is what the tunnelling test needs, so
         /// that any escape at all is a failure rather than a judgement call.
         /// </summary>
         public void ConfigureSolid(double radius, double autoSpinDeg)
-            => Place(radius, 0.0, 0.0, autoSpinDeg, gapCount: 0);
-
-        void Place(double radius, double gapCentreLocalDeg, double gapArcWidth, double autoSpinDeg,
-                   int gapCount)
         {
-            GapCentreLocalDeg = gapCentreLocalDeg;
-            GapArcWidth = gapArcWidth;
+            Kind = RingKind.Plain;
+            Place(radius, new RingGaps { Count = 0 }, autoSpinDeg);
+        }
+
+        void Place(double radius, in RingGaps gaps, double autoSpinDeg)
+        {
+            _openings = gaps;
+            IsHot = false;
+            if (_bead != null) _bead.SetActive(false);
+            BeadGap = -1;
+            GapCentreLocalDeg = gaps.Count > 0 ? gaps.A.CentreDeg : 0.0;
+            GapArcWidth = gaps.Count > 0 ? gaps.A.Opening : 0.0;
             _autoSpinDeg = autoSpinDeg;
-            _gapCount = gapCount;
+            _gapCount = gaps.Count;
             _radius = radius;
             _baseRadius = radius;
             _spinDeg = 0.0;
@@ -212,6 +363,10 @@ namespace HR.Gameplay
                         RebuildGeometry(radius);
                     break;
             }
+
+            // Every step, not only on a rebuild: the bead has to stay in its opening while the
+            // ring closes in, and the rebuild threshold is coarse enough to be visible.
+            if (BeadGap >= 0) PlaceBead();
         }
 
         /// <summary>Advances autonomous spin and applies the shared user angle.</summary>
@@ -236,8 +391,10 @@ namespace HR.Gameplay
             // The angle is held, not the arc: a shrinking ring keeps the opening it was drawn
             // with instead of tearing wider as it closes in. The width also pays for the rounded
             // caps, which bulge into the gap from both sides.
-            _gaps[0] = new Gap(GapCentreLocalDeg, TunnelMath.HeldGapWidthDeg(
-                GapArcWidth, _settings.Thickness, _settings.TargetRadius, radius, _settings.MinGapWidth));
+            for (int i = 0; i < _gapCount; i++)
+                _gaps[i] = new Gap(_openings[i].CentreDeg, TunnelMath.HeldGapWidthDeg(
+                    _openings[i].Opening, _settings.Thickness, _settings.TargetRadius,
+                    radius, _settings.MinGapWidth));
 
             int count = RingSegmentation.BuildSolidSegments(
                 _gaps, _gapCount, _settings.MaxSegmentSweepDeg, _spans);
@@ -270,6 +427,46 @@ namespace HR.Gameplay
         /// <summary>Forgets the cached colour, so the next shading pass actually writes.</summary>
         public void InvalidateShading() => _shaded = false;
 
+        /// <summary>
+        /// Sets the halo width on every segment and rebuilds, which is the part that is easy to
+        /// forget: the width is read while geometry is being filled, so setting it afterwards
+        /// leaves a ring that has a halo in its fields and none on the screen.
+        /// </summary>
+        public void SetHaloWidth(float width)
+        {
+            bool changed = false;
+            for (int i = 0; i < _activeSegments; i++)
+            {
+                if (Mathf.Approximately(_segments[i].HaloWidth, width)) continue;
+                _segments[i].HaloWidth = width;
+                changed = true;
+            }
+
+            if (changed) RebuildGeometry(_radius);
+        }
+
+        /// <summary>
+        /// True once this ring has used up its allowance and the next touch will end the run.
+        ///
+        /// A ring that is about to kill has to look different before it does, not after. The
+        /// alternative is a death the player cannot see coming, which in a mode built on one
+        /// mistake per ring is the difference between hard and unfair.
+        /// </summary>
+        public bool IsHot { get; private set; }
+
+        public void SetHot(bool hot)
+        {
+            if (IsHot == hot) return;
+            IsHot = hot;
+            _shaded = false;
+        }
+
+        /// <summary>What the halo is mixed toward — the theme's background.</summary>
+        public Color HaloBackground { get; set; } = Color.black;
+
+        /// <summary>How much of the ring's own ink the halo keeps, 0 to 1.</summary>
+        public float HaloStrength { get; set; } = 0.35f;
+
         public void ApplyShading(Color colour)
         {
             // Rewriting a property block every step for a colour that has not visibly changed is
@@ -282,11 +479,25 @@ namespace HR.Gameplay
             _block ??= new MaterialPropertyBlock();
             for (int i = 0; i < _activeSegments; i++)
             {
-                var renderer = _segments[i].Renderer;
+                var segment = _segments[i];
+                var renderer = segment.Renderer;
                 renderer.GetPropertyBlock(_block);
                 _block.SetColor(BaseColorId, colour);
                 _block.SetColor(ColorId, colour);
                 renderer.SetPropertyBlock(_block);
+
+                // The halo takes the same ink, mixed back toward the background. Mixed rather
+                // than faded: the shader is opaque and ignores alpha, so a "transparent" halo
+                // would draw at full strength and swallow the ring it is supposed to surround.
+                var halo = segment.HaloRenderer;
+                if (halo == null || !halo.enabled) continue;
+
+                halo.GetPropertyBlock(_block);
+                var glow = Color.Lerp(HaloBackground, colour, HaloStrength);
+                glow.a = 1f;
+                _block.SetColor(BaseColorId, glow);
+                _block.SetColor(ColorId, glow);
+                halo.SetPropertyBlock(_block);
             }
         }
 

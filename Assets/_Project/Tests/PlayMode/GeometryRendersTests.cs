@@ -111,9 +111,9 @@ namespace HR.Tests.PlayMode
             // The same fact stated where it is cheap to check, so a regression names its cause
             // instead of just reporting a blank frame.
             int steps = ArcGeometry.StepsFor(120.0, 7.5);
-            var verts = new Point2[ArcGeometry.BandVertexCount(steps)];
-            var tris = new int[ArcGeometry.BandIndexCount(steps)];
-            ArcGeometry.FillBand(3.0, 0.3, 0.0, 120.0, steps, verts, tris);
+            var verts = new Point2[ArcGeometry.BandVertexCount(steps, 4)];
+            var tris = new int[ArcGeometry.BandIndexCount(steps, 4)];
+            ArcGeometry.FillBand(3.0, 0.3, 0.0, 120.0, steps, 4, verts, tris);
 
             for (int t = 0; t < tris.Length; t += 3)
             {

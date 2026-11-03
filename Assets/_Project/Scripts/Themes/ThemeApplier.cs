@@ -56,12 +56,68 @@ namespace HR.Themes
             {
                 _ringColours.Clear();
                 foreach (var colour in palette.RingColours) _ringColours.Add(ToColor(colour));
+                _tunnel.SetSuperColour(ToColor(palette.Super));
                 _tunnel.SetFadeColour(background);
+                _tunnel.SetDepthAndGlow(palette.DepthFade, palette.Glow);
                 _tunnel.SetRingColours(_ringColours);
             }
 
             Paint(_ballRenderer, ToColor(palette.Ball));
             Paint(_ballOutlineRenderer, ToColor(palette.BallOutline));
+
+            _shimmerClock = 0.0;
+            _shimmerTarget = ShimmerTargetFor(palette.Background);
+        }
+
+        double _shimmerClock;
+        Color _shimmerTarget = Color.white;
+
+        /// <summary>
+        /// Which way a shimmer moves: whichever extreme is further from the background.
+        ///
+        /// Stated as a rule rather than hard-coded to white, because the two themes that
+        /// shimmer today happen to be dark and the next one might not be. On a pale background
+        /// brightening would dim the rings into it, which is the failure this is here to avoid.
+        /// </summary>
+        static Color ShimmerTargetFor(in Rgb background) =>
+            Contrast.Luminance(background) < 0.5 ? Color.white : Color.black;
+
+        /// <summary>
+        /// Moves a shimmering palette along by a step.
+        ///
+        /// Driven rather than self-ticking, so a test can take it to an exact moment and so a
+        /// paused game does not keep breathing. The period is floored well above the
+        /// photosensitivity limit from plan [G-34] and [X-14]: the player stares straight at
+        /// this tunnel, and a palette that pulses quickly stops being a style and becomes a
+        /// health question.
+        /// </summary>
+        public void Tick(double dt)
+        {
+            if (Palette == null || _tunnel == null) return;
+            if (Palette.ShimmerSeconds <= 0.0 || Palette.ShimmerDepth <= 0.0) return;
+            if (dt <= 0.0) return;
+
+            double period = System.Math.Max(ThemePalette.MinShimmerSeconds, Palette.ShimmerSeconds);
+            _shimmerClock = (_shimmerClock + dt) % period;
+
+            _ringColours.Clear();
+            for (int i = 0; i < Palette.RingColours.Length; i++)
+            {
+                // Each colour is a quarter-cycle behind the one before it, so the tunnel reads
+                // as a wave travelling outwards rather than as every ring blinking together.
+                double phase = _shimmerClock / period + i * 0.25;
+                double swing = (System.Math.Sin(phase * System.Math.PI * 2.0) + 1.0) * 0.5;
+                float amount = (float)(swing * Palette.ShimmerDepth);
+
+                // Always AWAY from the background, never toward it. Swinging both ways was the
+                // obvious reading of "shimmer" and it cost Neon's purple ring its legibility at
+                // the bottom of every cycle — contrast 2.92 against a floor of 3.0, for a
+                // tenth of a second, over and over. A palette may not buy movement with
+                // readability, so the dim half of the cycle is gone.
+                _ringColours.Add(Color.Lerp(ToColor(Palette.RingColours[i]), _shimmerTarget, amount));
+            }
+
+            _tunnel.SetRingColours(_ringColours);
         }
 
         /// <summary>
