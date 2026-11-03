@@ -73,6 +73,71 @@ namespace HR.UI
             }
         }
 
+        static Sprite _rounded;
+
+        /// <summary>
+        /// A capsule, drawn once and sliced nine ways.
+        ///
+        /// One sprite serves every corner radius in the game. The texture is fully rounded —
+        /// its corner is as large as a corner can be — and each control shrinks that corner
+        /// with the renderer's own border multiplier. Generating a texture per radius would
+        /// mean a texture per theme per control height, which is a lot of memory for an effect
+        /// the renderer can scale for free.
+        ///
+        /// Built at the canvas's own reference density, so the border reads directly in layout
+        /// units: sixty-four means a corner of sixty-four, divided by whatever multiplier a
+        /// control asks for.
+        /// </summary>
+        public static Sprite Rounded
+        {
+            get
+            {
+                if (_rounded != null) return _rounded;
+
+                const int size = 128;
+                const float radius = size * 0.5f;
+                var texture = new Texture2D(size, size, TextureFormat.RGBA32, false)
+                {
+                    name = "HR.Rounded",
+                    filterMode = FilterMode.Bilinear,
+                    wrapMode = TextureWrapMode.Clamp,
+                };
+
+                var pixels = new Color32[size * size];
+                for (int y = 0; y < size; y++)
+                for (int x = 0; x < size; x++)
+                {
+                    // A square whose corner radius is half its side is a circle, and sliced
+                    // down the middle it gives four corner quadrants and four straight edges —
+                    // which is exactly a rounded rectangle, at any size the border is stretched
+                    // to.
+                    float dx = x + 0.5f - radius;
+                    float dy = y + 0.5f - radius;
+                    float corner = radius - Mathf.Sqrt(dx * dx + dy * dy);
+                    byte alpha = (byte)(Mathf.Clamp01(corner) * 255f);
+                    pixels[y * size + x] = new Color32(255, 255, 255, alpha);
+                }
+
+                texture.SetPixels32(pixels);
+                texture.Apply();
+
+                // Built at the canvas reference density, not at one pixel per unit. A sprite
+                // declaring one pixel per unit against a canvas counting a hundred makes every
+                // sliced border a hundred times too large: the nine pieces cannot fit, the
+                // renderer shrinks the whole sprite to compensate, and a button meant to have a
+                // gentle corner comes out an ellipse. Tests cannot see that; a frame grab can.
+                _rounded = Sprite.Create(texture, new Rect(0, 0, size, size),
+                                         new Vector2(0.5f, 0.5f), pixelsPerUnit: 100f, extrude: 0,
+                                         meshType: SpriteMeshType.FullRect,
+                                         border: new Vector4(radius, radius, radius, radius));
+                _rounded.name = "HR.Rounded";
+                return _rounded;
+            }
+        }
+
+        /// <summary>Half the rounded sprite's size — the largest corner it can draw.</summary>
+        public const float RoundedBorder = 64f;
+
         /// <summary>
         /// The built-in runtime font. It is a dynamic font, so on a device it falls back to the
         /// system family for glyphs it lacks — which is what gets Cyrillic rendered without

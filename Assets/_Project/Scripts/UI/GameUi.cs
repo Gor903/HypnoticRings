@@ -48,6 +48,10 @@ namespace HR.UI
         readonly List<Graphic> _accents = new List<Graphic>();
         readonly List<Graphic> _accentTexts = new List<Graphic>();
         readonly List<Image> _scrims = new List<Image>();
+
+        // Shape is tracked separately from colour because it needs a number colour does not:
+        // the control's height, which is what a corner radius is a share of.
+        readonly List<(Image Image, float Height)> _shaped = new List<(Image, float)>();
         readonly Dictionary<Theme, Text> _themeLocks = new Dictionary<Theme, Text>();
         readonly Dictionary<Theme, Button> _themeButtons = new Dictionary<Theme, Button>();
         readonly Dictionary<Theme, Text> _themeLabels = new Dictionary<Theme, Text>();
@@ -224,6 +228,12 @@ namespace HR.UI
             Paint(_surfaces, ThemeApplier.ToColor(palette.Surface));
             Paint(_accents, ThemeApplier.ToColor(palette.Accent));
             Paint(_accentTexts, ThemeApplier.ToColor(palette.AccentText));
+
+            // Shape travels with the theme, not with the screen. A palette swap that left every
+            // control the same grey rectangle would be a recolour; the point of six themes is
+            // that they feel like six places.
+            var skin = UiSkin.For(palette.Theme);
+            foreach (var (image, height) in _shaped) UiPainter.Shape(image, height, skin);
         }
 
         static void Paint(List<Graphic> graphics, Color colour)
@@ -659,6 +669,8 @@ namespace HR.UI
             var label = button.GetComponentInChildren<Text>();
             _stringRefreshers.Add(() => label.text = Strings.Get(key));
 
+            TrackShape(button.targetGraphic as Image, Mathf.Max(height, UiBuilder.TouchTarget));
+
             if (primary)
             {
                 TrackAccent(button.targetGraphic, label);
@@ -696,6 +708,12 @@ namespace HR.UI
 
         /// <summary>The fill of a control: opaque, and distinct from the screen behind it.</summary>
         void TrackSurface(Graphic graphic) { if (graphic != null) _surfaces.Add(graphic); }
+
+        /// <summary>Registers a control whose corners follow the theme's skin.</summary>
+        void TrackShape(Image image, float height)
+        {
+            if (image != null) _shaped.Add((image, height));
+        }
 
         /// <summary>The one action a screen is for. Fill and label move together.</summary>
         void TrackAccent(Graphic fill, Graphic label)
