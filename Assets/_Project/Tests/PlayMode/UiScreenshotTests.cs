@@ -12,15 +12,10 @@ using UnityEngine.TestTools;
 
 namespace HR.Tests.PlayMode
 {
-    /// <summary>
-    /// Captures every screen at every shape the game ships on, so the layout can be looked at
-    /// rather than reasoned about — and so it is regenerated with one command when it changes.
-    /// </summary>
     public class UiScreenshotTests
     {
         static string OutputDir => ArtifactPaths.Ensure("screenshots", "screens");
 
-        /// <summary>Portrait shapes from a tall phone to a tablet (CONTRACT.md phase 6 gate).</summary>
         static readonly (string Name, int Width, int Height)[] Shapes =
         {
             ("9x16", 1080, 1920),
@@ -87,25 +82,14 @@ namespace HR.Tests.PlayMode
         [Timeout(600_000)]
         public IEnumerator Capture_every_screen_at_every_shape()
         {
-            // Nothing to capture without a renderer, and this is not a failure of the game: the
-            // suite runs headless (-nographics), where SubmitRenderRequest returns the colour the
-            // target was cleared to. tools/screenshots.sh runs this same test with a display,
-            // which is where the pictures actually come from. Said out loud, because for days
-            // this pair was simply red and everyone had learned to read past it.
             if (SystemInfo.graphicsDeviceType == GraphicsDeviceType.Null)
                 Assert.Ignore("needs a renderer — run tools/screenshots.sh, which keeps one");
 
             Directory.CreateDirectory(OutputDir);
 
-            // A record and a couple of unlocked themes, so the screens show something real
-            // rather than a blank first-run state.
             _boot.Game.ScoreKeeper.RestoreBest(37);
             _boot.Ui.RefreshStrings();
 
-            // The camera that takes the picture must be the camera the theme reached. When it was
-            // not, every frame came out on Unity's default slate blue while the rings were
-            // correctly themed — a picture that looks like a broken theme and is really a second
-            // camera. Cheap to assert, and it fails here rather than forty frames later.
             var palette = ThemePalette.For(_boot.Settings.Theme);
             var expected = new Color(palette.Background.R / 255f, palette.Background.G / 255f,
                                      palette.Background.B / 255f, 1f);
@@ -126,8 +110,6 @@ namespace HR.Tests.PlayMode
                 }
             }
 
-            // The two modals never appear in the state loop, because they are not states. Left
-            // out they would be the only surfaces in the game nobody ever looks at.
             foreach (var modal in new[] { "set.about", "set.reset" })
             {
                 _boot.Ui.Show(GameState.Settings);
@@ -146,10 +128,8 @@ namespace HR.Tests.PlayMode
             Debug.Log($"[HR] ui screenshots: {written} frames in {OutputDir}");
         }
 
-        /// <summary>One shape is enough here: what changes between these frames is the skin.</summary>
         static readonly (string Name, int Width, int Height) SkinShape = ("9x16", 1080, 1920);
 
-        /// <summary>The screens that carry the most chrome — edges, halos, cards, switches.</summary>
         static readonly (string Name, GameState State)[] SkinScreens =
         {
             ("menu", GameState.Menu),
@@ -162,32 +142,20 @@ namespace HR.Tests.PlayMode
         [Timeout(600_000)]
         public IEnumerator Capture_every_theme_wearing_its_own_skin()
         {
-            // The other capture proves the layout on five shapes in one theme. This one proves
-            // the opposite axis: six themes on one shape, because a skin that quietly falls back
-            // to the default looks perfectly fine until it is put beside the one it copied.
             if (SystemInfo.graphicsDeviceType == GraphicsDeviceType.Null)
                 Assert.Ignore("needs a renderer — run tools/screenshots.sh, which keeps one");
 
             Directory.CreateDirectory(SkinDir);
 
-            // Every theme open, because this sheet exists to compare all six and a locked one
-            // would simply be skipped.
             _boot.Game.ScoreKeeper.RestoreBest(999);
             _boot.Ui.RefreshStrings();
 
-            // No transitions for the length of the sweep. A sheet of skins is a comparison of
-            // resting states, and the curtain that covers the screen between two of them does
-            // not care which theme it is covering: left running it washed six frames flat, and
-            // the wash looked exactly like a glow that had gone wrong.
             _boot.Juice.Enabled = false;
             _boot.Juice.Clear();
 
             int written = 0;
             foreach (var theme in ThemePalette.All)
             {
-                // The path the menu uses, not a shortcut past it. Applying the palette alone
-                // leaves the transition curtain in the previous theme's colour, and a curtain
-                // still fading from the last screen washes the next one out completely.
                 _boot.ChooseTheme(theme);
                 yield return null;
 
@@ -196,8 +164,6 @@ namespace HR.Tests.PlayMode
                     PrepareFor(screen.State);
                     yield return null;
 
-                    // After the frame, not before it: the state change raises its own effects,
-                    // and a trail that outlived its ball is somebody else's frame.
                     _boot.Juice.Clear();
                     _boot.Effects.Clear();
                     yield return null;
@@ -247,10 +213,8 @@ namespace HR.Tests.PlayMode
             _boot.Ui.Show(_boot.Game.State == state ? state : state);
         }
 
-        /// <summary>Render requests to spend before calling a flat frame a failure.</summary>
         const int RenderAttempts = 4;
 
-        /// <summary>True once the frame holds more than the one colour it was cleared to.</summary>
         static bool ShowsMoreThanOneColour(Texture2D frame)
         {
             var pixels = frame.GetPixels32();
@@ -264,8 +228,6 @@ namespace HR.Tests.PlayMode
         IEnumerator Capture(string screen, (string Name, int Width, int Height) shape,
                             string directory = null)
         {
-            // The layout is told its size outright. Sizing only the texture would capture the
-            // batch window's shape five times over and label the files as five devices.
             _camera.aspect = (float)shape.Width / shape.Height;
             _boot.Ui.OverrideLayoutShape(_camera, shape.Width, shape.Height);
             yield return null;
@@ -273,9 +235,6 @@ namespace HR.Tests.PlayMode
             var target = new RenderTexture(shape.Width, shape.Height, 24, RenderTextureFormat.ARGB32);
             var readback = new Texture2D(shape.Width, shape.Height, TextureFormat.RGB24, false);
 
-            // Asked for more than once: the first request of a run comes back empty while the
-            // pipeline is still warming. A flat frame means nothing rendered — the silent
-            // failure that cost phase 5 an afternoon.
             bool varied = false;
             for (int attempt = 0; attempt < RenderAttempts && !varied; attempt++)
             {
@@ -293,8 +252,6 @@ namespace HR.Tests.PlayMode
                 varied = ShowsMoreThanOneColour(readback);
             }
 
-            // Written only once it is a picture. The file is a tracked store asset, and writing
-            // first meant every failed run replaced one with a grey rectangle.
             string path = Path.Combine(directory ?? OutputDir, $"{screen}-{shape.Name}.png");
             Assert.IsTrue(varied, $"{path} is a single flat colour — nothing rendered");
             File.WriteAllBytes(path, readback.EncodeToPNG());

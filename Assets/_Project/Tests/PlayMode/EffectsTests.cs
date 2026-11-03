@@ -10,12 +10,6 @@ using UnityEngine.TestTools;
 
 namespace HR.Tests.PlayMode
 {
-    /// <summary>
-    /// Phase 8's gates. The one that matters most is that "Reduce effects" is a visual setting
-    /// and nothing else: a player who turns it off to save battery must not be playing a
-    /// different game from one who leaves it on, and a leaderboard would make that a fairness
-    /// problem rather than a cosmetic one.
-    /// </summary>
     public class EffectsTests
     {
         const float Dt = 1f / 90f;
@@ -102,7 +96,6 @@ namespace HR.Tests.PlayMode
             var ring = _tunnel.ResolveBallRing();
             if (ring != null)
             {
-                // The bot decides a ring angle; the finger moves that divided by the gain.
                 _fingerAngle += bot.Decide(TunnelMath.BottomAngleDeg, ring.GapCentreWorldDeg, Dt)
                                 / _config.sensitivity;
                 _input.FeedPointer(true, FingerAt(_fingerAngle), Dt);
@@ -113,20 +106,9 @@ namespace HR.Tests.PlayMode
             _ball.ClampSpeed();
             Physics2D.Simulate(Dt);
 
-            // Exactly where the game drives them, so anything they touched would show up below.
             _effects.Tick(Dt);
         }
 
-        /// <summary>
-        /// Everything the simulation reads, as one string.
-        ///
-        /// Modelled on ThemeIsolationTests, which proves the same kind of property the same way
-        /// and was right to. The obvious alternative — run the game twice and compare the two
-        /// runs — does not work here and is worth saying out loud: Unity's 2D physics is not
-        /// reproducible across sequential runs inside one session, and the same settings twice
-        /// gave 221374.69 and 226998.30. A test built on that compares the solver's mood, not
-        /// the thing under test.
-        /// </summary>
         string PhysicsFingerprint()
         {
             var sb = new StringBuilder();
@@ -153,9 +135,6 @@ namespace HR.Tests.PlayMode
         [UnityTest]
         public IEnumerator Effects_never_touch_anything_the_simulation_reads()
         {
-            // The gate CONTRACT.md asks for, asked of the live scene rather than of two runs:
-            // whatever the effects do during a tick, the game state on either side of it is
-            // identical, step after step, including while a flash and a shake are running.
             Build(seed: 404, effectsEnabled: true);
             var bot = BotBrain.Strong(11);
             int checkedSteps = 0;
@@ -165,7 +144,6 @@ namespace HR.Tests.PlayMode
                 var ring = _tunnel.ResolveBallRing();
                 if (ring != null)
                 {
-                    // The bot decides a ring angle; the finger moves that divided by the gain.
                     _fingerAngle += bot.Decide(TunnelMath.BottomAngleDeg, ring.GapCentreWorldDeg, Dt)
                                     / _config.sensitivity;
                     _input.FeedPointer(true, FingerAt(_fingerAngle), Dt);
@@ -176,7 +154,6 @@ namespace HR.Tests.PlayMode
                 _ball.ClampSpeed();
                 Physics2D.Simulate(Dt);
 
-                // Effects fire often, and while they are mid-flight, not only at rest.
                 if (i % 300 == 0) _effects.Flash(_ball.transform.position, Color.cyan);
                 if (i == 1500) _effects.Shake();
 
@@ -198,8 +175,6 @@ namespace HR.Tests.PlayMode
         [UnityTest]
         public IEnumerator Effects_build_nothing_once_the_run_has_started()
         {
-            // CONTRACT.md: no Instantiate and no Destroy in the game loop. Everything the effects
-            // can ever draw exists before the first step.
             Build(seed: 5, effectsEnabled: true);
             int built = _effects.transform.childCount;
             Assert.Greater(built, 0, "the effects built nothing at all");
@@ -219,7 +194,6 @@ namespace HR.Tests.PlayMode
         [UnityTest]
         public IEnumerator A_shake_puts_the_camera_back_exactly_where_it_was()
         {
-            // Not approximately: a shake that leaves a residue leaves a bigger one every death.
             Build(seed: 9, effectsEnabled: true);
             var home = _camera.transform.localPosition;
 
@@ -241,7 +215,6 @@ namespace HR.Tests.PlayMode
         [UnityTest]
         public IEnumerator A_shake_stays_inside_the_amplitude_the_spec_gives()
         {
-            // Spec 11.4: 0.08 world units. A shake that exceeds it reads as a bug, not a thump.
             Build(seed: 9, effectsEnabled: true);
             var home = _camera.transform.localPosition;
             _effects.Shake();
@@ -277,7 +250,6 @@ namespace HR.Tests.PlayMode
                 Assert.IsFalse(_effects.transform.GetChild(i).gameObject.activeSelf,
                     $"{_effects.transform.GetChild(i).name} was left on screen");
 
-            // And it stays that way: ticking a disabled director must not revive anything.
             for (int i = 0; i < 100; i++) StepOnce(bot);
 
             for (int i = 0; i < _effects.transform.childCount; i++)
@@ -289,9 +261,6 @@ namespace HR.Tests.PlayMode
         [UnityTest]
         public IEnumerator A_crush_draws_the_rings_in_and_clearing_puts_them_back()
         {
-            // Spec 11.4: the rings close around the ball over 0.4 s. The part that matters for
-            // correctness is the second half — a collapse that is not undone means the next run
-            // starts in a tunnel that is permanently 18% smaller than the one before it.
             Build(seed: 77, effectsEnabled: true);
 
             var home = _tunnel.transform.position;
@@ -328,7 +297,6 @@ namespace HR.Tests.PlayMode
         [Test]
         public void Vibration_obeys_the_switch_and_the_two_durations()
         {
-            // Spec 11.4: 20 ms on a pass, 60 ms on a loss, and nothing at all when switched off.
             var driver = new Haptics.Silent();
             var haptics = new Haptics(_config.vibratePassMs, _config.vibrateLoseMs, driver);
 

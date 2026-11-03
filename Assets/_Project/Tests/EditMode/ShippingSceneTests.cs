@@ -9,13 +9,6 @@ using UnityEngine.SceneManagement;
 
 namespace HR.Tests.EditMode
 {
-    /// <summary>
-    /// What a player gets when the icon is tapped.
-    ///
-    /// The editor never walks the build list — it opens whichever scene was saved last — so a
-    /// first scene that does nothing looks perfectly healthy right up until the .aab is on a
-    /// phone. This is the only check that follows the path the player takes.
-    /// </summary>
     public class ShippingSceneTests
     {
         [Test]
@@ -30,7 +23,6 @@ namespace HR.Tests.EditMode
         [Test]
         public void The_sandbox_never_ships()
         {
-            // A workbench scene inside a shipping build is dead weight and a leak of the tools.
             Assert.IsFalse(EditorBuildSettings.scenes.Any(s => s.path == SceneBuilder.SandboxScene),
                 "the sandbox scene is in the build settings");
         }
@@ -71,14 +63,10 @@ namespace HR.Tests.EditMode
 
             Assert.IsNotNull(bootstrap, "the main scene has no GameBootstrap — it would load to nothing");
 
-            // Awake logs an error and disables itself on a null config, which in a player is a
-            // game that starts and then simply does not respond.
             var serialized = new SerializedObject(bootstrap);
             Assert.IsNotNull(serialized.FindProperty("config").objectReferenceValue,
                 "GameBootstrap has no GameConfig assigned");
 
-            // Same reasoning as the config: a null bank does not crash, it plays nothing — and
-            // silence is the one failure nobody files a bug about.
             var bank = serialized.FindProperty("audioBank").objectReferenceValue as HR.Audio.AudioBank;
             Assert.IsNotNull(bank, "GameBootstrap has no AudioBank assigned");
             Assert.IsTrue(bank.IsComplete, "the audio bank is missing clips");

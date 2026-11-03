@@ -3,18 +3,6 @@ using UnityEngine;
 
 namespace HR.Gameplay
 {
-    /// <summary>
-    /// The ball's trail, the flash at a passed hole, and the shake on a crush — spec 11.4.
-    ///
-    /// Everything it can ever draw is built once, in Initialise. The game loop only moves and
-    /// recolours what already exists, because CONTRACT.md forbids Instantiate and Destroy while
-    /// a run is going, and because an effect that allocates is an effect that stutters on the
-    /// exact frame it is meant to celebrate.
-    ///
-    /// Switched off, it is not merely invisible: nothing ticks, nothing moves, and nothing it
-    /// owns touches the simulation at any point. That is what lets "Reduce effects" be proved to
-    /// leave the game identical rather than asserted to.
-    /// </summary>
     public sealed class Effects : MonoBehaviour
     {
         const int FlashPool = 4;
@@ -47,7 +35,6 @@ namespace HR.Gameplay
         static readonly int BaseColour = Shader.PropertyToID("_BaseColor");
         static readonly int LegacyColour = Shader.PropertyToID("_Color");
 
-        /// <summary>False when the player has asked for fewer effects.</summary>
         public bool Enabled { get; set; } = true;
 
         public void Initialise(GameConfig config, Camera camera, Transform ball, Material material)
@@ -64,8 +51,6 @@ namespace HR.Gameplay
 
             for (int i = 0; i < _trail.Length; i++)
             {
-                // Each point is a little smaller than the last, so the trail tapers rather than
-                // reading as a row of identical dots.
                 float scale = Mathf.Lerp(0.55f, 0.18f, i / Mathf.Max(1f, _trail.Length - 1f));
                 _trail[i] = NewDisc($"Trail{i}", config.ballRadius * scale, material, out _trailRenderers[i]);
                 _trailAge[i] = float.MaxValue;
@@ -98,7 +83,6 @@ namespace HR.Gameplay
             return go.transform;
         }
 
-        /// <summary>Hides everything and puts the camera back. Called whenever a run ends.</summary>
         public void Clear()
         {
             for (int i = 0; i < _trail.Length; i++)
@@ -126,7 +110,6 @@ namespace HR.Gameplay
             _collapseAge = -1f;
         }
 
-        /// <summary>Drops a flash where a ring was passed, in that ring's own colour.</summary>
         public void Flash(Vector3 position, Color colour)
         {
             if (!Enabled || _flash == null) return;
@@ -146,13 +129,6 @@ namespace HR.Gameplay
             _shakeAge = 0f;
         }
 
-        /// <summary>
-        /// Spec 11.4: on a crush the rings draw in around the ball over four tenths of a second.
-        ///
-        /// Scaling the tunnel about the ball rather than editing each ring's radius, because the
-        /// radii are gameplay and this is not — it starts only once the run is already lost, and
-        /// the isolation gate would catch it immediately if it ever ran during one.
-        /// </summary>
         public void Collapse(Transform tunnel, Vector3 around)
         {
             if (!Enabled || tunnel == null) return;
@@ -163,10 +139,6 @@ namespace HR.Gameplay
             _collapseAge = 0f;
         }
 
-        /// <summary>
-        /// One step of every running effect. Takes dt rather than reading Time, so a test can
-        /// drive it to an exact moment instead of waiting for one.
-        /// </summary>
         public void Tick(float dt)
         {
             if (!Enabled) return;
@@ -181,8 +153,6 @@ namespace HR.Gameplay
         {
             if (_trail.Length == 0 || _ball == null) return;
 
-            // Points are laid down on a clock, not per frame: otherwise the trail's length is
-            // whatever the frame rate happens to be that second.
             float interval = _config.trailFadeSeconds / _trail.Length;
             _trailTimer += dt;
 
@@ -229,7 +199,6 @@ namespace HR.Gameplay
                     continue;
                 }
 
-                // Swells and fades at once, so it reads as a soft bloom rather than a dot.
                 float grow = 1f + 0.8f * (float)Easing.SmoothStep(life);
                 _flash[i].localScale = new Vector3(grow, grow, 1f);
                 Tint(_flashRenderers[i], _flashColour[i], (float)Easing.Fade(life));
@@ -244,7 +213,6 @@ namespace HR.Gameplay
             float life = Mathf.Clamp01(_collapseAge / _config.crushSeconds);
             float scale = Mathf.Lerp(1f, 0.82f, (float)Easing.SmoothStep(life));
 
-            // Scaling about a pivot: the ball stays put while everything closes in on it.
             _collapsing.localScale = new Vector3(scale, scale, 1f);
             _collapsing.position = _collapsePivot + (_collapseHome - _collapsePivot) * scale;
 
@@ -266,19 +234,16 @@ namespace HR.Gameplay
                 return;
             }
 
-            // Two frequencies that do not share a period, so the camera does not trace a line.
             float amplitude = _config.crushShakeAmplitude;
             float x = (float)Easing.Shake(life, 23.0) * amplitude;
             float y = (float)Easing.Shake(life, 17.0) * amplitude;
             _camera.transform.localPosition = _cameraHome + new Vector3(x, y, 0f);
         }
 
-        /// <summary>Set by the theme so the trail belongs to the palette it is drawn in.</summary>
         public Color TrailColour { get; set; } = Color.white;
 
         void Tint(Renderer renderer, Color colour, float alpha)
         {
-            // Never renderer.material: that clones the material, once per point, every run.
             renderer.GetPropertyBlock(_block);
             var faded = colour;
             faded.a = alpha;

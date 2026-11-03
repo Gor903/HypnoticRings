@@ -4,18 +4,6 @@ using NUnit.Framework;
 
 namespace HR.Tests.EditMode
 {
-    /// <summary>
-    /// A fast regression guard over the balance, not the balance study itself — that is
-    /// tools/balance.sh, five thousand runs a level, reported in docs/BALANCE_REPORT.md.
-    ///
-    /// What these tests are worth is worth being precise about. The bands for the weak and
-    /// medium hands are *definitions* of what those skill levels mean; calibrating a bot to a
-    /// band and then asserting the band is circular as evidence about the game. Their value is
-    /// as a tripwire: a later change to the curve that moves these numbers shows up here.
-    ///
-    /// The one genuinely independent check is the strong hand, which has no noise at all: if it
-    /// ever fails to clear a ring, the curve has produced something nobody could pass.
-    /// </summary>
     public class BalanceSimulationTests
     {
         const int Runs = 400;
@@ -37,8 +25,6 @@ namespace HR.Tests.EditMode
         [Test]
         public void A_flawless_hand_never_meets_a_ring_it_cannot_pass()
         {
-            // The gate that is not circular: no noise, no misreading, so any failure is the
-            // curve's fault rather than the hand's.
             var simulator = Simulator;
             for (int i = 0; i < 50; i++)
             {
@@ -51,8 +37,6 @@ namespace HR.Tests.EditMode
         [Test]
         public void The_generator_never_had_to_slow_a_ring_down()
         {
-            // Clamping is the safety net. Needing it means the curve asked for a ring that
-            // could not be caught, which would be a design error rather than a near miss.
             var simulator = Simulator;
             for (int i = 0; i < 50; i++)
                 Assert.AreEqual(0, simulator.Run(BotBrain.Strong(i), seed: i, maxRings: MaxRings).ClampedRings,
@@ -62,9 +46,6 @@ namespace HR.Tests.EditMode
         [Test]
         public void Skill_is_ordered_the_way_the_names_claim()
         {
-            // The check that actually caught two bugs: a control law that could not track a
-            // spinning ring, and a sign error in the term that tracks it. Both showed up as the
-            // weak hand outscoring the strong one.
             double weak = MeanScore(BotBrain.Weak);
             double medium = MeanScore(BotBrain.Medium);
             double strong = MeanScore(BotBrain.Strong);
@@ -73,33 +54,12 @@ namespace HR.Tests.EditMode
             Assert.Less(medium, strong, $"medium {medium:F1} did not score below strong {strong:F1}");
         }
 
-        /// <summary>
-        /// The absolute bands are gone, and that is a finding rather than a surrender.
-        ///
-        /// They were recalibrated three times — 25–60 at D-058, 55–95 at D-059, 110–165 at
-        /// D-062 — always for the same reason. This simulator asks the question the game stopped
-        /// asking: can the hand bring one opening to the bottom of the ring and hold it there.
-        /// A ball that flies leaves through whichever way out it reaches, so every change made
-        /// for the flying ball moves this model without moving the game.
-        ///
-        /// Several openings per ring broke it outright. The model now reads 26 where the gate on
-        /// real physics reads 293 out of 300 — a factor of five, in the opposite direction from
-        /// last time. A fourth recalibration would be a number chosen to make a red test green.
-        ///
-        /// What the simulator still measures honestly is kept: that a better hand scores better,
-        /// that no ring is unreachable, and that a seed replays. Those are properties of the
-        /// model that would catch a real control-law bug, and two of them already have. Whether
-        /// the thing earns its place at all is the balance slice's call. See DECISIONS D-064.
-        /// </summary>
         [Test]
         public void A_better_hand_is_worth_a_sensible_multiple_of_a_worse_one()
         {
             double weak = MeanScore(BotBrain.Weak);
             double medium = MeanScore(BotBrain.Medium);
 
-            // Relative, because relative is what survived the model going stale. A medium hand
-            // that scores like a weak one, or a hundred times it, means the control law broke —
-            // which is the class of bug this file exists to catch.
             double ratio = medium / weak;
             Assert.Greater(ratio, 1.2, $"medium {medium:F1} is barely above weak {weak:F1}");
             Assert.Less(ratio, 20.0, $"medium {medium:F1} is {ratio:F1} times weak {weak:F1}");
@@ -129,8 +89,6 @@ namespace HR.Tests.EditMode
         [Test]
         public void The_opening_has_to_stay_lined_up_for_the_whole_fall()
         {
-            // Lining the gap up for an instant is not a pass: the ball has to travel a ring's
-            // thickness plus its own diameter, from rest, before it is through.
             var simulator = Simulator;
             double expected = Math.Sqrt(2.0 * (Settings.Thickness + Settings.BallRadius * 2.0)
                                         / BalanceSimulator.Gravity);

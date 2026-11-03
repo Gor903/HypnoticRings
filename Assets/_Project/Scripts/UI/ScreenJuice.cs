@@ -4,14 +4,6 @@ using UnityEngine.UI;
 
 namespace HR.UI
 {
-    /// <summary>
-    /// The two interface effects of spec 11.4: the score swelling on a pass, and the fade
-    /// between menu and game.
-    ///
-    /// Both run on their own clock in unscaled time. A pause sets the timescale to zero, and a
-    /// fade that stops halfway through because the game paused leaves the player looking at a
-    /// half-dimmed screen with no way to finish it.
-    /// </summary>
     public sealed class ScreenJuice : MonoBehaviour
     {
         Text _score;
@@ -25,7 +17,6 @@ namespace HR.UI
         float _fadeSeconds = 0.35f;
         bool _fadingIn;
 
-        /// <summary>False when the player has asked for fewer effects.</summary>
         public bool Enabled { get; set; } = true;
 
         public void Initialise(Text score, RectTransform parent, float pulseScale,
@@ -36,7 +27,6 @@ namespace HR.UI
             _pulseSeconds = Mathf.Max(0.01f, pulseSeconds);
             _fadeSeconds = Mathf.Max(0.01f, fadeSeconds);
 
-            // Drawn over everything, and never in the way of a finger.
             var go = new GameObject("Curtain", typeof(RectTransform), typeof(Image));
             go.transform.SetParent(parent, false);
             UiBuilder.Stretch((RectTransform)go.transform);
@@ -48,7 +38,6 @@ namespace HR.UI
             go.SetActive(false);
         }
 
-        /// <summary>The colour the curtain fades through — the theme's background, not black.</summary>
         public Color CurtainColour { get; set; } = Color.black;
 
         public void Pulse()
@@ -57,14 +46,12 @@ namespace HR.UI
             _pulseAge = 0f;
         }
 
-        /// <summary>Fades the screen out, or back in, over the configured time.</summary>
         public void Fade(bool toClear)
         {
             if (_curtain == null) return;
 
             if (!Enabled)
             {
-                // Switched off, the curtain must not be left sitting on the screen.
                 _curtain.gameObject.SetActive(false);
                 _fadeAge = -1f;
                 return;
@@ -92,7 +79,7 @@ namespace HR.UI
             if (life >= 1f)
             {
                 _pulseAge = -1f;
-                // Set outright rather than decremented: a hundred passes must leave no residue.
+
                 _score.transform.localScale = Vector3.one;
                 return;
             }
@@ -120,7 +107,6 @@ namespace HR.UI
             if (_fadingIn) _curtain.gameObject.SetActive(false);
         }
 
-        /// <summary>Puts everything back where it started, for a test or a reset.</summary>
         public void Clear()
         {
             _pulseAge = -1f;

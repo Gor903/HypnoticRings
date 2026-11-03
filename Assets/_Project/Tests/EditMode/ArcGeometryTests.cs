@@ -8,12 +8,11 @@ namespace HR.Tests.EditMode
     {
         const double Mid = 3.0;
         const double T = 0.30;
-        const double MaxStep = 7.5;   // CONTRACT.md §2.2: arc approximation step
-        const int Caps = 4;           // TunnelSettings.Default: points per rounded end
+        const double MaxStep = 7.5;
+        const int Caps = 4;
 
         static double Radius(Point2 p) => Math.Sqrt(p.X * p.X + p.Y * p.Y);
 
-        /// <summary>Positive means counter-clockwise, which is what a collider path wants.</summary>
         static double SignedArea(Point2[] poly, int count)
         {
             double sum = 0.0;
@@ -65,11 +64,6 @@ namespace HR.Tests.EditMode
             var tris = new int[ArcGeometry.BandIndexCount(steps, Caps)];
             ArcGeometry.FillBand(Mid, T, 0.0, 120.0, steps, Caps, verts, tris);
 
-            // Negative, not merely consistent. The camera looks along +Z, and a triangle wound
-            // the other way is back-face culled: the mesh exists, its bounds are right, the
-            // renderer reports itself visible, and nothing appears. This test used to demand
-            // the opposite sign, so it passed happily while every ring was invisible — nothing
-            // rendered anything until the screenshot gate, and that is what finally caught it.
             for (int t = 0; t < tris.Length; t += 3)
             {
                 Point2 a = verts[tris[t]], b = verts[tris[t + 1]], c = verts[tris[t + 2]];
@@ -85,8 +79,6 @@ namespace HR.Tests.EditMode
             var verts = new Point2[ArcGeometry.BandVertexCount(steps, Caps)];
             var tris = new int[ArcGeometry.BandIndexCount(steps, Caps)];
 
-            // The shrinking tunnel refills these every time a ring's radius moves; allocating
-            // per refill is what the no-garbage gate is about.
             ArcGeometry.FillBand(3.0, T, 0.0, 120.0, steps, Caps, verts, tris);
             ArcGeometry.FillBand(1.2, T, 45.0, 120.0, steps, Caps, verts, tris);
 
@@ -136,18 +128,15 @@ namespace HR.Tests.EditMode
             ArcGeometry.FillOutline(Mid, T, 0.0, 120.0, steps, caps, outline);
 
             double sector = Math.PI * (Math.Pow(Mid + T / 2, 2) - Math.Pow(Mid - T / 2, 2)) * (120.0 / 360.0);
-            double caps_area = Math.PI * Math.Pow(T / 2, 2);   // two half-circles make one circle
+            double caps_area = Math.PI * Math.Pow(T / 2, 2);
             double measured = SignedArea(outline, outline.Length);
 
-            // Polygonal approximation sits just inside the true arc, so a small deficit is correct.
             Assert.AreEqual(sector + caps_area, measured, (sector + caps_area) * 0.01);
         }
 
         [Test]
         public void Rounded_caps_never_bulge_past_the_bands_own_radii()
         {
-            // This is why the caps are safe to put on every segment end, including the internal
-            // joints: the ball rolls on the inner surface and must not meet a bump there.
             int steps = ArcGeometry.StepsFor(120.0, MaxStep);
             int caps = 8;
             var outline = new Point2[ArcGeometry.OutlinePointCount(steps, caps)];
@@ -169,7 +158,6 @@ namespace HR.Tests.EditMode
             var outline = new Point2[ArcGeometry.OutlinePointCount(steps, caps)];
             ArcGeometry.FillOutline(Mid, T, 0.0, 90.0, steps, caps, outline);
 
-            // First cap point must leave the outer edge's last vertex, not jump across the band.
             Point2 lastOuter = outline[steps];
             Point2 firstCap = outline[steps + 1];
             double gap = Math.Sqrt(Math.Pow(lastOuter.X - firstCap.X, 2) + Math.Pow(lastOuter.Y - firstCap.Y, 2));
@@ -185,7 +173,7 @@ namespace HR.Tests.EditMode
             int verts = ArcGeometry.BandVertexCount(steps, capPoints);
             int indices = ArcGeometry.BandIndexCount(steps, capPoints);
 
-            int capVerts = capPoints == 0 ? 0 : capPoints + 1;   // centre plus rim
+            int capVerts = capPoints == 0 ? 0 : capPoints + 1;
             Assert.AreEqual(2 * (steps + 1) + 2 * capVerts, verts);
             Assert.AreEqual(6 * steps + 2 * 3 * trianglesPerCap, indices);
         }
@@ -193,9 +181,6 @@ namespace HR.Tests.EditMode
         [Test]
         public void Drawn_end_is_the_physical_end()
         {
-            // The point of the change: the mesh used to stop square where the collider was
-            // already round, so the ball bounced off a bulge that was not drawn anywhere. Every
-            // cap point of the collider path must now appear verbatim among the mesh vertices.
             int steps = ArcGeometry.StepsFor(120.0, MaxStep);
             var verts = new Point2[ArcGeometry.BandVertexCount(steps, Caps)];
             var tris = new int[ArcGeometry.BandIndexCount(steps, Caps)];
@@ -221,7 +206,6 @@ namespace HR.Tests.EditMode
             var tris = new int[ArcGeometry.BandIndexCount(steps, Caps)];
             ArcGeometry.FillBand(Mid, T, 0.0, 90.0, steps, Caps, verts, tris);
 
-            // Fan layout after the band: centre, then its rim, for the end cap then the start cap.
             foreach (int fan in new[] { 2 * (steps + 1), 2 * (steps + 1) + Caps + 1 })
             {
                 Point2 centre = verts[fan];
@@ -241,7 +225,6 @@ namespace HR.Tests.EditMode
         [Test]
         public void Capped_band_still_faces_the_camera_at_both_ends()
         {
-            // A fan wound the wrong way is invisible with no error, exactly like the band was.
             int steps = ArcGeometry.StepsFor(37.0, MaxStep);
             var verts = new Point2[ArcGeometry.BandVertexCount(steps, Caps)];
             var tris = new int[ArcGeometry.BandIndexCount(steps, Caps)];
@@ -258,7 +241,6 @@ namespace HR.Tests.EditMode
             }
         }
 
-        /// <summary>The outline's two cap runs: after the outer edge, and after the inner edge.</summary>
         static Point2[] CapPointsOf(Point2[] outline, int steps, int capPoints)
         {
             var caps = new Point2[2 * capPoints];
@@ -273,7 +255,6 @@ namespace HR.Tests.EditMode
         [Test]
         public void Thickness_is_preserved_at_every_radius_the_tunnel_shrinks_through()
         {
-            // The one invariant the whole design rests on: themes and compression may not change T.
             int steps = ArcGeometry.StepsFor(90.0, MaxStep);
             var verts = new Point2[ArcGeometry.BandVertexCount(steps, Caps)];
             var tris = new int[ArcGeometry.BandIndexCount(steps, Caps)];

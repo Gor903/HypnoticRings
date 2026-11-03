@@ -7,10 +7,6 @@ using UnityEngine.TestTools;
 
 namespace HR.Tests.PlayMode
 {
-    /// <summary>
-    /// Phase 7's gates: the two switches are genuinely independent, the voice pool is reused
-    /// rather than grown, and a loss ends the streak.
-    /// </summary>
     public class AudioTests
     {
         GameObject _root;
@@ -24,8 +20,6 @@ namespace HR.Tests.PlayMode
             _settings = SaveData.Defaults();
             _bank = ScriptableObject.CreateInstance<AudioBank>();
 
-            // Synthesised in the test rather than loaded: what is under test is the manager's
-            // routing, and a missing asset would fail this for the wrong reason.
             _bank.ambient = Silence("ambient", 1f);
             _bank.knock = Silence("knock", 0.1f);
             _bank.lose = Silence("lose", 0.5f);
@@ -41,7 +35,6 @@ namespace HR.Tests.PlayMode
         [TearDown]
         public void TearDown()
         {
-            // Global state: left paused it would silence every test that runs after this one.
             AudioListener.pause = false;
             if (_root != null) Object.DestroyImmediate(_root);
             if (_bank != null) Object.DestroyImmediate(_bank);
@@ -66,7 +59,6 @@ namespace HR.Tests.PlayMode
         [UnityTest]
         public IEnumerator A_missing_clip_runs_silent_instead_of_throwing()
         {
-            // Sound is the one subsystem whose failure must never cost a player their run.
             var broken = ScriptableObject.CreateInstance<AudioBank>();
             var go = new GameObject("Broken");
             var manager = go.AddComponent<AudioManager>();
@@ -94,7 +86,6 @@ namespace HR.Tests.PlayMode
             var sources = _root.GetComponents<AudioSource>();
             Assert.IsFalse(sources[0].isPlaying, "the drone should have stopped");
 
-            // The effect still sounds: that is the whole reason the switches are separate.
             _audio.PlayKnock();
             yield return null;
 
@@ -137,8 +128,6 @@ namespace HR.Tests.PlayMode
         [UnityTest]
         public IEnumerator Losing_focus_hands_the_output_back_and_regaining_it_takes_it_again()
         {
-            // Android does not do this for us. Without it the drone keeps playing over whatever
-            // the player switched to, which is the one-star review a small game actually gets.
             Assert.IsFalse(AudioListener.pause);
 
             _root.SendMessage("OnApplicationFocus", false);

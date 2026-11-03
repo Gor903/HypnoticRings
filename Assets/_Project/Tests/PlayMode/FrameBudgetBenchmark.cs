@@ -13,15 +13,6 @@ using Debug = UnityEngine.Debug;
 
 namespace HR.Tests.PlayMode
 {
-    /// <summary>
-    /// What one step of the game actually costs, measured on the real tunnel with the effects
-    /// running — not on a stripped-down rig that flatters it.
-    ///
-    /// This measures a desktop, and a phone is not a desktop. It is still worth having: it says
-    /// which part of the step is expensive and gives the device run in phase 13 a number to be
-    /// compared against rather than a shrug. What it cannot do is prove 60 FPS on hardware, and
-    /// the report says so in those words.
-    /// </summary>
     public class FrameBudgetBenchmark
     {
         const float Dt = 1f / 90f;
@@ -95,13 +86,11 @@ namespace HR.Tests.PlayMode
             _fingerAngle = 0.0;
         }
 
-        /// <summary>Microseconds per step, averaged over a run long enough to settle.</summary>
         (double tunnel, double physics, double effects) Measure(bool withEffects, int steps)
         {
             Build(withEffects);
             var bot = BotBrain.Strong(5);
 
-            // Warm up: the first steps build geometry that later steps reuse.
             for (int i = 0; i < 400; i++) StepOnce(bot, null, null, null);
 
             var tunnelClock = new Stopwatch();
@@ -123,7 +112,6 @@ namespace HR.Tests.PlayMode
             var ring = _tunnel.ResolveBallRing();
             if (ring != null)
             {
-                // The bot decides a ring angle; the finger moves that divided by the gain.
                 _fingerAngle += bot.Decide(TunnelMath.BottomAngleDeg, ring.GapCentreWorldDeg, Dt)
                                 / _config.sensitivity;
                 _input.FeedPointer(true, FingerAt(_fingerAngle), Dt);
@@ -160,7 +148,7 @@ namespace HR.Tests.PlayMode
             yield return null;
             var off = Measure(withEffects: false, steps: steps);
 
-            double budget = Dt * 1000.0 * 1000.0;   // microseconds available per step at 90 Hz
+            double budget = Dt * 1000.0 * 1000.0;
             double totalOn = on.tunnel + on.physics + on.effects;
             double totalOff = off.tunnel + off.physics + off.effects;
 
@@ -190,8 +178,6 @@ namespace HR.Tests.PlayMode
             Debug.Log($"[HR] frame budget: {totalOn:F2} us/step with effects, {totalOff:F2} without, " +
                       $"budget {budget:F0} us ({100.0 * totalOn / budget:F1}% used)");
 
-            // Not a device claim — a sanity bound. A step costing more than the whole budget on
-            // a desktop would mean the phone has no chance at all.
             Assert.Less(totalOn, budget * 0.5,
                 $"one step costs {totalOn:F0} us against a {budget:F0} us budget");
         }

@@ -10,13 +10,6 @@ using UnityEngine.TestTools;
 
 namespace HR.Tests.PlayMode
 {
-    /// <summary>
-    /// Phase 5's gate: a theme changes how the game looks and nothing about how it plays.
-    ///
-    /// This is checked by hashing every physics-relevant number in the scene before and after
-    /// each theme is applied. Asserting "the applier only sets colours" by reading it is not the
-    /// same thing — the point is that a future edit cannot quietly reach further.
-    /// </summary>
     public class ThemeIsolationTests
     {
         GameConfig _config;
@@ -72,10 +65,6 @@ namespace HR.Tests.PlayMode
             if (_config != null) Object.DestroyImmediate(_config);
         }
 
-        /// <summary>
-        /// Every number physics reads, in one string. Collider paths included: a theme that
-        /// moved a single point of a single segment would change what the ball can touch.
-        /// </summary>
         string PhysicsFingerprint()
         {
             var sb = new StringBuilder();
@@ -124,7 +113,6 @@ namespace HR.Tests.PlayMode
                     $"applying {theme} changed something physics reads");
             }
 
-            // And back again, in case applying a theme twice differs from applying it once.
             foreach (var theme in ThemePalette.All) _applier.Apply(theme);
             Assert.AreEqual(before, PhysicsFingerprint(), "a second pass through the themes drifted");
         }
@@ -132,8 +120,6 @@ namespace HR.Tests.PlayMode
         [UnityTest]
         public IEnumerator Switching_theme_does_change_what_is_on_screen()
         {
-            // The companion to the test above: proving a theme changes nothing would be easy if
-            // it also changed nothing visible.
             yield return null;
 
             _applier.Apply(Theme.Monochrome);
@@ -167,8 +153,6 @@ namespace HR.Tests.PlayMode
         [UnityTest]
         public IEnumerator Painting_a_theme_never_clones_a_material()
         {
-            // renderer.material clones on access, so a careless applier leaks one material per
-            // theme change — invisible until somebody sits on the theme carousel.
             yield return null;
 
             int before = Resources.FindObjectsOfTypeAll<Material>().Length;
@@ -188,7 +172,6 @@ namespace HR.Tests.PlayMode
             var palette = ThemePalette.For(Theme.Neon);
             Assert.Greater(palette.RingColours.Length, 1, "Neon should cycle several colours");
 
-            // Neighbouring rings must not land on the same slot, or the tunnel reads flat.
             var rings = _tunnel.Rings;
             for (int i = 1; i < rings.Count; i++)
                 Assert.AreNotEqual(rings[i - 1].SpawnIndex % palette.RingColours.Length,

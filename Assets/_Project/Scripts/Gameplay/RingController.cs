@@ -3,13 +3,6 @@ using UnityEngine;
 
 namespace HR.Gameplay
 {
-    /// <summary>
-    /// One ring: its radius, its gaps, its rotation, its colliders. Does not know about colour,
-    /// sound, or the finger — CONTRACT.md §6 keeps those elsewhere.
-    ///
-    /// Rotation is carried by the transform, so spinning never rebuilds geometry. Only a change
-    /// of radius does, and how often that happens is the compression mode's business.
-    /// </summary>
     [RequireComponent(typeof(Rigidbody2D))]
     public sealed class RingController : MonoBehaviour
     {
@@ -44,48 +37,24 @@ namespace HR.Gameplay
 
         public int Id { get; private set; }
 
-        /// <summary>
-        /// Which ring this is in the run. Reassigned every time the pool hands it out, so it
-        /// identifies the ring the ball just cleared rather than the reused GameObject.
-        /// </summary>
         public int SpawnIndex { get; set; }
 
         public double Radius => _radius;
 
-        /// <summary>
-        /// How far the built geometry trails the real radius. In threshold mode that lag is the
-        /// mode's actual error, and the measurements that read built geometry cannot see it, so
-        /// it is exposed rather than left implicit. The benchmark reports the worst of it.
-        /// </summary>
         public double RadiusLag => System.Math.Abs(_radius - _builtRadius);
         public double GapCentreLocalDeg { get; private set; }
         public double GapArcWidth { get; private set; }
         public double AutoSpinDeg { get => _autoSpinDeg; set => _autoSpinDeg = value; }
 
-        /// <summary>How many ways out this ring has.</summary>
         public int GapCount => _gapCount;
 
-        /// <summary>What the generator made this ring for.</summary>
         public RingKind Kind { get; private set; }
 
-        /// <summary>World-space angle of the first gap's centre, which is what the ball cares about.</summary>
         public double GapCentreWorldDeg => TunnelMath.NormalizeDeg(GapCentreLocalDeg + TotalRotationDeg);
 
-        /// <summary>World-space centre of a particular opening.</summary>
         public double GapCentreWorldDegAt(int index) =>
             TunnelMath.NormalizeDeg(_openings[index].CentreDeg + TotalRotationDeg);
 
-        /// <summary>
-        /// How far the ring must turn to put the nearest opening under a heading, in degrees.
-        ///
-        /// To the nearest EDGE, not to the centre, and the difference is the whole point of a
-        /// wide opening. A player does not have to line the middle of a gap up with the ball;
-        /// they have to get any part of it there. Measuring to the centre makes a 120° opening
-        /// look exactly as demanding as a 20° one, which is how an instrument can report that
-        /// widening the gaps made the game harder.
-        ///
-        /// Zero when the heading is already inside an opening.
-        /// </summary>
         public double TurnToNearestGapDeg(double towardsDeg)
         {
             if (_gapCount <= 0) return 180.0;
@@ -96,7 +65,6 @@ namespace HR.Gameplay
                 double toCentre = System.Math.Abs(TunnelMath.ShortestDeltaDeg(
                     GapCentreWorldDegAt(i), towardsDeg));
 
-                // The built width at this radius, which is what the ball actually meets.
                 double half = _gaps[i].WidthDeg * 0.5;
                 double turn = System.Math.Max(0.0, toCentre - half);
                 if (turn < best) best = turn;
@@ -105,13 +73,6 @@ namespace HR.Gameplay
             return best;
         }
 
-        /// <summary>
-        /// The opening nearest a given heading, which is the one a player would actually aim for.
-        ///
-        /// Without this the bot keeps steering at slot zero and a ring with three ways out plays
-        /// harder than a ring with one — the measurement would say multi-gap rings are a penalty
-        /// when for a human they are a gift.
-        /// </summary>
         public double NearestGapWorldDeg(double towardsDeg)
         {
             if (_gapCount <= 0) return GapCentreWorldDeg;
@@ -133,22 +94,11 @@ namespace HR.Gameplay
 
         public double TotalRotationDeg { get; private set; }
 
-        /// <summary>True from the moment the ball leaves this ring until it goes back to the pool.</summary>
         public bool IsDissolving => _dissolveLeft > 0.0;
 
-        /// <summary>0 at the start of the dissolve, 1 when there is nothing left to draw.</summary>
         public double DissolveProgress =>
             _dissolveSeconds <= 0.0 ? 1.0 : 1.0 - _dissolveLeft / _dissolveSeconds;
 
-        /// <summary>
-        /// Whether this ring is a wall right now. Rings the ball cannot reach this step do not
-        /// need to be: D-059 put ten of them in the frame and halved the corridor, and Box2D was
-        /// then testing the ball against thirty polygon colliders it could not possibly touch.
-        ///
-        /// Cached rather than written through every step — flipping a collider that is already in
-        /// the right state is a native call per segment per ring per step, which is the cost this
-        /// is here to avoid. A dissolving ring never comes back: it has already been left.
-        /// </summary>
         public void SetSolid(bool solid)
         {
             if (IsDissolving) solid = false;
@@ -157,13 +107,6 @@ namespace HR.Gameplay
             SetCollidersEnabled(solid);
         }
 
-        /// <summary>
-        /// The ball is out: stop being a wall at once, then fade.
-        ///
-        /// The colliders go first and the picture follows, because the edge of the opening the
-        /// ball has just cleared is still right next to it — left solid for even the length of
-        /// the fade, it would bat the ball back inside a ring it has already scored.
-        /// </summary>
         public void BeginDissolve(double seconds)
         {
             if (IsDissolving) return;
@@ -174,7 +117,6 @@ namespace HR.Gameplay
             SetCollidersEnabled(false);
         }
 
-        /// <summary>Advances the fade. True once there is nothing left and the ring can be retired.</summary>
         public bool AdvanceDissolve(double dt)
         {
             if (!IsDissolving) return false;
@@ -188,7 +130,6 @@ namespace HR.Gameplay
                 _segments[i].Collider.enabled = enabled;
         }
 
-        /// <summary>Builds the segment children. Call once; Configure after it, as often as you like.</summary>
         public void Initialise(GameConfig config, Material material, int id)
         {
             Id = id;
@@ -200,9 +141,6 @@ namespace HR.Gameplay
             _body.bodyType = RigidbodyType2D.Kinematic;
             _body.useFullKinematicContacts = true;
 
-            // Up to three, and every ring carries the segments for three whether it uses them
-            // or not: the spare ones sit deactivated, which costs a GameObject and no frame time,
-            // whereas growing the array later would mean building geometry mid-run.
             _gaps = new Gap[RingGaps.MaxGaps];
             _openings = new RingGaps();
             int maxSegments = RingSegmentation.UpperBoundSegments(_gaps.Length, _settings.MaxSegmentSweepDeg);
@@ -223,14 +161,12 @@ namespace HR.Gameplay
             }
         }
 
-        /// <summary>Places the ring with one opening — the shape most rings have.</summary>
         public void Configure(double radius, double gapCentreLocalDeg, double gapArcWidth, double autoSpinDeg)
         {
             Kind = RingKind.Plain;
             Place(radius, RingGaps.One(gapCentreLocalDeg, gapArcWidth), autoSpinDeg);
         }
 
-        /// <summary>Places the ring with however many openings the generator decided on.</summary>
         public void Configure(double radius, in RingGaps gaps, double autoSpinDeg,
                               RingKind kind = RingKind.Plain)
         {
@@ -238,10 +174,6 @@ namespace HR.Gameplay
             Place(radius, gaps, autoSpinDeg);
         }
 
-        /// <summary>
-        /// A ring with no way out. Not a game state — it is what the tunnelling test needs, so
-        /// that any escape at all is a failure rather than a judgement call.
-        /// </summary>
         public void ConfigureSolid(double radius, double autoSpinDeg)
         {
             Kind = RingKind.Plain;
@@ -263,16 +195,10 @@ namespace HR.Gameplay
             _dissolveLeft = 0.0;
             _solid = true;
 
-            // The rebuild is what switches the colliders on, because it is what decides which
-            // segments exist at this radius in the first place.
             RebuildGeometry(radius);
             ApplyRotation(0.0);
         }
 
-        /// <summary>
-        /// Moves the ring to a new radius using the configured strategy. This is the hot path:
-        /// every ring does this every physics step for the whole game.
-        /// </summary>
         public void SetRadius(double radius)
         {
             _radius = radius;
@@ -280,9 +206,7 @@ namespace HR.Gameplay
             switch (_mode)
             {
                 case CompressionMode.TransformScale:
-                    // Cheapest possible, and geometrically wrong: scaling the transform scales
-                    // thickness and gap arc length with it. Measured, not assumed — see the
-                    // benchmark and DECISIONS D-011.
+
                     float scale = (float)(radius / _baseRadius);
                     transform.localScale = new Vector3(scale, scale, 1f);
                     break;
@@ -298,7 +222,6 @@ namespace HR.Gameplay
             }
         }
 
-        /// <summary>Advances autonomous spin and applies the shared user angle.</summary>
         public void StepRotation(double userAngleDeg, double dt)
         {
             _spinDeg += _autoSpinDeg * dt;
@@ -308,8 +231,7 @@ namespace HR.Gameplay
         void ApplyRotation(double userAngleDeg)
         {
             TotalRotationDeg = _spinDeg + userAngleDeg;
-            // MoveRotation rather than setting the transform: a kinematic body moved through the
-            // physics API sweeps against colliders instead of teleporting past them.
+
             _body.MoveRotation((float)TotalRotationDeg);
         }
 
@@ -317,9 +239,6 @@ namespace HR.Gameplay
         {
             _builtRadius = radius;
 
-            // The angle is held, not the arc: a shrinking ring keeps the opening it was drawn
-            // with instead of tearing wider as it closes in. The width also pays for the rounded
-            // caps, which bulge into the gap from both sides.
             for (int i = 0; i < _gapCount; i++)
                 _gaps[i] = new Gap(_openings[i].CentreDeg, TunnelMath.HeldGapWidthDeg(
                     _openings[i].Opening, _settings.Thickness, _settings.TargetRadius,
@@ -334,8 +253,6 @@ namespace HR.Gameplay
                 if (!segment.gameObject.activeSelf) segment.gameObject.SetActive(true);
                 segment.Rebuild(_spans[i], radius, _settings);
 
-                // A segment switched on by a rebuild arrives with its collider enabled, which
-                // would hand a ring back its walls behind SetSolid's back.
                 if (segment.Collider.enabled != _solid) segment.Collider.enabled = _solid;
             }
 
@@ -348,19 +265,8 @@ namespace HR.Gameplay
         public int ActiveSegmentCount => _activeSegments;
         public RingSegment SegmentAt(int index) => _segments[index];
 
-        /// <summary>
-        /// Depth cue. Written through a MaterialPropertyBlock rather than by touching the
-        /// material: every ring shares one material, and assigning to renderer.material would
-        /// clone it per ring and leak a material for every ring the pool ever hands out.
-        /// </summary>
-        /// <summary>Forgets the cached colour, so the next shading pass actually writes.</summary>
         public void InvalidateShading() => _shaded = false;
 
-        /// <summary>
-        /// Sets the halo width on every segment and rebuilds, which is the part that is easy to
-        /// forget: the width is read while geometry is being filled, so setting it afterwards
-        /// leaves a ring that has a halo in its fields and none on the screen.
-        /// </summary>
         public void SetHaloWidth(float width)
         {
             bool changed = false;
@@ -374,13 +280,6 @@ namespace HR.Gameplay
             if (changed) RebuildGeometry(_radius);
         }
 
-        /// <summary>
-        /// True once this ring has used up its allowance and the next touch will end the run.
-        ///
-        /// A ring that is about to kill has to look different before it does, not after. The
-        /// alternative is a death the player cannot see coming, which in a mode built on one
-        /// mistake per ring is the difference between hard and unfair.
-        /// </summary>
         public bool IsHot { get; private set; }
 
         public void SetHot(bool hot)
@@ -390,17 +289,12 @@ namespace HR.Gameplay
             _shaded = false;
         }
 
-        /// <summary>What the halo is mixed toward — the theme's background.</summary>
         public Color HaloBackground { get; set; } = Color.black;
 
-        /// <summary>How much of the ring's own ink the halo keeps, 0 to 1.</summary>
         public float HaloStrength { get; set; } = 0.35f;
 
         public void ApplyShading(Color colour)
         {
-            // Rewriting a property block every step for a colour that has not visibly changed is
-            // pure cost: alpha moves by a fraction of a 255th between steps, and the block write
-            // was the single most expensive thing in the tunnel loop.
             if (_shaded && ColourIsIndistinguishable(colour, _lastColour)) return;
             _lastColour = colour;
             _shaded = true;
@@ -415,9 +309,6 @@ namespace HR.Gameplay
                 _block.SetColor(ColorId, colour);
                 renderer.SetPropertyBlock(_block);
 
-                // The halo takes the same ink, mixed back toward the background. Mixed rather
-                // than faded: the shader is opaque and ignores alpha, so a "transparent" halo
-                // would draw at full strength and swallow the ring it is supposed to surround.
                 var halo = segment.HaloRenderer;
                 if (halo == null || !halo.enabled) continue;
 
@@ -434,10 +325,6 @@ namespace HR.Gameplay
             Mathf.Abs(a.r - b.r) < ColourEpsilon && Mathf.Abs(a.g - b.g) < ColourEpsilon
             && Mathf.Abs(a.b - b.b) < ColourEpsilon && Mathf.Abs(a.a - b.a) < ColourEpsilon;
 
-        /// <summary>
-        /// Thickness measured from the collider that physics actually uses, in world space.
-        /// The benchmark reads this rather than trusting what was asked for.
-        /// </summary>
         public double MeasureWorldThickness()
         {
             if (_activeSegments == 0) return 0.0;
@@ -457,11 +344,6 @@ namespace HR.Gameplay
             return max - min;
         }
 
-        /// <summary>
-        /// The clear opening in world units — the number that decides whether the ball fits.
-        /// Measured from the geometry that was actually built, including the cap allowance, so
-        /// a mode that silently narrows the way out shows up here.
-        /// </summary>
         public double MeasureWorldGapArcLength()
         {
             double solid = 0.0;

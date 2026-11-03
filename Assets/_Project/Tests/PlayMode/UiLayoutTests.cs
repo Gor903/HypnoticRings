@@ -13,11 +13,6 @@ using UnityEngine.UI;
 
 namespace HR.Tests.PlayMode
 {
-    /// <summary>
-    /// The phase 6 shape gate, as an assertion rather than as thirty pictures: on every portrait
-    /// shape the game ships on, nothing runs off the edge of the screen and no two things that
-    /// can be read or tapped sit on top of each other.
-    /// </summary>
     public class UiLayoutTests
     {
         static readonly (string Name, int Width, int Height)[] Shapes =
@@ -105,8 +100,6 @@ namespace HR.Tests.PlayMode
                             $"outside {canvas.rect.xMin:F0}..{canvas.rect.xMax:F0}");
                     }
 
-                    // A scrolling screen puts its labels inside the viewport, where this gate
-                    // deliberately does not look; the viewport itself still has to fit.
                     foreach (var scroll in ScrollsOn(state))
                     {
                         var box = LocalBounds(canvas, (RectTransform)scroll.transform);
@@ -122,7 +115,6 @@ namespace HR.Tests.PlayMode
                 }
             }
 
-            // The whole point of the gate is that it looked at something.
             Assert.Greater(checkedLabels, Shapes.Length * Screens.Length,
                 $"only {checkedLabels} labels examined across {Shapes.Length} shapes");
             Debug.Log($"[HR] layout gate: {checkedLabels} label placements checked");
@@ -158,8 +150,6 @@ namespace HR.Tests.PlayMode
                     var boxes = new List<(string Name, Rect Box)>();
                     foreach (var text in VisibleNow())
                     {
-                        // A label inside a button shares that button's rect by design; only the
-                        // ink is compared, and ink that is empty cannot collide with anything.
                         if (string.IsNullOrWhiteSpace(text.text)) continue;
                         boxes.Add((text.name, RenderedBox(canvas, text)));
                     }
@@ -186,8 +176,6 @@ namespace HR.Tests.PlayMode
         [UnityTest]
         public IEnumerator Nothing_strays_under_a_notch_or_the_gesture_bar()
         {
-            // Spec 10.6. No batch-mode window has a cutout, so the only way this is ever
-            // exercised is by asking for one; without that the fitter was shipped untested.
             int checkedItems = 0;
 
             foreach (var shape in Shapes)
@@ -198,7 +186,6 @@ namespace HR.Tests.PlayMode
                 float w = shape.Width / factor;
                 float h = shape.Height / factor;
 
-                // A generous cutout and gesture bar in layout units, bigger than most devices.
                 const float notch = 130f;
                 const float bar = 90f;
                 var safe = new Rect(0f, bar, w, h - notch - bar);
@@ -208,7 +195,6 @@ namespace HR.Tests.PlayMode
 
                 var canvas = (RectTransform)_boot.Ui.Canvas.transform;
 
-                // The safe rect expressed in the canvas's own centred coordinates.
                 float top = canvas.rect.yMax - notch;
                 float bottom = canvas.rect.yMin + bar;
 
@@ -238,11 +224,6 @@ namespace HR.Tests.PlayMode
             Debug.Log($"[HR] safe-area gate: {checkedItems} placements checked");
         }
 
-        /// <summary>
-        /// Every label actually on the glass, across every screen that is up — not just the one
-        /// the state names. Pause and game over leave the HUD standing behind them, so checking a
-        /// single screen at a time never compares the pairs a player is actually looking at.
-        /// </summary>
         IEnumerable<Text> VisibleNow()
         {
             foreach (GameState other in System.Enum.GetValues(typeof(GameState)))
@@ -258,12 +239,6 @@ namespace HR.Tests.PlayMode
         {
             foreach (var text in screen.GetComponentsInChildren<Text>(includeInactive: false))
             {
-                // Content that genuinely scrolls is meant to extend past its viewport. Content
-                // that fits is a plain centred column and obeys the same rules as any other —
-                // skipping every scroll column outright would quietly drop four screens.
-                // Content that genuinely scrolls — in either direction — is meant to extend
-                // past its viewport. The theme carousel runs sideways, so checking only the
-                // vertical flag would read a working carousel as an overflowing screen.
                 var scroll = text.GetComponentInParent<ScrollRect>();
                 if (scroll != null && (scroll.vertical || scroll.horizontal)) continue;
                 yield return text;
@@ -286,15 +261,6 @@ namespace HR.Tests.PlayMode
             return new Rect(min, max - min);
         }
 
-        /// <summary>
-        /// The box the glyphs really occupy, which is not the rect they are laid out in.
-        ///
-        /// Both directions matter. A centred label in a full-width rect does not collide with
-        /// every other full-width label, so the width has to shrink to the text. And a title is
-        /// built with a zero-height rect and overflows it on purpose, so the height has to grow
-        /// to the text — measuring the rect alone would report an 86-point heading as having no
-        /// vertical extent at all, and no gate would ever see it cross an edge.
-        /// </summary>
         static Rect RenderedBox(RectTransform space, Text text)
         {
             var box = LocalBounds(space, (RectTransform)text.transform);

@@ -3,16 +3,8 @@ using UnityEngine;
 
 namespace HR.Audio
 {
-    /// <summary>
-    /// Plays the game's sounds, with music and effects answering to separate switches.
-    ///
-    /// Separate is the point: a player who mutes the drone usually still wants to hear the note
-    /// a pass makes, and one switch for both makes that impossible. The two volumes are also
-    /// different by default — the drone sits under the effects, never over them.
-    /// </summary>
     public sealed class AudioManager : MonoBehaviour
     {
-        /// <summary>Enough voices for overlapping effects, few enough to stay honest on a phone.</summary>
         public const int VoiceCount = 6;
 
         AudioBank _bank;
@@ -24,15 +16,12 @@ namespace HR.Audio
 
         public bool Ready { get; private set; }
 
-        /// <summary>Highest voice count ever in use at once, so the pool size can be judged.</summary>
         public int PeakVoicesInUse { get; private set; }
 
         public void Initialise(AudioBank bank, SaveData settings)
         {
             _settings = settings;
 
-            // A missing bank silences the game rather than throwing. Sound is the one subsystem
-            // whose absence must never cost a player their run.
             if (bank == null || !bank.IsComplete)
             {
                 Debug.LogWarning("[HR] audio: the bank is missing clips, running silent");
@@ -62,7 +51,6 @@ namespace HR.Audio
             ApplySettings();
         }
 
-        /// <summary>Re-reads the switches. Called whenever the settings screen changes one.</summary>
         public void ApplySettings()
         {
             if (!Ready) return;
@@ -75,7 +63,6 @@ namespace HR.Audio
             else if (!wantMusic && _music.isPlaying) _music.Stop();
         }
 
-        /// <summary>A pass, sounded at whatever step of the ladder the streak has reached.</summary>
         public int PlayPass(double time)
         {
             int step = _ladder.Pass(time);
@@ -86,14 +73,12 @@ namespace HR.Audio
         public void PlayKnock() { if (Ready) Play(_bank.knock); }
         public void PlayClick() { if (Ready) Play(_bank.click); }
 
-        /// <summary>A loss. Also ends the streak, per CONTRACT.md G-13.</summary>
         public void PlayLose()
         {
             _ladder.Reset();
             if (Ready) Play(_bank.lose);
         }
 
-        /// <summary>A pause breaks the streak without making a sound.</summary>
         public void ResetStreak() => _ladder.Reset();
 
         public int StreakStep => _ladder.Step;
@@ -102,8 +87,6 @@ namespace HR.Audio
         {
             if (clip == null || !_settings.soundEnabled || _settings.soundVolume <= 0f) return;
 
-            // Round robin rather than first-free: an effect that arrives when every voice is busy
-            // should steal the oldest one, not be dropped. A silent pass reads as a missed pass.
             var voice = _voices[_next];
             _next = (_next + 1) % _voices.Length;
 
@@ -116,12 +99,6 @@ namespace HR.Audio
             if (busy > PeakVoicesInUse) PeakVoicesInUse = busy;
         }
 
-        /// <summary>
-        /// Hands the output back when the game loses focus.
-        ///
-        /// Android does not do this for us. Without it the drone keeps playing over whatever the
-        /// player switched to, which is the single most common one-star review a small game gets.
-        /// </summary>
         void OnApplicationPause(bool paused) => SetFocus(!paused);
 
         void OnApplicationFocus(bool focused) => SetFocus(focused);

@@ -4,7 +4,6 @@ using UnityEngine;
 
 namespace HR.Gameplay
 {
-    /// <summary>One row of the difficulty table: what the game asks for once this many rings are cleared.</summary>
     [System.Serializable]
     public struct DifficultyAnchor
     {
@@ -28,14 +27,6 @@ namespace HR.Gameplay
         public float tripleShare;
     }
 
-    /// <summary>
-    /// The balance table, as an asset.
-    ///
-    /// It used to be a static array in DifficultyCurve, which made it the one set of balance
-    /// numbers in the project that could not be tuned without a recompile — against the rule in
-    /// CLAUDE.md that numbers live in a ScriptableObject. The curve still owns the shape between
-    /// rows; this owns the rows.
-    /// </summary>
     [CreateAssetMenu(menuName = "Hypnotic Rings/Difficulty Table", fileName = "DifficultyTable")]
     public sealed class DifficultyTable : ScriptableObject
     {
@@ -48,25 +39,12 @@ namespace HR.Gameplay
             new DifficultyAnchor { rings = 80, clearance = 0.72f, ringInterval = 1.59f, maxCompressionSpeed = 5.0f, gapArcWidth = 2.80f, autoSpinDeg = 70f, multiGapChance = 0.40f, tripleShare = 0.25f },
         };
 
-        /// <summary>
-        /// The hardcore table, built rather than authored as a second asset.
-        ///
-        /// Its rows are not a variation on the ordinary ones: compression is off entirely, the
-        /// openings are far wider, and multi-gap rings arrive early and often. An asset would
-        /// invite someone to tune one table and forget the other; a function cannot drift from
-        /// the reasoning that produced it, which is written right here. Plan [H-10].
-        /// </summary>
         public static List<CurveAnchor> HardcoreAnchors()
         {
-            // Compression is zero, so a ring never closes on the centre by itself: the clock a
-            // player races in hardcore is the ball's flight, not the tunnel's squeeze ([H-08]).
-            // The interval is still what the curve divides by, so it is set long enough that
-            // the derived speed is a rounding error rather than a squeeze.
             const float Still = 600f;
 
             return new List<CurveAnchor>
             {
-                //           n    c     Δt      v_max  w      spin  multi  triple
                 new CurveAnchor(0,  1.10, Still, 1.5, 6.60, 0.0, 0.00, 0.00),
                 new CurveAnchor(4,  1.10, Still, 1.5, 6.00, 0.0, 0.00, 0.00),
                 new CurveAnchor(10, 1.10, Still, 1.5, 5.10, 0.0, 0.30, 0.00),
@@ -75,7 +53,6 @@ namespace HR.Gameplay
             };
         }
 
-        /// <summary>The rows in the engine-free shape the curve reads.</summary>
         public List<CurveAnchor> ToAnchors()
         {
             var rows = new List<CurveAnchor>(anchors.Length);

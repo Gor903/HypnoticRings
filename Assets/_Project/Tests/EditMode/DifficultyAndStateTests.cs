@@ -9,12 +9,6 @@ namespace HR.Tests.EditMode
         static readonly TunnelSettings Settings = TunnelSettings.Default;
         static DifficultyCurve Curve => new DifficultyCurve(Settings);
 
-        /// <summary>
-        /// "No jump over 15% between neighbouring rings" needs a base to be a percentage of.
-        /// Measuring against the previous value breaks where a parameter starts at zero — spin
-        /// does — because any first step is then infinite. Measuring against the parameter's own
-        /// full range is well defined everywhere and is what the requirement means in practice.
-        /// </summary>
         static void AssertSmooth(Func<int, double> sample, int upTo, string what)
         {
             double min = double.MaxValue, max = double.MinValue;
@@ -37,9 +31,6 @@ namespace HR.Tests.EditMode
         [Test]
         public void Compression_matches_the_contract_at_every_anchor()
         {
-            // Plan [G-16]: the speed is derived from the corridor and the tempo, so these are
-            // consequences rather than settings. Asserting them anyway is what catches a change
-            // to either dial that nobody meant to make.
             var c = Curve;
             Assert.AreEqual(1.28 / 3.00, c.CompressionSpeedAt(0), 1e-9);
             Assert.AreEqual(1.23 / 2.45, c.CompressionSpeedAt(10), 1e-9);
@@ -61,8 +52,7 @@ namespace HR.Tests.EditMode
         public void Gap_width_matches_the_contract_at_every_anchor()
         {
             var c = Curve;
-            // Recomputed for a 0.18 ring: the opening in units changed, the angle it cuts
-            // did not — (w + T) / R_target is still 1.50 rad at the first anchor.
+
             Assert.AreEqual(4.32, c.GapArcWidthAt(0), 1e-9);
             Assert.AreEqual(3.90, c.GapArcWidthAt(10), 1e-9);
             Assert.AreEqual(3.48, c.GapArcWidthAt(30), 1e-9);
@@ -86,15 +76,6 @@ namespace HR.Tests.EditMode
                 Assert.AreEqual(0.0, c.AutoSpinAt(n), $"ring {n} spins during the tutorial");
         }
 
-        /// <summary>
-        /// The tempo is the thing that may only ever tighten — not the speed that delivers it.
-        ///
-        /// Speed used to be the dial and so it was the thing to watch. It is now derived from a
-        /// corridor and an interval that both shrink, and the ratio of two shrinking numbers is
-        /// free to dip: between rings 30 and 80 the corridor closes faster than the interval, so
-        /// the speed eases off by a hundredth while rings keep arriving sooner. Asserting the
-        /// old invariant would forbid a curve the plan asks for.
-        /// </summary>
         [Test]
         public void Rings_only_ever_arrive_sooner()
         {
@@ -150,8 +131,6 @@ namespace HR.Tests.EditMode
         [Test]
         public void Difficulty_stops_climbing_at_the_ceiling()
         {
-            // An endless game that tightens forever stops being a test of skill and becomes a
-            // coin flip. Past the last anchor everything holds.
             var c = Curve;
             Assert.AreEqual(c.CompressionSpeedAt(c.Ceiling), c.CompressionSpeedAt(5000), 1e-12);
             Assert.AreEqual(c.GapArcWidthAt(c.Ceiling), c.GapArcWidthAt(5000), 1e-12);
@@ -180,8 +159,6 @@ namespace HR.Tests.EditMode
         [Test]
         public void Every_ring_the_curve_produces_is_catchable()
         {
-            // The guarantee that matters: whatever the curve asks for, a ring spinning that fast
-            // can still be brought round from its worst starting position inside the budget.
             var c = Curve;
             for (int n = 0; n <= 500; n++)
             {
@@ -237,7 +214,6 @@ namespace HR.Tests.EditMode
         [Test]
         public void The_generator_refuses_to_emit_a_ring_nobody_could_catch()
         {
-            // Difficulty asking for 400 deg/s against a budget that cannot support it.
             var difficulty = new DifficultySnapshot(0.6, 4.0, 1.6, 400.0, false, 3.83, 200.0, 1.10, 1.28);
             var generator = new RingGenerator(5);
             double ceiling = TunnelMath.MaxReachableSpinDeg(200.0, 3.83);
@@ -318,8 +294,6 @@ namespace HR.Tests.EditMode
         [Test]
         public void A_crush_arriving_after_the_run_ended_changes_nothing()
         {
-            // Physics reports a step late. Without this the game-over screen could be entered
-            // twice and the score counted twice with it.
             var m = new GameStateMachine();
             m.Fire(GameTrigger.Loaded);
             m.Fire(GameTrigger.Play);
@@ -412,8 +386,6 @@ namespace HR.Tests.EditMode
         [Test]
         public void The_best_shown_during_a_run_is_the_one_the_run_started_with()
         {
-            // CONTRACT.md G-06: otherwise the player watches their record being beaten live and
-            // the game-over announcement tells them something they already saw.
             var s = new ScoreKeeper(best: 10);
             s.BeginRun();
             for (int i = 0; i < 15; i++) s.AddRing();

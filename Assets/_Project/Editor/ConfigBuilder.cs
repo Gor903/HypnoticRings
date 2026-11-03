@@ -5,10 +5,6 @@ using UnityEngine;
 
 namespace HR.Editor
 {
-    /// <summary>
-    /// Creates the config assets the game reads. Idempotent: an existing asset is left alone,
-    /// because its numbers are what the balance pass tunes and regenerating would undo that.
-    /// </summary>
     public static class ConfigBuilder
     {
         public const string ConfigDir = "Assets/_Project/Config";
@@ -33,8 +29,6 @@ namespace HR.Editor
                 Debug.Log($"[HR] Created {GameConfigPath} with contract defaults");
             }
 
-            // Linked here rather than by hand: a config without a table silently falls back to
-            // the curve's built-in rows, which is the one failure that looks like nothing.
             if (existing.difficulty == null)
             {
                 existing.difficulty = EnsureDifficultyTable();

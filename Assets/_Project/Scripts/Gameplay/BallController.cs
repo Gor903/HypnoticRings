@@ -3,26 +3,13 @@ using UnityEngine;
 
 namespace HR.Gameplay
 {
-    /// <summary>
-    /// The ball. Moved only by physics — never teleported, never animated along a path, because
-    /// the whole design rests on the contact between ball and arc feeling honest.
-    ///
-    /// Two things are imposed on it. A speed ceiling, which is a safety rule: a ball moving
-    /// further in one step than a ring is thick could pass straight through one. And a
-    /// regulator that holds it near its cruising speed, which is what keeps it flying for a
-    /// whole run — perfect bounces are not actually perfect, and a moving wall gives energy as
-    /// readily as it takes it.
-    /// </summary>
     [RequireComponent(typeof(Rigidbody2D), typeof(CircleCollider2D))]
     public sealed class BallController : MonoBehaviour
     {
-        /// <summary>Raised when the ball strikes a ring, with the impact speed.</summary>
         public event System.Action<float> Struck;
 
         void OnCollisionEnter2D(Collision2D collision)
         {
-            // Speed, not just the fact of a touch: a ball resting against a wall produces a
-            // contact every step, and a knock on every one of them is a buzz, not a knock.
             float speed = collision.relativeVelocity.magnitude;
             if (speed > 0.6f) Struck?.Invoke(speed);
         }
@@ -36,7 +23,6 @@ namespace HR.Gameplay
         public Rigidbody2D Body => _body;
         public float Radius => _collider.radius;
 
-        /// <summary>Distance from the tunnel centre, which is what passing and crushing are measured in.</summary>
         public double DistanceToCentre
         {
             get
@@ -46,7 +32,6 @@ namespace HR.Gameplay
             }
         }
 
-        /// <summary>Angle around the tunnel centre in degrees, matching the ring gap convention.</summary>
         public double AngleDeg
         {
             get
@@ -82,14 +67,9 @@ namespace HR.Gameplay
             _body.angularVelocity = 0f;
             transform.position = position;
 
-            // Also the velocity a thaw would restore. A run begins while the ball is still
-            // frozen — the launch happens inside StartRun, the state only turns to Playing
-            // afterwards — so a stored velocity left over from the last freeze would be handed
-            // back on the way out and quietly erase the throw.
             _storedVelocity = Vector2.zero;
         }
 
-        /// <summary>Throws the ball: a place and a heading, both decided by the run's seed.</summary>
         public void Launch(in LaunchPlan plan)
         {
             Place(new Vector2((float)plan.X, (float)plan.Y));
@@ -99,14 +79,6 @@ namespace HR.Gameplay
             _storedVelocity = velocity;
         }
 
-        /// <summary>
-        /// Whether the ball is out of the simulation entirely.
-        ///
-        /// Pause in this game is a state rather than a timescale, and a state the ball never
-        /// heard about: its body kept being simulated, the regulator kept holding its speed, and
-        /// it flew on behind the pause panel. Velocity is carried across by hand because a body
-        /// that has been switched off and on again is not required to remember it.
-        /// </summary>
         public bool Frozen { get; private set; }
 
         Vector2 _storedVelocity;
@@ -136,13 +108,6 @@ namespace HR.Gameplay
             ClampSpeed();
         }
 
-        /// <summary>
-        /// Eases the ball's speed back toward its cruising speed.
-        ///
-        /// Exposed so the physics-step tests can drive it without waiting for FixedUpdate. Only
-        /// the magnitude is touched — the direction belongs to whatever the ball last hit, and
-        /// steering it here would be animating the ball rather than simulating it.
-        /// </summary>
         public void HoldCruisingSpeed(float dt)
         {
             if (_cruiseSpeed <= 0f || dt <= 0f) return;
@@ -150,17 +115,12 @@ namespace HR.Gameplay
             Vector2 v = _body.linearVelocity;
             float speed = v.magnitude;
 
-            // A ball at a dead stop has no direction to preserve, so there is nothing to scale.
-            // It cannot happen with a full bounce, and guessing a heading would hide it if it did.
             if (speed < 1e-4f) return;
 
             float wanted = Mathf.MoveTowards(speed, _cruiseSpeed, _cruiseAccel * dt);
             _body.linearVelocity = v * (wanted / speed);
         }
 
-        /// <summary>
-        /// Exposed so the physics-step tests can drive it without waiting for FixedUpdate.
-        /// </summary>
         public void ClampSpeed()
         {
             Vector2 v = _body.linearVelocity;
@@ -169,10 +129,6 @@ namespace HR.Gameplay
                 _body.linearVelocity = v * (_maxSpeed / Mathf.Sqrt(sqr));
         }
 
-        /// <summary>
-        /// Furthest the ball can travel in one physics step at its ceiling. Must stay under a
-        /// ring's thickness or discrete collision could miss a ring entirely.
-        /// </summary>
         public float MaxTravelPerStep => _maxSpeed * Time.fixedDeltaTime;
     }
 }

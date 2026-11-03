@@ -7,10 +7,6 @@ using UnityEngine;
 
 namespace HR.Tests.EditMode
 {
-    /// <summary>
-    /// The rules that came in with the flying ball: how a run throws it, what the red circle
-    /// means, and the balance table now that it is an asset. DECISIONS D-058.
-    /// </summary>
     public class FlightAndTableTests
     {
         GameConfig _config;
@@ -70,8 +66,6 @@ namespace HR.Tests.EditMode
             Assert.AreEqual(a.X, again.X, 1e-12);
             Assert.AreEqual(a.VelocityY, again.VelocityY, 1e-12);
 
-            // Spread, not merely difference: a launch that always headed the same way would
-            // still pass a two-seed comparison while making every run open identically.
             var headings = new HashSet<int>();
             for (int seed = 1; seed <= 200; seed++)
             {
@@ -86,8 +80,6 @@ namespace HR.Tests.EditMode
         [Test]
         public void The_losing_radius_is_the_circle_the_player_can_see()
         {
-            // The rule and the drawing have to be the same number, or the player is watching a
-            // boundary that is not the one being tested.
             Assert.AreEqual(_config.redRadius + _config.thickness * 0.5, _settings.CrushRadius, 1e-9);
 
             Assert.IsTrue(TunnelMath.HasReachedRed(_settings.CrushRadius, _settings.Thickness,
@@ -99,7 +91,6 @@ namespace HR.Tests.EditMode
         [Test]
         public void The_red_circle_reads_on_every_theme()
         {
-            // Not a text contrast — this is a disc, and it only has to be unmistakably there.
             const double visible = 1.5;
 
             foreach (var theme in ThemePalette.All)
@@ -124,14 +115,9 @@ namespace HR.Tests.EditMode
         {
             var curve = new DifficultyCurve(_settings);
 
-            // The opening is the point of the whole change: the timer barely moves while the
-            // snap-back after a pass is allowed to grow into it.
             Assert.Less(curve.MaxCompressionSpeedAt(0), curve.MaxCompressionSpeedAt(80));
             Assert.Less(curve.CompressionSpeedAt(0), curve.CompressionSpeedAt(80));
 
-            // D-059 cut both by four: ten seconds a ring is a screensaver, and the floor that
-            // matters is not a round number but the hand — the weakest one notices after 0.30s
-            // and needs 0.37s of lined-up opening, so a budget is only honest at several of those.
             Assert.GreaterOrEqual(curve.TimeBudgetAt(0), 3.5, "the opening kills too fast");
             Assert.GreaterOrEqual(curve.TimeBudgetAt(80), 2.0, "the ceiling kills too fast");
 
@@ -184,8 +170,6 @@ namespace HR.Tests.EditMode
         [Test]
         public void The_narrowest_opening_is_a_floor_a_table_cannot_go_under()
         {
-            // The floor used to be unreachable, which read as dead. It is load-bearing now that
-            // the rows live in an asset a balance pass can edit by hand.
             var tooNarrow = new List<CurveAnchor> { new CurveAnchor(0, 1.10, 3.0, 2.0, 0.1, 0.0) };
             var curve = new DifficultyCurve(_settings, tooNarrow);
 

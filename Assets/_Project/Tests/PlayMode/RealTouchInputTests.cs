@@ -9,14 +9,6 @@ using UnityEngine.TestTools;
 
 namespace HR.Tests.PlayMode
 {
-    /// <summary>
-    /// Proves a real touch reaches the gesture layer. Everything downstream of the tracker is
-    /// covered without hardware; this covers the one stretch that is not — reading the
-    /// touchscreen, picking the first finger, and converting screen pixels to world units.
-    ///
-    /// A fault here does not degrade the game, it makes it completely unresponsive on a phone,
-    /// and no edit-mode test would notice.
-    /// </summary>
     public class RealTouchInputTests : InputTestFixture
     {
         GameObject _root;
@@ -51,7 +43,6 @@ namespace HR.Tests.PlayMode
             base.TearDown();
         }
 
-        /// <summary>Screen position for a point on a circle around the tunnel centre.</summary>
         Vector2 ScreenAt(float angleDeg, float worldRadius)
         {
             float rad = angleDeg * Mathf.Deg2Rad;
@@ -85,8 +76,6 @@ namespace HR.Tests.PlayMode
         [UnityTest]
         public IEnumerator A_second_finger_does_not_hijack_the_gesture()
         {
-            // CONTRACT.md §2.10: only the first finger steers. A thumb resting on the screen
-            // must not drag the tunnel with it.
             var touchscreen = InputSystem.AddDevice<Touchscreen>();
             if (!EnhancedTouchSupport.enabled) EnhancedTouchSupport.Enable();
             yield return null;
@@ -98,7 +87,6 @@ namespace HR.Tests.PlayMode
 
             double afterFirstFinger = _input.UserAngleDeg;
 
-            // A second finger appears far away and sweeps hard the other way.
             BeginTouch(2, ScreenAt(180f, 3f), screen: touchscreen);
             yield return null;
             for (int i = 1; i <= 5; i++)
@@ -122,7 +110,6 @@ namespace HR.Tests.PlayMode
             if (!EnhancedTouchSupport.enabled) EnhancedTouchSupport.Enable();
             yield return null;
 
-            // Inside the 0.6u dead zone, where a pixel of jitter would be a large angle.
             BeginTouch(1, ScreenAt(0f, 0.1f), screen: touchscreen);
             yield return null;
             MoveTouch(1, ScreenAt(90f, 0.1f), screen: touchscreen);

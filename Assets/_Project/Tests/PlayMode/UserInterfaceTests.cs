@@ -12,10 +12,6 @@ using UnityEngine.UI;
 
 namespace HR.Tests.PlayMode
 {
-    /// <summary>
-    /// Phase 6's interface gates: the whole journey works, every tap target is big enough to
-    /// hit, and nothing interactive sits where the finger has to swipe.
-    /// </summary>
     public class UserInterfaceTests
     {
         GameConfig _config;
@@ -39,8 +35,7 @@ namespace HR.Tests.PlayMode
             cameraGo.transform.SetParent(_root.transform, false);
             _root.SetActive(false);
             _boot = _root.AddComponent<GameBootstrap>();
-            // The save has to be handed over before activation: Awake builds immediately, and a
-            // Build call afterwards is too late to redirect it away from the real save file.
+
             _boot.Configure(_config, runSeed: 7,
                 new SaveService(Path.Combine(_directory, SaveService.FileName)),
                 view: cameraGo.GetComponent<Camera>());
@@ -65,7 +60,6 @@ namespace HR.Tests.PlayMode
         [UnityTest]
         public IEnumerator The_whole_journey_works_end_to_end()
         {
-            // The gate: Menu to Play to GameOver to Retry to Home, through the real buttons.
             var ui = _boot.Ui;
             Assert.AreEqual(GameState.Menu, _boot.Game.State);
 
@@ -103,7 +97,6 @@ namespace HR.Tests.PlayMode
         [UnityTest]
         public IEnumerator Every_tap_target_is_big_enough_to_hit()
         {
-            // CONTRACT.md §3. Measured on the built rects, not trusted to the builder.
             foreach (var rect in _boot.Ui.InteractiveElements())
             {
                 var size = rect.rect.size;
@@ -119,8 +112,6 @@ namespace HR.Tests.PlayMode
         [UnityTest]
         public IEnumerator Nothing_interactive_sits_in_the_band_the_finger_uses()
         {
-            // Spec §10.1: the score is at the top, the controls at the bottom, and the middle
-            // where the tunnel is and the gesture happens stays clear.
             Press(_boot.Ui.ScreenFor(GameState.Menu).gameObject, "menu.play");
             yield return null;
 
@@ -136,7 +127,6 @@ namespace HR.Tests.PlayMode
                 float low = Mathf.Min(corners[0].y, corners[1].y);
                 float high = Mathf.Max(corners[2].y, corners[3].y);
 
-                // The playfield band is the middle third of the screen.
                 bool intrudes = high > Screen.height * 0.3f && low < Screen.height * 0.7f;
                 Assert.IsFalse(intrudes,
                     $"{selectable.name} overlaps the gesture band (y {low:F0}..{high:F0} of {Screen.height})");
@@ -172,7 +162,6 @@ namespace HR.Tests.PlayMode
         [UnityTest]
         public IEnumerator A_fresh_install_shows_no_empty_record()
         {
-            // CONTRACT.md G-04: "Best: 0" before the first run is noise.
             var menu = _boot.Ui.ScreenFor(GameState.Menu);
             var best = FindByName(menu, "Best");
 
@@ -202,8 +191,6 @@ namespace HR.Tests.PlayMode
         [UnityTest]
         public IEnumerator Changing_a_setting_writes_it_to_disk()
         {
-            // Through the real control, not through reflection: what matters is that the path a
-            // player actually takes ends in a file on disk.
             var settings = _boot.Ui.ScreenFor(GameState.Settings);
             Toggle vibration = null;
             foreach (var toggle in settings.GetComponentsInChildren<Toggle>(includeInactive: true))
@@ -226,8 +213,6 @@ namespace HR.Tests.PlayMode
         [UnityTest]
         public IEnumerator About_opens_shows_the_real_text_and_closes()
         {
-            // The handler for this button was an empty lambda for a whole phase: the screen was
-            // on the checklist, the strings were written, and pressing it did nothing at all.
             var settings = _boot.Ui.ScreenFor(GameState.Settings);
             var about = FindByName(settings, "About");
             Assert.IsNotNull(about, "the settings screen has no About panel");
@@ -268,10 +253,9 @@ namespace HR.Tests.PlayMode
                 "About survived a screen change and would reappear over Settings");
         }
 
-        /// <summary>Sweeps a finger a quarter turn and returns how far the gesture took the rings.</summary>
         double QuarterTurnOfAFinger()
         {
-            const double radius = 3.0;   // outside the dead zone
+            const double radius = 3.0;
             const float dt = 1f / 30f;
 
             var input = _boot.Input;
@@ -294,13 +278,8 @@ namespace HR.Tests.PlayMode
         [UnityTest]
         public IEnumerator The_sensitivity_slider_reaches_the_finger()
         {
-            // It did not. The slider wrote the save and the save was never read back into the
-            // gesture, so every player had the config's feel whatever the setting said.
             var settings = _boot.Ui.ScreenFor(GameState.Settings);
 
-            // Found through its row rather than by its own name: a settings row is named for the
-            // setting and holds a label and one control, which is what makes every row the same
-            // shape.
             var row = FindByName(settings, "set.sensitivity");
             Assert.IsNotNull(row, "no sensitivity row on the settings screen");
 
@@ -321,10 +300,6 @@ namespace HR.Tests.PlayMode
         [UnityTest]
         public IEnumerator Sound_and_music_are_switched_independently_and_persist()
         {
-            // Phase 7's gate, taken literally: independent, and still independent after a
-            // reload. The levels it also checked are gone — two sliders bought a finer answer
-            // to a question almost nobody asks, at the cost of the rows that made the settings
-            // screen fit a phone (D-077). What a player wants from a bus is off, not quieter.
             var settings = _boot.Ui.ScreenFor(GameState.Settings);
 
             Toggle sound = null, music = null;

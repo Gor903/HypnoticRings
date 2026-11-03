@@ -5,23 +5,8 @@ using UnityEngine;
 
 namespace HR.Tests.EditMode
 {
-    /// <summary>
-    /// How wide a way out actually is, in balls.
-    ///
-    /// Reported from the phone: a ring with more than one opening is almost impossible to leave.
-    /// Everything about the split was expressed in degrees and shares of a single gap's angle,
-    /// which says nothing about whether a ball fits — the only unit that answers that is the
-    /// ball's own diameter, and nothing in the project was measuring in it.
-    /// </summary>
     public sealed class GapWidthTests
     {
-        /// <summary>
-        /// Narrowest way out worth cutting, measured in ball diameters.
-        ///
-        /// Below this the ball can only pass dead-on. It is not a theoretical floor — at 1.0 the
-        /// opening is exactly the ball, which admits it only on a path through the centre of the
-        /// gap with no angle and no spin at all.
-        /// </summary>
         public const double MinClearBalls = GapSplit.MinClearBalls;
 
         static GameConfig Config() => ScriptableObject.CreateInstance<GameConfig>();
@@ -30,7 +15,6 @@ namespace HR.Tests.EditMode
             GapSplit.MinGapDegFor(difficulty.BallRadius, difficulty.Thickness,
                                   difficulty.ReferenceRadius);
 
-        /// <summary>The clear width of each opening on a ring of this many gaps, in balls.</summary>
         static double[] ClearancesAt(GameConfig config, int score, int gapCount)
         {
             var difficulty = new DifficultyCurve(config.ToSettings()).SnapshotAt(score);
@@ -54,9 +38,6 @@ namespace HR.Tests.EditMode
         [Test]
         public void Report_how_wide_every_kind_of_ring_opens()
         {
-            // A measurement rather than an assertion, kept because the numbers are the argument:
-            // the shares were chosen in degrees, and this is the only place they are stated in
-            // the unit the player experiences.
             var config = Config();
             try
             {
@@ -83,9 +64,6 @@ namespace HR.Tests.EditMode
         [Test]
         public void Report_what_each_candidate_floor_would_allow()
         {
-            // The decision table. A floor in ball diameters decides two things at once — how
-            // wide the narrowest way out is, and how many ways out a ring can afford at all —
-            // and the second one is the part that is easy to choose by accident.
             var config = Config();
             try
             {
@@ -132,10 +110,6 @@ namespace HR.Tests.EditMode
         [Test]
         public void Report_what_the_generator_actually_emits()
         {
-            // The split maths says what a ring COULD be cut into; the generator decides what it
-            // is. Those are different questions and only the second one is the game — a floor
-            // that widens the narrowest opening also makes the generator refuse that shape, and
-            // reading the first number alone would miss it entirely.
             var config = Config();
             try
             {
@@ -173,9 +147,6 @@ namespace HR.Tests.EditMode
         [Test]
         public void Every_opening_admits_the_ball_with_room_to_aim()
         {
-            // The gate the report above exists to defend. Checked on every ring shape at every
-            // point of the curve, because the complaint was not about one score — it was about
-            // every ring that had more than one way out.
             var config = Config();
             try
             {

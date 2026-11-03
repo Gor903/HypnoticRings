@@ -5,16 +5,6 @@ using UnityEngine;
 
 namespace HR.Themes
 {
-    /// <summary>
-    /// Paints a theme onto a running game.
-    ///
-    /// It touches colours and nothing else. CONTRACT.md §3.5 draws that line hard, and it is
-    /// not a tidiness rule: if a palette could reach a radius, a thickness or a physics
-    /// material, then picking a theme would change how the game plays, and every balance
-    /// number would be true only for whichever theme produced it.
-    ///
-    /// Applies live — no scene reload, so switching a theme mid-run keeps the run.
-    /// </summary>
     public sealed class ThemeApplier : MonoBehaviour
     {
         static readonly int BaseColorId = Shader.PropertyToID("_BaseColor");
@@ -71,25 +61,9 @@ namespace HR.Themes
         double _shimmerClock;
         Color _shimmerTarget = Color.white;
 
-        /// <summary>
-        /// Which way a shimmer moves: whichever extreme is further from the background.
-        ///
-        /// Stated as a rule rather than hard-coded to white, because the two themes that
-        /// shimmer today happen to be dark and the next one might not be. On a pale background
-        /// brightening would dim the rings into it, which is the failure this is here to avoid.
-        /// </summary>
         static Color ShimmerTargetFor(in Rgb background) =>
             Contrast.Luminance(background) < 0.5 ? Color.white : Color.black;
 
-        /// <summary>
-        /// Moves a shimmering palette along by a step.
-        ///
-        /// Driven rather than self-ticking, so a test can take it to an exact moment and so a
-        /// paused game does not keep breathing. The period is floored well above the
-        /// photosensitivity limit from plan [G-34] and [X-14]: the player stares straight at
-        /// this tunnel, and a palette that pulses quickly stops being a style and becomes a
-        /// health question.
-        /// </summary>
         public void Tick(double dt)
         {
             if (Palette == null || _tunnel == null) return;
@@ -102,28 +76,16 @@ namespace HR.Themes
             _ringColours.Clear();
             for (int i = 0; i < Palette.RingColours.Length; i++)
             {
-                // Each colour is a quarter-cycle behind the one before it, so the tunnel reads
-                // as a wave travelling outwards rather than as every ring blinking together.
                 double phase = _shimmerClock / period + i * 0.25;
                 double swing = (System.Math.Sin(phase * System.Math.PI * 2.0) + 1.0) * 0.5;
                 float amount = (float)(swing * Palette.ShimmerDepth);
 
-                // Always AWAY from the background, never toward it. Swinging both ways was the
-                // obvious reading of "shimmer" and it cost Neon's purple ring its legibility at
-                // the bottom of every cycle — contrast 2.92 against a floor of 3.0, for a
-                // tenth of a second, over and over. A palette may not buy movement with
-                // readability, so the dim half of the cycle is gone.
                 _ringColours.Add(Color.Lerp(ToColor(Palette.RingColours[i]), _shimmerTarget, amount));
             }
 
             _tunnel.SetRingColours(_ringColours);
         }
 
-        /// <summary>
-        /// Written through a property block rather than onto the material: assigning to
-        /// renderer.material clones it, and a clone per theme change is a leak that only shows
-        /// up after somebody sits on the theme carousel.
-        /// </summary>
         void Paint(Renderer renderer, Color colour)
         {
             if (renderer == null) return;

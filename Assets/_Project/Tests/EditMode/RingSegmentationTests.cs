@@ -6,7 +6,7 @@ namespace HR.Tests.EditMode
 {
     public class RingSegmentationTests
     {
-        const double MaxSweep = 120.0;   // CONTRACT.md §2.2: no collider spans more than this
+        const double MaxSweep = 120.0;
 
         static ArcSpan[] Buffer(int gapCount) =>
             new ArcSpan[RingSegmentation.UpperBoundSegments(gapCount, MaxSweep)];
@@ -60,8 +60,6 @@ namespace HR.Tests.EditMode
         [Test]
         public void No_segment_ever_covers_part_of_a_gap()
         {
-            // The gap is the way out. A collider leaking into it makes the ring unpassable and
-            // nothing else in the game would report why.
             var gaps = new[] { new Gap(270.0, 28.6), new Gap(42.0, 15.0) };
             var probe = new[] { new Gap(270.0, 28.6), new Gap(42.0, 15.0) };
             var output = Buffer(2);
@@ -106,7 +104,6 @@ namespace HR.Tests.EditMode
         [Test]
         public void Gaps_that_have_merged_leave_no_sliver_behind()
         {
-            // Late-game rings carry two gaps that widen as the radius falls; they can meet.
             var gaps = new[] { new Gap(0.0, 60.0), new Gap(20.0, 60.0) };
             var output = Buffer(2);
             int n = RingSegmentation.BuildSolidSegments(gaps, 2, MaxSweep, output);
@@ -127,7 +124,6 @@ namespace HR.Tests.EditMode
         [Test]
         public void The_upper_bound_is_actually_big_enough()
         {
-            // The bound is what lets callers allocate once and refill forever.
             foreach (double sweep in new[] { 30.0, 45.0, 90.0, 120.0, 180.0 })
                 for (int gapCount = 0; gapCount <= 2; gapCount++)
                 {
@@ -139,12 +135,9 @@ namespace HR.Tests.EditMode
                 }
         }
 
-
         [Test]
         public void A_held_gap_delivers_the_opening_it_was_drawn_with()
         {
-            // The caps eat half a thickness from each side. Cutting exactly the opening would
-            // leave the ball a way out narrower by a full T, and nothing downstream would say so.
             var s = TunnelSettings.Default;
             foreach (double opening in new[] { 1.2, 1.5, 2.2, 3.2 })
             {
@@ -159,8 +152,6 @@ namespace HR.Tests.EditMode
         [Test]
         public void A_naive_cut_really_would_lose_a_whole_thickness()
         {
-            // Guards the reasoning, not just the result: if the caps ever stop bulging into the
-            // gap, the cap allowance is over-cutting and this test is the one that should fail.
             const double T = 0.30;
             double naive = TunnelMath.GapWidthDeg(1.5, 3.0);
             Assert.AreEqual(1.5 - T, RingSegmentation.OpeningFor(naive, T, 3.0), 1e-9);
@@ -179,9 +170,6 @@ namespace HR.Tests.EditMode
         [Test]
         public void A_shrinking_ring_keeps_the_same_opening_angle()
         {
-            // D-059, and the whole point of it: a ring closing in on the centre keeps the notch
-            // it was drawn with. The rule this replaced held the arc length instead, so the same
-            // ring at a third of its radius showed three times the angle and read as falling apart.
             var s = TunnelSettings.Default;
             const double opening = 2.0;
             double atReference = TunnelMath.HeldGapWidthDeg(opening, s.Thickness, s.TargetRadius,
@@ -197,8 +185,6 @@ namespace HR.Tests.EditMode
         [Test]
         public void Close_to_the_centre_the_angle_grows_only_as_fast_as_the_ball_needs()
         {
-            // The one exception to holding the angle, and it is physical: held all the way down,
-            // the opening would pinch below the ball before the ring reached the red circle.
             var s = TunnelSettings.Default;
             const double opening = 2.0;
             double held = TunnelMath.HeldGapWidthDeg(opening, s.Thickness, s.TargetRadius,
@@ -215,11 +201,8 @@ namespace HR.Tests.EditMode
         [Test]
         public void A_ring_asked_for_less_than_the_floor_is_left_narrow()
         {
-            // The floor rescues a ring that shrinks into its own opening. It must not widen one
-            // that was deliberately built impassable, or the play-mode test proving the ball
-            // cannot squeeze through a gap narrower than itself would be proving nothing.
             var s = TunnelSettings.Default;
-            double narrow = s.BallRadius;   // half a ball wide
+            double narrow = s.BallRadius;
             double widthDeg = TunnelMath.HeldGapWidthDeg(narrow, s.Thickness, s.TargetRadius,
                                                          s.TargetRadius, s.MinGapWidth);
 
@@ -248,7 +231,6 @@ namespace HR.Tests.EditMode
         [Test]
         public void A_ring_can_always_reach_the_crush_radius_before_it_is_culled()
         {
-            // If rings vanished before they could crush, the game would have no lose condition.
             var s = TunnelSettings.Default;
             Assert.Greater(s.VanishRadius, s.CrushRadius);
         }

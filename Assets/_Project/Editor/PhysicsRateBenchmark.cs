@@ -12,11 +12,6 @@ using Debug = UnityEngine.Debug;
 
 namespace HR.Editor
 {
-    /// <summary>
-    /// Settles the fixed physics step (DECISIONS D-007). The spec starts at 1/90 s and asks for
-    /// 1/60 and 1/120 to be compared; this measures all three on the thing that actually matters:
-    /// how still a resting ball sits, how far it sinks into an arc, and what it costs.
-    /// </summary>
     public static class PhysicsRateBenchmark
     {
         const float Seconds = 6f;
@@ -85,7 +80,7 @@ namespace HR.Editor
                     ring.SegmentAt(i).Collider.sharedMaterial = ringPhysics;
 
                 int steps = Mathf.RoundToInt(Seconds / dt);
-                int settle = steps / 3;   // let it come to rest before measuring stillness
+                int settle = steps / 3;
 
                 double restDistance = settings.TargetRadius - settings.Thickness * 0.5 - settings.BallRadius;
                 double sum = 0.0, sumSq = 0.0, maxPenetration = 0.0;

@@ -13,14 +13,6 @@ using UnityEngine.UI;
 
 namespace HR.Tests.PlayMode
 {
-    /// <summary>
-    /// The controls themselves, as opposed to the screens they sit on.
-    ///
-    /// Every one of these is a defect the captured frames showed first: a switch that vanished
-    /// when it was off, a knob sliced in half by the margin it rode to, a button that gave no
-    /// sign of having been touched, and a pause button painted the same colour as its own glyph.
-    /// A picture finds those; a test is what keeps them found.
-    /// </summary>
     public class UiControlTests
     {
         GameConfig _config;
@@ -70,8 +62,6 @@ namespace HR.Tests.PlayMode
         [UnityTest]
         public IEnumerator An_off_switch_is_still_on_the_screen()
         {
-            // uGUI's own answer is to hide the tick, which leaves a settings row that is a line
-            // of text with nothing beside it — the player cannot tell it is a control at all.
             var settings = Settings();
             yield return null;
 
@@ -99,8 +89,6 @@ namespace HR.Tests.PlayMode
         [UnityTest]
         public IEnumerator A_switch_says_which_way_it_is_set()
         {
-            // Visible in both states is not enough on its own: the two states have to differ,
-            // or it is a decoration that happens to be lit.
             var settings = Settings();
             yield return null;
 
@@ -126,8 +114,6 @@ namespace HR.Tests.PlayMode
         [UnityTest]
         public IEnumerator A_slider_keeps_its_knob_inside_itself()
         {
-            // Both ends, because uGUI centres the knob on the value: an area that reaches the
-            // track's ends hangs half a knob off the control at nought and at full.
             var settings = Settings();
             yield return null;
 
@@ -158,7 +144,6 @@ namespace HR.Tests.PlayMode
         [UnityTest]
         public IEnumerator A_slider_shows_how_far_along_it_is()
         {
-            // Without a filled part the player is judging a knob's position against a bare line.
             var settings = Settings();
             yield return null;
 
@@ -183,8 +168,6 @@ namespace HR.Tests.PlayMode
         [UnityTest]
         public IEnumerator Every_button_answers_a_press()
         {
-            // On a phone a press with no response reads as a dropped tap, and the player presses
-            // again — which on Retry is two runs started and one of them thrown away.
             foreach (var state in new[] { GameState.Menu, GameState.Playing, GameState.Paused,
                                           GameState.GameOver, GameState.ThemeSelect,
                                           GameState.Settings })
@@ -203,13 +186,8 @@ namespace HR.Tests.PlayMode
         [UnityTest]
         public IEnumerator A_pressed_button_comes_back_to_where_it_was()
         {
-            // The failure this catches is not a stuck button but a creeping one: every press
-            // that does not return leaves the control a little lower than the row beside it.
             _boot.Ui.Show(GameState.Menu);
 
-            // Settled before anything is read. A layout group places its children over the
-            // frames after the screen appears, and a position taken before that is the one the
-            // button had when it was nothing but a rect.
             for (int frame = 0; frame < 3; frame++)
             {
                 Canvas.ForceUpdateCanvases();
@@ -240,9 +218,6 @@ namespace HR.Tests.PlayMode
         [UnityTest]
         public IEnumerator The_pause_button_is_never_painted_its_own_glyphs_colour()
         {
-            // It was: tracked as ink, fill and glyph took the same colour and the HUD showed a
-            // solid disc with nothing on it. Checked on every theme, because the roles are
-            // derived and a palette nobody has looked at yet is exactly where this returns.
             _boot.Ui.Show(GameState.Playing);
             Canvas.ForceUpdateCanvases();
             yield return null;
@@ -271,9 +246,6 @@ namespace HR.Tests.PlayMode
         [UnityTest]
         public IEnumerator The_language_row_shows_which_language_is_on()
         {
-            // It showed the word "Language" and nothing else — the only control in the game
-            // that stated its question and not its answer, on the one screen a player opens
-            // precisely because the answer is currently wrong.
             var settings = Settings();
             yield return null;
 
@@ -311,7 +283,6 @@ namespace HR.Tests.PlayMode
                                                   (byte)Mathf.RoundToInt(colour.g * 255f),
                                                   (byte)Mathf.RoundToInt(colour.b * 255f));
 
-        /// <summary>A rect's extent in world space, which is the only space two of them share.</summary>
         static Rect Corners(RectTransform rect)
         {
             var corners = new Vector3[4];

@@ -12,25 +12,12 @@ using UnityEngine.TestTools;
 
 namespace HR.Tests.PlayMode
 {
-    /// <summary>
-    /// Measures the window a hardcore player actually gets, before any of its numbers are tuned.
-    ///
-    /// Plan [H-17] asks for this first and for a reason: the whole mode rests on an estimate
-    /// made on paper — that between leaving one ring and being turned back twice by the next
-    /// there is something like 0.35 to 1.0 seconds. If that is wrong the mode is either trivial
-    /// or impossible, and no amount of adjusting the opening angles in [H-10] would tell us
-    /// which.
-    ///
-    /// Writes what it finds to docs/benchmarks/ so the numbers outlive the run that produced
-    /// them. The assertions are deliberately loose: this is an instrument, and an instrument
-    /// that fails when the thing it measures changes is not an instrument.
-    /// </summary>
     [Category("Endurance")]
     public sealed class HardcoreWindowTests
     {
         const float Dt = 1f / 90f;
         const int Runs = 60;
-        const int StepsPerRun = 9000;   // 100 seconds of play each
+        const int StepsPerRun = 9000;
 
         GameConfig _config;
         SimulationMode2D _simulationMode;
@@ -43,8 +30,6 @@ namespace HR.Tests.PlayMode
         readonly List<double> _betweenTouches = new List<double>();
         readonly List<double> _angleToNearestGap = new List<double>();
 
-        // Paired on purpose. Separate medians answer "how far" and "how long" but not the only
-        // question that matters: whether the SAME ring gave enough of both at once.
         readonly List<double> _demandedSpin = new List<double>();
 
         [SetUp]
@@ -65,11 +50,6 @@ namespace HR.Tests.PlayMode
             if (_config != null) UnityEngine.Object.DestroyImmediate(_config);
         }
 
-        // Which numbers the instrument is pointed at. Set by the caller and NOT reset inside
-        // the measurement: the first version cleared it on the first line of the shared body,
-        // so the hardcore test silently measured the ordinary game and reported its number as
-        // the mode's. The giveaway was the two runs agreeing to the last ring — 27 of 163 both
-        // times, which no real change of configuration produces.
         bool _hardcore;
 
         void Build(int seed)
@@ -133,18 +113,9 @@ namespace HR.Tests.PlayMode
                         firstTouchAt = clock;
                         _toFirstTouch.Add(clock - leftRingAt);
 
-                        // Where the nearest way out was at the moment of the first touch. This
-                        // is the number the mode lives or dies by: how far the player has to
-                        // turn, in the time they have, to put an opening where the ball is
-                        // about to arrive.
                         var ring = _tunnel.ResolveBallRing();
                         if (ring != null)
                         {
-                            // To the nearest EDGE of the nearest opening. Measuring to the
-                            // centre made a wide gap score as hard as a narrow one, and the
-                            // instrument duly reported that the mode's wider openings made
-                            // things worse — 18.1% against 16.6% — which is the opposite of
-                            // what geometry does.
                             angleAtFirstTouch = ring.TurnToNearestGapDeg(_ball.AngleDeg);
                             _angleToNearestGap.Add(angleAtFirstTouch);
                         }
@@ -187,32 +158,11 @@ namespace HR.Tests.PlayMode
 
             Report();
 
-            // An instrument, not a gate: it has to have measured something, and the something
-            // has to be physically sane. Anything tighter would fail the first time the mode
-            // was tuned, which is exactly when the instrument is needed.
             Assert.Greater(_toFirstTouch.Count, 50, "almost no first touches were seen at all");
             Assert.Greater(_betweenTouches.Count, 20, "almost no second touches were seen");
             Assert.Greater(Median(_betweenTouches), 0.0, "the window between touches is not positive");
         }
 
-        /// <summary>
-        /// The same instrument against the mode's own numbers.
-        ///
-        /// What it measured is not what the plan expected, so what it asserts is not what this
-        /// test first asserted either. The wide openings of [H-10] halve the demand on a typical
-        /// ring — median 29 degrees per second against 49 — and leave the impossible tail
-        /// exactly where it was, 8.6% against 8.5%.
-        ///
-        /// The reason is in the data rather than in an opinion: the tail is made of short
-        /// windows, not of distant openings. Both configurations bottom out at about a fifth of
-        /// a second between the two touches, and no width of gap helps a player who has no time.
-        /// That tail belongs to the ball's flight, so only the flight can shorten it — a slower
-        /// ball or a wider corridor — and both are decisions about how the game feels rather
-        /// than about how it is built. See DECISIONS D-071.
-        ///
-        /// So this asserts the claim that is actually true and load-bearing: the mode's numbers
-        /// make the typical ring materially easier, and never make the tail worse.
-        /// </summary>
         [UnityTest]
         [Timeout(1_800_000)]
         public IEnumerator Hardcore_openings_buy_back_most_of_the_impossible_rings()
@@ -229,15 +179,9 @@ namespace HR.Tests.PlayMode
             Debug.Log($"[HR] hardcore: median demand {median:F1} deg/s, unreachable {share:F1}% "
                       + $"({impossible}/{_demandedSpin.Count})");
 
-            // Comfortably inside a thumb's reach for the ring a player usually meets. This is
-            // what the wide openings actually buy, and it is worth having.
             Assert.Less(median, _config.comfortSpinDeg * 0.5,
                 $"a typical hardcore ring demands {median:F1} deg/s of a 300 deg/s thumb");
 
-            // And the tail is not made worse by them. Loose on purpose: the tail is a property
-            // of the ball's flight, the measurement carries real sampling noise, and a tight
-            // bound here would be a number chosen to go green rather than one that means
-            // anything.
             Assert.Less(share, 15.0,
                 $"{share:F1}% of hardcore rings demand more than a thumb can give");
         }
@@ -275,9 +219,6 @@ namespace HR.Tests.PlayMode
             Row(text, "**Требуемая скорость поворота, °/с**", _demandedSpin);
             text.AppendLine();
 
-            // The one number the mode stands on: how often the same ring demanded more than a
-            // thumb can give. Computed from PAIRS, because a ring that gave a wide angle and a
-            // long window is not the same ring as one that gave neither.
             int impossible = 0;
             for (int i = 0; i < _demandedSpin.Count; i++)
                 if (_demandedSpin[i] > _config.comfortSpinDeg) impossible++;

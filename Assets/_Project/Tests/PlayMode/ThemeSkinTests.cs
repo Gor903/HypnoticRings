@@ -14,14 +14,6 @@ using UnityEngine.UI;
 
 namespace HR.Tests.PlayMode
 {
-    /// <summary>
-    /// That a theme changes the material the interface is cut from, and that the player can
-    /// switch the expensive half of it off.
-    ///
-    /// The skin has had a width for its edge since it was written and nothing ever drew one:
-    /// every theme passed its own data test while every screen rendered the same bare
-    /// rectangles. A test that reads the skin proves the table; this one reads the controls.
-    /// </summary>
     public sealed class ThemeSkinTests
     {
         GameConfig _config;
@@ -75,8 +67,6 @@ namespace HR.Tests.PlayMode
         [UnityTest]
         public IEnumerator A_theme_with_an_edge_actually_draws_one()
         {
-            // Five of the six skins ask for an outline, and the width was dead data: declared,
-            // unit-tested, and never reaching a renderer.
             var play = Play();
 
             foreach (var theme in ThemePalette.All)
@@ -90,8 +80,6 @@ namespace HR.Tests.PlayMode
 
                 if (wanted <= 0.0)
                 {
-                    // Pastel: the softest palette in the set, and the one that would look wrong
-                    // with a hard line around everything.
                     Assert.IsTrue(chrome == null || !Drawn(chrome),
                         $"{theme} asks for no edge and got one");
                     continue;
@@ -105,8 +93,6 @@ namespace HR.Tests.PlayMode
         [UnityTest]
         public IEnumerator Only_a_glowing_palette_gets_a_halo()
         {
-            // The palette already says which themes glow — the tunnel has used the number since
-            // phase 5. A halo invented for the interface separately would be a second opinion.
             var play = Play();
 
             foreach (var theme in ThemePalette.All)
@@ -133,8 +119,6 @@ namespace HR.Tests.PlayMode
         [UnityTest]
         public IEnumerator Reducing_effects_stops_the_halo_and_the_breath()
         {
-            // The gate the plan asks for, read as "nothing ticks": not that it looks calmer, but
-            // that the work is not being done.
             _boot.Settings.reduceEffects = false;
             _boot.Ui.ApplyTheme(ThemePalette.For(Theme.Neon));
             yield return null;
@@ -158,7 +142,6 @@ namespace HR.Tests.PlayMode
             Assert.IsFalse(chrome.Glowing, "the halo survived reduce effects");
             Assert.IsFalse(_boot.Ui.Shimmer.Breathing, "the breath survived reduce effects");
 
-            // And it is actually still, rather than merely declaring itself off.
             var settled = play.targetGraphic.color;
             for (int frame = 0; frame < 8; frame++) yield return null;
             Assert.AreEqual(settled, play.targetGraphic.color, "something is still moving");
@@ -167,8 +150,6 @@ namespace HR.Tests.PlayMode
         [UnityTest]
         public IEnumerator A_still_theme_never_breathes_even_with_effects_on()
         {
-            // Monochrome has no shimmer in the tunnel and must have none here: the setting is
-            // the player's veto, not the only thing standing between a theme and an animation.
             _boot.Settings.reduceEffects = false;
             _boot.Ui.ApplyTheme(ThemePalette.For(Theme.Monochrome));
             yield return null;
@@ -184,9 +165,6 @@ namespace HR.Tests.PlayMode
         [UnityTest]
         public IEnumerator The_breath_puts_the_colour_back_when_the_theme_changes()
         {
-            // The failure this guards is quiet and permanent: a theme swapped mid-exhale leaves
-            // the new theme's accent remembered at the old theme's brightness, and every repaint
-            // afterwards returns to that.
             _boot.Settings.reduceEffects = false;
             _boot.Ui.ApplyTheme(ThemePalette.For(Theme.Neon));
             for (int frame = 0; frame < 8; frame++) yield return null;
@@ -205,9 +183,6 @@ namespace HR.Tests.PlayMode
         [UnityTest]
         public IEnumerator A_rippling_theme_answers_where_the_finger_landed()
         {
-            // The one skin that uses the touch point. Built lazily, because five of the six
-            // themes never ask for it and a disc per button is five screens of objects drawing
-            // nothing.
             _boot.Ui.ApplyTheme(ThemePalette.For(Theme.Monochrome));
             yield return null;
 
@@ -223,8 +198,6 @@ namespace HR.Tests.PlayMode
             press.OnPointerDown(new PointerEventData(EventSystem.current));
             Assert.Greater(press.Ripple.color.a, 0f, "pressing it drew nothing");
 
-            // Spreads as it fades, which is what makes it read as the surface absorbing a touch
-            // rather than as a disc drawn on top of the button.
             float firstWidth = press.Ripple.rectTransform.sizeDelta.x;
             float firstAlpha = press.Ripple.color.a;
 
@@ -239,8 +212,6 @@ namespace HR.Tests.PlayMode
         [UnityTest]
         public IEnumerator Every_theme_paints_every_screen_without_leaving_a_hole()
         {
-            // A sweep rather than a single screen: the roles are applied by list, and a control
-            // that nobody registered is invisible in exactly one theme and fine in the rest.
             var screens = new[]
             {
                 GameState.Menu, GameState.Playing, GameState.Paused, GameState.GameOver,
@@ -272,22 +243,8 @@ namespace HR.Tests.PlayMode
             }
         }
 
-        /// <summary>
-        /// Lower than the contract's floor on purpose.
-        ///
-        /// This is a sweep over every label on every screen in every theme, including ones
-        /// deliberately quietened — a locked theme's name, the record under the score. Set at
-        /// the contract's 4.5 it would be a test of those alphas rather than of the painting.
-        /// What it is looking for is a label the same colour as its own background.
-        /// </summary>
         const double LegibleEnough = 2.0;
 
-        /// <summary>
-        /// The colour actually behind a label: the nearest ancestor that fills, or the paper.
-        ///
-        /// Comparing every label against the theme's background would pass a white label on a
-        /// white card, which is the failure this is for.
-        /// </summary>
         static Color Behind(Graphic graphic, Color paper)
         {
             var parent = graphic.transform.parent;
@@ -303,14 +260,12 @@ namespace HR.Tests.PlayMode
             return paper;
         }
 
-        /// <summary>A translucent plate over the paper is neither of the two colours.</summary>
         static Color Flatten(Color over, Color under) => Color.Lerp(under, over, over.a);
 
         static Rgb ToRgb(Color colour) => new Rgb((byte)Mathf.RoundToInt(Mathf.Clamp01(colour.r) * 255f),
                                                   (byte)Mathf.RoundToInt(Mathf.Clamp01(colour.g) * 255f),
                                                   (byte)Mathf.RoundToInt(Mathf.Clamp01(colour.b) * 255f));
 
-        /// <summary>True when anything at all is being drawn around the control.</summary>
         static bool Drawn(UiChrome chrome)
         {
             foreach (var outline in chrome.GetComponents<Outline>())

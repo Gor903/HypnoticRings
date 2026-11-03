@@ -3,10 +3,6 @@ using NUnit.Framework;
 
 namespace HR.Tests.EditMode
 {
-    /// <summary>
-    /// What counts as touching a ring. The hardcore mode's whole difficulty hangs off this one
-    /// definition, and every way of getting it wrong kills a player who did nothing wrong.
-    /// </summary>
     public sealed class TouchLedgerTests
     {
         TouchLedger _ledger;
@@ -18,7 +14,6 @@ namespace HR.Tests.EditMode
             _ledger.Watch(ringId: 1);
         }
 
-        /// <summary>Feeds one step and says whether it counted.</summary>
         bool Step(double t, double radial, bool contact = true) => _ledger.Step(t, radial, contact);
 
         [Test]
@@ -32,8 +27,6 @@ namespace HR.Tests.EditMode
         [Test]
         public void The_first_step_invents_nothing()
         {
-            // Nothing to compare against yet. Treating the missing previous sample as zero
-            // would record a touch on the step the ledger was switched on.
             Assert.IsFalse(Step(0.0, -5.0));
             Assert.AreEqual(0, _ledger.Touches);
         }
@@ -44,7 +37,6 @@ namespace HR.Tests.EditMode
             Step(0.00, 5.0);
             Assert.IsTrue(Step(0.01, -5.0));
 
-            // Ten more steps of the same inward flight. The ball was turned once.
             for (int i = 2; i < 12; i++) Step(i * 0.01, -5.0);
 
             Assert.AreEqual(1, _ledger.Touches, "a single bounce was counted as many");
@@ -53,8 +45,6 @@ namespace HR.Tests.EditMode
         [Test]
         public void A_seam_between_two_colliders_is_one_knock_and_not_two()
         {
-            // The case that makes an event-based count unusable: a ring is cut into segments of
-            // up to 120°, and hitting the join raises two contacts a millisecond apart.
             Step(0.000, 5.0);
             Assert.IsTrue(Step(0.001, -5.0), "the knock itself");
 
@@ -70,7 +60,6 @@ namespace HR.Tests.EditMode
             Step(0.00, 5.0);
             Assert.IsTrue(Step(0.01, -5.0));
 
-            // Across a corridor and back: far longer than the debounce, and unmistakably two.
             Step(0.20, 5.0);
             Assert.IsTrue(Step(0.21, -5.0));
 
@@ -80,8 +69,6 @@ namespace HR.Tests.EditMode
         [Test]
         public void Sliding_along_a_wall_is_not_a_touch()
         {
-            // A ball travelling almost tangentially crosses zero radial velocity again and
-            // again without ever being turned back by anything.
             Step(0.00, 0.01);
             Assert.IsFalse(Step(0.10, -0.01), "noise was counted as a bounce");
             Step(0.20, 0.01);
@@ -93,7 +80,6 @@ namespace HR.Tests.EditMode
         [Test]
         public void A_reversal_in_open_space_is_not_a_touch()
         {
-            // Gravity and the speed regulator both turn the ball without a wall involved.
             Step(0.00, 5.0, contact: true);
             Assert.IsFalse(Step(0.01, -5.0, contact: false));
             Assert.AreEqual(0, _ledger.Touches);
@@ -102,9 +88,6 @@ namespace HR.Tests.EditMode
         [Test]
         public void A_graze_on_the_way_out_costs_nothing()
         {
-            // Clipping the edge of an opening while still flying outward. The ball was not
-            // turned back, so by the rule it was not touched — which is the behaviour the plan
-            // explicitly wants ([H-04]).
             Step(0.00, 5.0);
             Assert.IsFalse(Step(0.01, 3.0), "still going out, just slower");
             Assert.IsFalse(Step(0.02, 1.0));
@@ -137,8 +120,6 @@ namespace HR.Tests.EditMode
         [Test]
         public void Nought_touches_is_better_than_one_and_never_a_failure()
         {
-            // "Not more than one", not "exactly one" — plan [H-02]. A ball that finds an
-            // opening without touching anything played it perfectly.
             Assert.IsFalse(_ledger.IsOver(allowed: 1));
 
             Step(0.00, 5.0);

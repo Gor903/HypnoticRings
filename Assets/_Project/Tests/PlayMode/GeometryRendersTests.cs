@@ -9,19 +9,6 @@ using UnityEngine.TestTools;
 
 namespace HR.Tests.PlayMode
 {
-    /// <summary>
-    /// Asserts the tunnel actually puts pixels on the screen.
-    ///
-    /// This exists because for five phases it did not, and nothing noticed. Every ring was
-    /// wound the wrong way round and so back-face culled: the meshes were built, the vertex
-    /// and index counts were right, the bounds were right, the renderers reported themselves
-    /// visible, the geometry tests passed — and the screen was empty. There is no error for
-    /// this, no warning and no magenta. The first time anything was rendered at all was the
-    /// phase 5 screenshot gate, and it fell out immediately.
-    ///
-    /// So: one test that draws the real tunnel and counts pixels. Cheap, and it fails loudly
-    /// for a whole class of mistakes that are otherwise completely silent.
-    /// </summary>
     public class GeometryRendersTests
     {
         GameConfig _config;
@@ -99,8 +86,6 @@ namespace HR.Tests.PlayMode
             target.Release();
             Object.DestroyImmediate(target);
 
-            // Rings and a ball across a 256-square frame are thousands of pixels. A handful
-            // would mean something drew; zero means the scene is invisible.
             Assert.Greater(lit, 500, $"only {lit} of 65536 pixels were drawn — the tunnel is invisible");
             Debug.Log($"[HR] render check: {lit}/65536 pixels drawn");
         }
@@ -108,8 +93,6 @@ namespace HR.Tests.PlayMode
         [UnityTest]
         public IEnumerator Ring_meshes_face_the_camera()
         {
-            // The same fact stated where it is cheap to check, so a regression names its cause
-            // instead of just reporting a blank frame.
             int steps = ArcGeometry.StepsFor(120.0, 7.5);
             var verts = new Point2[ArcGeometry.BandVertexCount(steps, 4)];
             var tris = new int[ArcGeometry.BandIndexCount(steps, 4)];

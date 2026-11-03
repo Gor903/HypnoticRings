@@ -3,7 +3,6 @@ using System.Collections.Generic;
 
 namespace HR.Core
 {
-    /// <summary>What the player picked, or Auto to follow the device.</summary>
     public enum LanguageSetting
     {
         Auto = 0,
@@ -11,18 +10,9 @@ namespace HR.Core
         English = 2,
     }
 
-    /// <summary>
-    /// Everything that survives the app closing. Plain fields and no engine types, so the shape
-    /// can be versioned, migrated and tested without a player.
-    ///
-    /// What is deliberately NOT here: the run in progress. CONTRACT.md G-01 — a run lasts
-    /// seconds to minutes, and restoring a ball mid-fall is both harder and less honest than
-    /// starting again.
-    /// </summary>
     [Serializable]
     public sealed class SaveData
     {
-        /// <summary>Bumped whenever the shape changes. Older files are migrated, never rejected.</summary>
         public const int CurrentVersion = 1;
 
         public int version;
@@ -42,16 +32,12 @@ namespace HR.Core
 
         public int language;
 
-        /// <summary>The swipe hint shows once, ever (CONTRACT.md §3).</summary>
         public bool hintSeen;
 
-        /// <summary>Best in hardcore, kept apart: it is a different game with a different scale.</summary>
         public int hardcoreBest;
 
-        /// <summary>Whether the hardcore rule has been explained once.</summary>
         public bool hardcoreHintSeen;
 
-        /// <summary>CONTRACT.md G-05 lists every one of these.</summary>
         public static SaveData Defaults() => new SaveData
         {
             version = CurrentVersion,
@@ -82,15 +68,6 @@ namespace HR.Core
             set => language = (int)value;
         }
 
-        /// <summary>
-        /// Brings a loaded file into a usable state and reports every repair it made.
-        ///
-        /// This is the version-migration seam, and it is also the only thing standing between a
-        /// hand-edited or truncated file and the game reading nonsense. A save written by an
-        /// older build arrives with zeroes in fields it never had — and a zero is a perfectly
-        /// plausible-looking value for a volume or a sensitivity, which is exactly why the
-        /// repairs have to be deliberate rather than left to defaults falling into place.
-        /// </summary>
         public List<string> Normalise()
         {
             var repairs = new List<string>();
@@ -103,8 +80,6 @@ namespace HR.Core
 
             if (version < CurrentVersion)
             {
-                // Version 0 predates every setting below; they arrive as zeroes, which would
-                // read as sound off, music off and a sensitivity of nothing at all.
                 var defaults = Defaults();
                 repairs.Add($"migrated from version {version} to {CurrentVersion}");
                 soundEnabled = defaults.soundEnabled;
@@ -130,8 +105,6 @@ namespace HR.Core
                 language = (int)LanguageSetting.Auto;
             }
 
-            // A theme the best score has not earned must not stay selected, or a wiped record
-            // would leave the player looking at something they no longer own.
             if (bestScore < ScoreKeeper.RequiredBestFor(Theme))
             {
                 repairs.Add($"theme {Theme} is not unlocked at best {bestScore}");
@@ -150,7 +123,6 @@ namespace HR.Core
             return repairs;
         }
 
-        /// <summary>Spec §10.5 puts the slider between these.</summary>
         public const float MinSensitivity = 0.6f;
         public const float MaxSensitivity = 1.6f;
 

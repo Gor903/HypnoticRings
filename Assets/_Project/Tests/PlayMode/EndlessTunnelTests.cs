@@ -9,10 +9,6 @@ using UnityEngine.TestTools;
 
 namespace HR.Tests.PlayMode
 {
-    /// <summary>
-    /// Phase 3's gates. An endless game turns any per-ring cost into a leak, so the question is
-    /// not whether ten thousand passes work but whether the scene is the same size afterwards.
-    /// </summary>
     public class EndlessTunnelTests
     {
         const float Dt = 1f / 90f;
@@ -63,7 +59,7 @@ namespace HR.Tests.PlayMode
 
             _pool = new RingPool(_config, tunnelGo.transform, material);
             _tunnel.Initialise(_config, _ball, _pool);
-            _tunnel.AutoStep = false;   // this fixture steps explicitly
+            _tunnel.AutoStep = false;
             _tunnel.BeginRun(seed);
 
             foreach (var ring in _tunnel.Rings)
@@ -91,7 +87,6 @@ namespace HR.Tests.PlayMode
             var ring = _tunnel.ResolveBallRing();
             if (ring != null)
             {
-                // The bot decides a ring angle; the finger moves that divided by the gain.
                 _fingerAngle += bot.Decide(TunnelMath.BottomAngleDeg, ring.GapCentreWorldDeg, Dt)
                                 / _config.sensitivity;
                 _input.FeedPointer(true, FingerAt(_fingerAngle), Dt);
@@ -103,15 +98,6 @@ namespace HR.Tests.PlayMode
             Physics2D.Simulate(Dt);
         }
 
-        /// <summary>
-        /// Transforms under this fixture's own root, not in the scene.
-        ///
-        /// It counted the whole scene, which made a leak test in the tunnel answerable by
-        /// whatever the previous fixture had not finished destroying yet: run alone it reported
-        /// 49 to 49, run after a hundred and twenty other tests it reported four unexplained
-        /// objects and failed. The tunnel is what is under test, so the tunnel is what is
-        /// counted.
-        /// </summary>
         int SceneObjectCount() =>
             _root == null ? 0 : _root.GetComponentsInChildren<Transform>(includeInactive: true).Length;
 
@@ -120,11 +106,9 @@ namespace HR.Tests.PlayMode
         [Category("Endurance")]
         public IEnumerator Ten_thousand_passes_leave_the_scene_exactly_as_big_as_it_started()
         {
-            // The gate. A strong bot is used deliberately: this measures leaks, not skill, and a
-            // bot that stalls would turn a leak test into a balance test by accident.
             const int target = 10000;
             const int warmup = 200;
-            const int stepCap = 2_500_000;   // ~1.4M expected; bounded so a stall fails rather than sits
+            const int stepCap = 2_500_000;
 
             Build(seed: 20261027);
             var bot = BotBrain.Strong(1);
@@ -133,7 +117,6 @@ namespace HR.Tests.PlayMode
             int steps = 0;
             while (_tunnel.PassedCount < warmup && steps < stepCap) { StepOnce(bot); steps++; }
 
-            // Everything that will ever be created has been created by now.
             GC.Collect();
             GC.WaitForPendingFinalizers();
             GC.Collect();
@@ -151,9 +134,6 @@ namespace HR.Tests.PlayMode
                 steps++;
                 if (_tunnel.ActiveRingCount > maxActiveRings) maxActiveRings = _tunnel.ActiveRingCount;
 
-                // Progress has to be visible from outside. A long quiet run and a hung editor
-                // look identical to a watchdog reading the log, and a watchdog that cannot tell
-                // them apart either kills good runs or sits through dead ones.
                 if (_tunnel.PassedCount >= nextReport)
                 {
                     nextReport += 1000;
@@ -162,7 +142,6 @@ namespace HR.Tests.PlayMode
                               + $"{_tunnel.ActiveRingCount} live");
                 }
 
-                // Let the frame breathe occasionally so the editor does not look hung.
                 if (steps - lastYield > 50000) { lastYield = steps; yield return null; }
             }
 
@@ -175,13 +154,6 @@ namespace HR.Tests.PlayMode
             long memoryAtEnd = GC.GetTotalMemory(true);
             int objectsAtEnd = SceneObjectCount();
 
-            // A pool settles at its high-water mark, and that mark is not necessarily reached in
-            // the first couple of hundred passes. Demanding no growth at all after an arbitrary
-            // warmup tests when the peak happened to occur, not whether anything leaks.
-            //
-            // What separates a leak from a pool is that a leak has no ceiling. So: the pool must
-            // stay within the live-ring budget, and every transform that appeared must be
-            // accounted for by those pooled rings and nothing else.
             double furthestBallRing = _settings.TargetRadius + 2.0 * _settings.Step;
             int inside = (int)Math.Floor((furthestBallRing - _settings.VanishRadius) / _settings.Step);
             int allowedLive = inside + 1 + _settings.RingsAhead + 1;
@@ -203,11 +175,6 @@ namespace HR.Tests.PlayMode
                       + $"{_pool.Created} rings ever created (budget {allowedLive + 2}), "
                       + $"peak {maxActiveRings} active, heap {growth / 1024:+0;-0;0} KB, "
                       + $"transforms {objectsAfterWarmup}->{objectsAtEnd}");
-
-            // No LogAssert.NoUnexpectedReceived here: it treats this test's own progress lines
-            // as unexpected output, and the progress lines are what stop the watchdog mistaking
-            // a long quiet run for a hang. Unity already fails a test on an unexpected error or
-            // exception, so the call added nothing that is not already covered.
         }
 
         [UnityTest]
@@ -218,18 +185,12 @@ namespace HR.Tests.PlayMode
             var bot = BotBrain.Strong(2);
             yield return null;
 
-            // Derived rather than guessed, and the derivation is the interesting part. The ball
-            // can clear a second ring before the retract has pulled the first one back in, so
-            // its own ring sits as much as two steps beyond equilibrium. Everything still inside
-            // that, down to the vanish radius and one step apart, is alive; so is the ball's own
-            // ring and the ones kept ahead; and one more exists for the step between a spawn and
-            // the cull that follows it.
             double furthestBallRing = _settings.TargetRadius + 2.0 * _settings.Step;
             int inside = (int)Math.Floor((furthestBallRing - _settings.VanishRadius) / _settings.Step);
             int allowed = inside + 1 + _settings.RingsAhead + 1;
 
             int peak = 0;
-            const int steps = 60000;   // ~11 minutes of play; enough to settle, short of NUnit's default timeout
+            const int steps = 60000;
             const int window = steps / 10;
 
             long earlySum = 0;
@@ -248,14 +209,6 @@ namespace HR.Tests.PlayMode
                 if (i % 40000 == 0) yield return null;
             }
 
-            // A ceiling alone would not catch a slow leak that stays under it, so the shape of
-            // the run is checked too — but by its average, not by its maximum.
-            //
-            // This compared peaks until it failed with "crept from a peak of 7 early to 8
-            // later". Nothing had crept: the live count simply oscillates between six and eight,
-            // and demanding that the highest of sixty thousand samples fall inside the first six
-            // thousand is a coin toss, not an invariant. The hard ceiling above never fired once.
-            // A leak moves the average; weather does not.
             double early = earlySum / (double)window;
             double late = lateSum / (double)window;
 
@@ -292,7 +245,6 @@ namespace HR.Tests.PlayMode
         [UnityTest]
         public IEnumerator A_fresh_run_replays_identically_from_the_same_seed()
         {
-            // Determinism is what makes a balance report and a bug report worth anything.
             Build(seed: 4242);
             var first = new double[12];
             int index = 0;
@@ -324,8 +276,6 @@ namespace HR.Tests.PlayMode
                 if (i % 20000 == 0) yield return null;
             }
 
-            // Available is a snapshot and can legitimately be zero at any instant. What proves
-            // reuse is that thirty-odd rings were spawned while only a handful ever existed.
             Assert.Greater(_tunnel.PassedCount, 5, "no rings were cycled");
             Assert.LessOrEqual(_pool.Created, _settings.RingsAhead + 5,
                 $"{_pool.Created} rings created for {_tunnel.PassedCount} passes — they are not being reused");

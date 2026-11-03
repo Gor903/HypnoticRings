@@ -12,6 +12,15 @@ all_sources=$(find "$PROJECT_ROOT/Assets" -name '*.cs' 2>/dev/null)
 # anything behind an editor-only #if before looking.
 runtime_sources=$(echo "$all_sources" | grep -v -e '/Editor/' -e '/Tests/' || true)
 
+echo "Comments"
+if python3 "$PROJECT_ROOT/tools/strip_comments.py" --check; then
+  :
+else
+  fail "comments in C# sources; the rule is that the code carries none"
+  problems=$((problems + 1))
+fi
+
+echo
 echo "Shipping code"
 if [ -z "$runtime_sources" ]; then
   ok "no shipping sources yet"
