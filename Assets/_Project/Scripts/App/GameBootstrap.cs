@@ -146,6 +146,13 @@ namespace HR.App
             _tunnel = tunnelGo.AddComponent<TunnelController>();
             var pool = new RingPool(config, tunnelGo.transform, material);
             _tunnel.Initialise(config, _ball, pool);
+
+            // The tunnel is driven by GameManager and by nothing else. Left to step itself it
+            // advanced TWICE per physics frame — once from its own FixedUpdate, once from the
+            // game loop — so compression and retraction ran at double the speed the difficulty
+            // curve asks for. And its own FixedUpdate knows nothing about pause, so the tunnel
+            // kept closing in behind the pause panel.
+            _tunnel.AutoStep = false;
             _tunnel.RegisterSpareBall(_spareBall);
             _tunnel.SetBeadMaterial(material);
             _ringPhysics = ringPhysics;
@@ -326,6 +333,12 @@ namespace HR.App
         /// </summary>
         void ShowWorld(GameState state)
         {
+            // Only a running game simulates. Pause and the game-over screen are pictures of a
+            // moment, and a ball that carries on flying through either is the clearest possible
+            // proof that the game never actually stopped.
+            if (_ball != null) _ball.SetFrozen(state != GameState.Playing);
+            if (_spareBall != null) _spareBall.SetFrozen(state != GameState.Playing);
+
             bool inPlay = state == GameState.Playing || state == GameState.Paused
                           || state == GameState.GameOver;
             if (_ball != null) _ball.gameObject.SetActive(inPlay);

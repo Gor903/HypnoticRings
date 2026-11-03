@@ -81,17 +81,57 @@ namespace HR.Gameplay
             _body.linearVelocity = Vector2.zero;
             _body.angularVelocity = 0f;
             transform.position = position;
+
+            // Also the velocity a thaw would restore. A run begins while the ball is still
+            // frozen — the launch happens inside StartRun, the state only turns to Playing
+            // afterwards — so a stored velocity left over from the last freeze would be handed
+            // back on the way out and quietly erase the throw.
+            _storedVelocity = Vector2.zero;
         }
 
         /// <summary>Throws the ball: a place and a heading, both decided by the run's seed.</summary>
         public void Launch(in LaunchPlan plan)
         {
             Place(new Vector2((float)plan.X, (float)plan.Y));
-            _body.linearVelocity = new Vector2((float)plan.VelocityX, (float)plan.VelocityY);
+
+            var velocity = new Vector2((float)plan.VelocityX, (float)plan.VelocityY);
+            _body.linearVelocity = velocity;
+            _storedVelocity = velocity;
+        }
+
+        /// <summary>
+        /// Whether the ball is out of the simulation entirely.
+        ///
+        /// Pause in this game is a state rather than a timescale, and a state the ball never
+        /// heard about: its body kept being simulated, the regulator kept holding its speed, and
+        /// it flew on behind the pause panel. Velocity is carried across by hand because a body
+        /// that has been switched off and on again is not required to remember it.
+        /// </summary>
+        public bool Frozen { get; private set; }
+
+        Vector2 _storedVelocity;
+
+        public void SetFrozen(bool frozen)
+        {
+            if (Frozen == frozen) return;
+            Frozen = frozen;
+
+            if (frozen)
+            {
+                _storedVelocity = _body.linearVelocity;
+                _body.linearVelocity = Vector2.zero;
+                _body.simulated = false;
+                return;
+            }
+
+            _body.simulated = true;
+            _body.linearVelocity = _storedVelocity;
         }
 
         void FixedUpdate()
         {
+            if (Frozen) return;
+
             HoldCruisingSpeed(Time.fixedDeltaTime);
             ClampSpeed();
         }
