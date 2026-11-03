@@ -23,7 +23,6 @@ namespace HR.Tests.PlayMode
         SimulationMode2D _simulationMode;
         GameObject _root;
         BallController _ball;
-        BallController _spare;
         TunnelController _tunnel;
         RingPool _pool;
         Material _material;
@@ -41,16 +40,11 @@ namespace HR.Tests.PlayMode
             var settings = _config.ToSettings();
 
             _ball = TunnelFactory.CreateBall(_config, _root.transform, physics, _material, settings);
-            _spare = TunnelFactory.CreateBall(_config, _root.transform, physics, _material, settings);
-            _spare.name = "SpareBall";
-
             var tunnelGo = new GameObject("Tunnel");
             tunnelGo.transform.SetParent(_root.transform, false);
             _tunnel = tunnelGo.AddComponent<TunnelController>();
             _pool = new RingPool(_config, tunnelGo.transform, _material);
             _tunnel.Initialise(_config, _ball, _pool);
-            _tunnel.RegisterSpareBall(_spare);
-            _tunnel.SetBeadMaterial(_material);
             _tunnel.AutoStep = false;
             _tunnel.BeginRun(seed: 7);
         }
@@ -113,31 +107,6 @@ namespace HR.Tests.PlayMode
 
             Assert.Greater(live, 0,
                 "the ring switched its colliders off while the ball was still inside it");
-        }
-
-        /// <summary>
-        /// Reported: "I reached the bead ring, lost without taking it, and the next game had
-        /// two balls".
-        ///
-        /// BeginRun reset the rings, the score, the latches and the wave — and never the ball
-        /// count. A run that ended with two balls handed both to the next one.
-        /// </summary>
-        [UnityTest]
-        public IEnumerator A_new_run_always_starts_with_exactly_one_ball()
-        {
-            var ring = _tunnel.ResolveBallRing();
-            ring.SetBead(0, _material, (float)(_config.ballRadius * 0.6));
-            _ball.Place(ring.BeadWorldPosition);
-            _tunnel.Step(Dt);
-            yield return null;
-
-            Assert.AreEqual(2, _tunnel.BallCount, "the bead did not produce a second ball");
-
-            _tunnel.BeginRun(seed: 8);
-
-            Assert.AreEqual(1, _tunnel.BallCount, "the second ball survived into the next run");
-            Assert.IsFalse(_tunnel.BallAt(1).gameObject.activeSelf,
-                "the spare is still on screen at the start of a run");
         }
 
         /// <summary>

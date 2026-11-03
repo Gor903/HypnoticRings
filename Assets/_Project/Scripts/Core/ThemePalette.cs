@@ -124,19 +124,6 @@ namespace HR.Core
         public const double LargeTextRequired = 3.0;
 
         /// <summary>
-        /// The super ring's own colour. A reward has to be recognisable before it is reached,
-        /// and the depth fade alone cannot say "this one is different" — it only says "this one
-        /// is near". Gold on dark themes, deep amber where gold would wash out.
-        /// </summary>
-        public readonly Rgb Super;
-
-        /// <summary>
-        /// The bead's colour. It has to read as a prize rather than as a stray ring fragment,
-        /// so it borrows the ball's ink: the thing it is about to become.
-        /// </summary>
-        public Rgb Bead => Ball;
-
-        /// <summary>
         /// How strongly rings behind the ball fade out, 0 to 1.
         ///
         /// Scales the depth cue rather than replacing it: a theme can say how much of the tunnel
@@ -152,10 +139,8 @@ namespace HR.Core
 
         public ThemePalette(Theme theme, string background, string[] ringColours, string ball,
                             string ballOutline, string ui, double depthFade, double glow,
-                            string super = "#E8A317", double shimmerSeconds = 0.0,
-                            double shimmerDepth = 0.0)
+                            double shimmerSeconds = 0.0, double shimmerDepth = 0.0)
         {
-            Super = Rgb.Parse(super);
             ShimmerSeconds = shimmerSeconds;
             ShimmerDepth = shimmerDepth;
             if (ringColours == null || ringColours.Length == 0)
@@ -217,10 +202,8 @@ namespace HR.Core
                 case Theme.Monochrome:
                     // Ball and rings are the same ink on purpose — the reference image is black
                     // rings on white. The background-coloured outline is what keeps them apart.
-                    // Gold on near-white is invisible; the reward ring reads as the only warm
-                    // ink in a monochrome tunnel instead.
                     return new ThemePalette(theme, "#FAFAFA", new[] { "#111111" }, "#111111",
-                        "#FAFAFA", "#111111", 0.55, 0.0, "#9A6B00");
+                        "#FAFAFA", "#111111", 0.55, 0.0);
 
                 case Theme.Midnight:
                     return new ThemePalette(theme, "#0B1020", new[] { "#E8ECF4" }, "#FFB703",
@@ -229,7 +212,7 @@ namespace HR.Core
                 case Theme.Neon:
                     return new ThemePalette(theme, "#121A33",
                         new[] { "#2D7FF0", "#FFEC6B", "#2D7FF0", "#8B3FF0" }, "#C77DF2",
-                        "#121A33", "#FFFFFF", 0.5, 0.6, "#E8A317",
+                        "#121A33", "#FFFFFF", 0.5, 0.6,
                         shimmerSeconds: 2.4, shimmerDepth: 0.10);
 
                 case Theme.Pastel:
@@ -238,12 +221,12 @@ namespace HR.Core
                     // Hue and saturation are kept; only value moved. DECISIONS D-026.
                     return new ThemePalette(theme, "#FDF6F0",
                         new[] { "#B97E7E", "#6F91A3", "#76937C", "#9E8B65" }, "#5C5470",
-                        "#FDF6F0", "#5C5470", 0.5, 0.0, "#A07400");
+                        "#FDF6F0", "#5C5470", 0.5, 0.0);
 
                 case Theme.Earth:
                     return new ThemePalette(theme, "#EADDC8",
                         new[] { "#3F5E3A", "#6B4F3A", "#8A7A52" }, "#C2562B",
-                        "#EADDC8", "#3B2F26", 0.5, 0.0, "#8A5A00");
+                        "#EADDC8", "#3B2F26", 0.5, 0.0);
 
                 case Theme.Aurora:
                     // Cold greens and violets on near-black, the way the thing it is named after
@@ -251,7 +234,7 @@ namespace HR.Core
                     // point is a tunnel that breathes, not one that flickers.
                     return new ThemePalette(theme, "#06121A",
                         new[] { "#3FE0A8", "#5BC8F5", "#9B6BF0" }, "#F2F7FF",
-                        "#06121A", "#DFF5EC", 0.55, 0.45, "#F0B429",
+                        "#06121A", "#DFF5EC", 0.55, 0.45,
                         shimmerSeconds: 3.6, shimmerDepth: 0.14);
 
                 default:

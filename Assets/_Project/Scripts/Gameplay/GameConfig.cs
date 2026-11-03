@@ -82,18 +82,6 @@ namespace HR.Gameplay
         [Tooltip("Highest retraction any table row may ask for. The row itself sets the live ceiling.")]
         public float maxCompressionSpeed = 5.0f;
 
-        [Header("Super ring — plan [G-32]: a rest every twelfth ring")]
-        [Tooltip("Free rings that dissolve in a wave when a super ring is cleared.")]
-        [Range(0, 5)] public int superDissolveCount = 3;
-        [Tooltip("Seconds between rings in that wave. Zero makes them vanish as one blink.")]
-        public float superWaveStagger = 0.1f;
-        [Tooltip("Compression multiplier right after a super ring. The rest itself.")]
-        [Range(0.1f, 1f)] public float superSlowFactor = 0.4f;
-        [Tooltip("Seconds the rest lasts before it starts fading out.")]
-        public float superSlowSeconds = 3.5f;
-        [Tooltip("Seconds the rest takes to fade back to full speed.")]
-        public float superSlowReturnSeconds = 1.0f;
-
         [Header("Gaps")]
         [Tooltip("Narrowest clear opening that still admits the ball. A shrinking ring never cuts less.")]
         public float minGapWidth = 0.80f;

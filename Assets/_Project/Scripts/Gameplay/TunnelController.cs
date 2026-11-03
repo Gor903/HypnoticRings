@@ -21,9 +21,10 @@ namespace HR.Gameplay
         GameConfig _config;
         TunnelSettings _settings;
 
-        // Up to two balls, in fixed slots. The second one is the bead's reward and it arrives
-        // mid-run, so the array exists from the start and the count says how much of it is real.
-        const int MaxBalls = 2;
+        // One ball, in a fixed slot. The array and the count are what is left of the second
+        // ball a bead used to wake; the shape costs nothing and keeps the crush rule, which
+        // still asks how many balls a closing ring has inside it.
+        const int MaxBalls = 1;
         readonly BallController[] _balls = new BallController[MaxBalls];
         int _ballCount;
 
@@ -39,7 +40,6 @@ namespace HR.Gameplay
         readonly int[] _pendingIndex = { -1, -1 };
         readonly double[] _pendingRadius = new double[MaxBalls];
         readonly RingController[] _ballRings = new RingController[MaxBalls];
-        readonly bool[] _pendingWasSuper = new bool[MaxBalls];
 
         // Scoring is shared: a ring is worth a point once, whichever ball cleared it.
         int _lastPassedIndex = -1;
@@ -54,30 +54,11 @@ namespace HR.Gameplay
         public event Action<int> RingPassed;
 
         /// <summary>
-        /// Fires when a bead has been picked up and the spare ball is in play. The sound and
-        /// the buzz hang off this rather than off the tunnel, which does not own either.
-        /// </summary>
-        public event Action BeadTaken;
-
-        /// <summary>
-        /// Fires when a ring burst and took a ball with it while the run carried on. Distinct
-        /// from the run ending: the player has to be told they lost something, not everything.
-        /// </summary>
-        public event Action BallLost;
-
-        /// <summary>
         /// Fires when a ball is turned back by its ring, with how many times that ring has
         /// turned it now. Hardcore ends a run on the second one; the ordinary game only listens
         /// so it can make a noise.
         /// </summary>
         public event Action<int> BallTouchedRing;
-
-        /// <summary>
-        /// Fires when a super ring's wave has taken rings the player will now never meet, with
-        /// how many. They are worth a point each: the score stays equal to the number of the
-        /// ring the ball is in, so difficulty and unlock thresholds keep meaning what they say.
-        /// </summary>
-        public event Action<int> RingsDissolved;
 
         public int PassedCount { get; private set; }
         public double BaseCompressionSpeed { get; set; }
@@ -125,14 +106,6 @@ namespace HR.Gameplay
             ForceReshade();
         }
 
-        /// <summary>The reward ring's ink, which the theme owns like every other colour.</summary>
-        public void SetSuperColour(Color colour)
-        {
-            _superColour = colour;
-            ForceReshade();
-        }
-
-        Color _superColour = new Color(0.91f, 0.64f, 0.09f);
         Color _hotColour = new Color(1f, 0.231f, 0.188f);
 
         /// <summary>How much of the danger colour a spent ring takes. Plan [HV-01].</summary>
@@ -217,18 +190,8 @@ namespace HR.Gameplay
             {
                 _ballRings[i] = null;
                 _pendingIndex[i] = -1;
-                _pendingWasSuper[i] = false;
             }
             _lastPassedIndex = -1;
-            _restLeft = 0.0;
-            for (int i = 0; i < _waveCount; i++) _wave[i] = null;
-            _waveCount = 0;
-
-            // A run starts with one ball, whatever the last one ended with. Without this the
-            // spare survives into the next run: the bead's ball is still awake, the count is
-            // still two, and the player is handed a second chance they did not earn and a
-            // second ball they did not ask for.
-            if (_balls[1] != null) _balls[1].gameObject.SetActive(false);
             _ballCount = _balls[0] != null ? 1 : 0;
 
             // Touch tallies are per ring, and ring numbers start over with the run. Left alone,
@@ -293,9 +256,6 @@ namespace HR.Gameplay
             // is five scans of the ring list per step for an answer that cannot change mid-step.
             var ballRing = ResolveBallRing();
 
-            StepRest(dt);
-            StepWave(dt);
-            StepBeads();
             StepLedgers(dt);
             if (CompressionEnabled) Compress(dt, ballRing);
             if (RotationEnabled) Rotate(dt);
@@ -330,7 +290,6 @@ namespace HR.Gameplay
                 BaseCompressionSpeed, TunnelMath.PullFor(_settings.PullPerStep, StepNow), ceiling,
                 ballRingRadius, _settings.TargetRadius);
 
-            LastCompressionSpeed *= RestFactor;
             double delta = LastCompressionSpeed * dt;
             for (int i = 0; i < _rings.Count; i++)
             {
@@ -406,106 +365,10 @@ namespace HR.Gameplay
             return best;
         }
 
-        /// <summary>Balls in play right now: one, or two while a bead is being carried.</summary>
+        /// <summary>Balls in play right now. One, since the spare was taken out (D-088).</summary>
         public int BallCount => _ballCount;
 
         public BallController BallAt(int index) => _balls[index];
-
-        /// <summary>Seconds left of the rest a super ring bought, counting the fade back.</summary>
-        double _restLeft;
-
-        // The wave of dissolving rings, as a fixed queue. Sized once at the largest the config
-        // allows, because a list that grows is an allocation and this fires mid-run.
-        const int MaxWave = 5;
-        readonly RingController[] _wave = new RingController[MaxWave];
-        readonly double[] _waveDelay = new double[MaxWave];
-        int _waveCount;
-
-        /// <summary>
-        /// Starts the reward for clearing a super ring: the next few rings let the ball through
-        /// without being cleared, one after another rather than all at once.
-        ///
-        /// Staggered because three rings vanishing on the same frame reads as a glitch, and
-        /// because the wave travelling outwards is the thing that says what just happened.
-        /// </summary>
-        void BeginWave(RingController ballRing)
-        {
-            if (_config == null) return;
-
-            int wanted = Mathf.Clamp(_config.superDissolveCount, 0, MaxWave);
-            if (wanted == 0) return;
-
-            _waveCount = 0;
-            double reference = ballRing != null ? ballRing.Radius : OutermostRadius();
-
-            // Outwards from the ball, nearest first: these are the rings it would have met next.
-            for (int picked = 0; picked < wanted; picked++)
-            {
-                RingController best = null;
-                for (int i = 0; i < _rings.Count; i++)
-                {
-                    var ring = _rings[i];
-                    if (ring == ballRing || ring.IsDissolving) continue;
-                    if (ring.Radius <= reference + 1e-6) continue;
-                    if (AlreadyInWave(ring)) continue;
-                    if (best == null || ring.Radius < best.Radius) best = ring;
-                }
-
-                if (best == null) break;
-                _wave[_waveCount] = best;
-                _waveDelay[_waveCount] = _config.superWaveStagger * _waveCount;
-                _waveCount++;
-            }
-
-            _restLeft = _config.superSlowSeconds + _config.superSlowReturnSeconds;
-            if (_waveCount > 0) RingsDissolved?.Invoke(_waveCount);
-        }
-
-        bool AlreadyInWave(RingController ring)
-        {
-            for (int i = 0; i < _waveCount; i++)
-                if (ReferenceEquals(_wave[i], ring)) return true;
-            return false;
-        }
-
-        void StepWave(double dt)
-        {
-            for (int i = 0; i < _waveCount; i++)
-            {
-                if (_wave[i] == null) continue;
-
-                _waveDelay[i] -= dt;
-                if (_waveDelay[i] > 0.0) continue;
-
-                _wave[i].BeginDissolve(_config.dissolveSeconds);
-                _wave[i] = null;
-            }
-        }
-
-        /// <summary>
-        /// How much of normal compression is running right now.
-        ///
-        /// A flat multiplier that snapped back to one would read as the tunnel being shoved; the
-        /// last second eases it back instead, so the rest ends rather than stops.
-        /// </summary>
-        double RestFactor
-        {
-            get
-            {
-                if (_restLeft <= 0.0 || _config == null) return 1.0;
-
-                double fade = _config.superSlowReturnSeconds;
-                if (fade <= 0.0 || _restLeft > fade) return _config.superSlowFactor;
-
-                double t = _restLeft / fade;
-                return _config.superSlowFactor + (1.0 - _config.superSlowFactor) * (1.0 - t);
-            }
-        }
-
-        void StepRest(double dt)
-        {
-            if (_restLeft > 0.0) _restLeft -= dt;
-        }
 
         void Rotate(double dt)
         {
@@ -611,135 +474,7 @@ namespace HR.Gameplay
             return ahead > 0 ? ahead : 1;
         }
 
-        Material _beadMaterial;
-
-        /// <summary>The bead's own material, so the theme can colour it apart from the rings.</summary>
-        public void SetBeadMaterial(Material material) => _beadMaterial = material;
-
-        /// <summary>
-        /// Whether a bead may exist right now.
-        ///
-        /// Two conditions, both about not wasting one: there is no room for a third ball, and a
-        /// bead already in the tunnel has not been collected. A second bead on screen would
-        /// promise something the game cannot give.
-        /// </summary>
-        bool MayCarryBead()
-        {
-            if (_ballCount >= MaxBalls) return false;
-            for (int i = 0; i < _rings.Count; i++)
-                if (_rings[i].HasBead) return false;
-            return true;
-        }
-
-        /// <summary>
-        /// Picks up a bead the moment a ball is close enough, and puts the second ball into the
-        /// corridor the first one is in.
-        ///
-        /// Checked by distance rather than by a trigger collider: a trigger is another body for
-        /// Box2D to track every step for an event that happens a handful of times a run, and a
-        /// distance test is deterministic in a way trigger ordering is not.
-        /// </summary>
-        void StepBeads()
-        {
-            if (_ballCount == 0 || _ballCount >= MaxBalls) return;
-
-            double reach = _settings.BallRadius + _settings.BallRadius * 0.6;
-            double reachSqr = reach * reach;
-
-            for (int i = 0; i < _rings.Count; i++)
-            {
-                var ring = _rings[i];
-                if (!ring.HasBead) continue;
-
-                for (int b = 0; b < _ballCount; b++)
-                {
-                    var ball = _balls[b];
-                    if (ball == null) continue;
-
-                    Vector3 delta = ring.BeadWorldPosition - ball.transform.position;
-                    if (delta.sqrMagnitude > reachSqr) continue;
-
-                    ring.TakeBead();
-                    SpawnSecondBall(ball);
-                    return;
-                }
-            }
-        }
-
-        /// <summary>
-        /// Wakes the spare ball where the first one is, heading somewhere else.
-        ///
-        /// Somewhere else matters: born on the same heading it would shadow the first ball for
-        /// the rest of the run and be worth nothing. The offset is fixed rather than random so a
-        /// seed still replays.
-        /// </summary>
-        void SpawnSecondBall(BallController from)
-        {
-            if (_balls[1] == null || _ballCount >= MaxBalls) return;
-
-            var spare = _balls[1];
-            spare.gameObject.SetActive(true);
-            spare.Place(from.transform.position);
-
-            Vector2 heading = from.Body.linearVelocity;
-            if (heading.sqrMagnitude < 1e-6) heading = Vector2.right;
-            heading = Quaternion.Euler(0f, 0f, 90f) * heading.normalized;
-            spare.Body.linearVelocity = heading * (float)_config.cruiseSpeed;
-
-            _ballCount = 2;
-            _ballRings[1] = ResolveRingFor(spare);
-            _pendingIndex[1] = -1;
-            BeadTaken?.Invoke();
-        }
-
-        /// <summary>
-        /// Registers the spare ball the bead will wake. Built with the scene and left asleep:
-        /// a run must not create one, and a run that never finds a bead must not pay for it.
-        /// </summary>
-        public void RegisterSpareBall(BallController spare)
-        {
-            _balls[1] = spare;
-            if (spare != null) spare.gameObject.SetActive(false);
-        }
-
-        /// <summary>
-        /// Takes a ball out of play — the ring it was in has closed on the centre and burst.
-        /// </summary>
-        public void SacrificeBallIn(RingController ring)
-        {
-            for (int b = _ballCount - 1; b >= 0; b--)
-            {
-                var ball = _balls[b];
-                if (ball == null) continue;
-                if (!ReferenceEquals(ResolveRingFor(ball), ring)) continue;
-
-                ball.gameObject.SetActive(false);
-
-                // Slot 0 is the one the bot and the camera follow, so the survivor moves into it
-                // rather than the game having to remember which slot is alive.
-                if (b == 0 && _ballCount > 1)
-                {
-                    _balls[0] = _balls[1];
-                    _balls[1] = ball;
-                    _ballRings[0] = _ballRings[1];
-                    _pendingIndex[0] = _pendingIndex[1];
-                    _pendingRadius[0] = _pendingRadius[1];
-                    _pendingWasSuper[0] = _pendingWasSuper[1];
-                }
-
-                _ballCount--;
-                _pendingIndex[_ballCount] = -1;
-                _ballRings[_ballCount] = null;
-
-                _rings.Remove(ring);
-                if (_pool != null) _pool.Return(ring);
-
-                BallLost?.Invoke();
-                return;
-            }
-        }
-
-        readonly TouchLedger[] _ledgers = { new TouchLedger(), new TouchLedger() };
+        readonly TouchLedger[] _ledgers = { new TouchLedger() };
         double _ledgerClock;
 
         /// <summary>How many times the ring a ball is in has turned it back.</summary>
@@ -798,12 +533,7 @@ namespace HR.Gameplay
             ring.SpawnIndex = _nextSpawnIndex++;
             ring.Configure(radius, spec.Gaps, spec.AutoSpinDeg, spec.Kind);
 
-            // The generator marks where a bead COULD go; whether one is actually there depends
-            // on live state it must not see, or it would stop being a function of its seed.
             ApplyHaloTo(ring);
-
-            if (spec.BeadGap >= 0 && MayCarryBead())
-                ring.SetBead(spec.BeadGap, _beadMaterial, (float)(_settings.BallRadius * 0.6));
 
             _rings.Add(ring);
         }
@@ -869,7 +599,6 @@ namespace HR.Gameplay
                     // number and an index, never the object.
                     _pendingIndex[slot] = left.SpawnIndex;
                     _pendingRadius[slot] = left.Radius;
-                    _pendingWasSuper[slot] = left.Kind == RingKind.Super;
                 }
                 _ballRings[slot] = current;
             }
@@ -900,8 +629,6 @@ namespace HR.Gameplay
                 DissolvePassed(_pendingIndex[slot], slot);
 
                 RingPassed?.Invoke(_pendingIndex[slot]);
-                if (_pendingWasSuper[slot]) BeginWave(current);
-                _pendingWasSuper[slot] = false;
                 _pendingIndex[slot] = -1;
             }
         }
@@ -962,7 +689,7 @@ namespace HR.Gameplay
 
                 // A super ring keeps its own colour but not its own depth: it has to be
                 // recognisable from far out, and it still has to sit in the tunnel.
-                var ink = ring.Kind == RingKind.Super ? _superColour : _ringColours[slot];
+                var ink = _ringColours[slot];
 
                 // A ring that has used up its allowance burns. Mixed over its own ink rather
                 // than replacing it, so the ring stays recognisable as the one it was — the
@@ -1031,9 +758,10 @@ namespace HR.Gameplay
         }
 
         /// <summary>
-        /// The ring that has closed onto the red circle, or null. Returns WHICH ring rather than
-        /// a yes-or-no, because with a spare ball in play what happens next depends on who is
-        /// inside it — see <see cref="SpareLife"/> and plan [G-29].
+        /// The ring that has closed onto the red circle, or null.
+        ///
+        /// Returns WHICH ring rather than a yes-or-no because the crush rule asks how many
+        /// balls it has inside it.
         /// </summary>
         public RingController RingClosedOnCentre()
         {
@@ -1050,7 +778,7 @@ namespace HR.Gameplay
                 ? innermost : null;
         }
 
-        /// <summary>How many balls are inside a given ring — what the spare-life rule asks for.</summary>
+        /// <summary>How many balls are inside a given ring — what the crush rule asks for.</summary>
         public int BallsInside(RingController ring)
         {
             int n = 0;

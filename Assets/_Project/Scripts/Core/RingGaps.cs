@@ -99,13 +99,23 @@ namespace HR.Core
     public static class GapSplit
     {
         /// <summary>
-        /// Narrowest opening worth cutting, in degrees at the reference radius.
+        /// Narrowest opening worth cutting, in ball diameters.
         ///
-        /// Below this an opening is a slot the ball can only pass dead-on, which reads as bad
-        /// luck rather than as a miss. It is the one rule allowed to push the total back above a
-        /// single gap's angle — see plan [G-34] item 4.
+        /// Stated in balls rather than in degrees, which is the whole of the fix. Twenty degrees
+        /// at the reference radius sounds like a floor and is not one: it came out at 1.61 ball
+        /// diameters against a single gap's 5.2 to 8.0, so every ring with more than one way out
+        /// opened about a third as wide as the rings the player had spent the run learning. From
+        /// the phone that reads as "almost impossible to get out of", and it was measured in a
+        /// unit that could never have said so.
+        ///
+        /// It is the one rule allowed to push the total back above a single gap's angle — see
+        /// plan [G-34] item 4.
         /// </summary>
-        public const double MinGapDeg = 20.0;
+        public const double MinClearBalls = 2.0;
+
+        /// <summary>That floor in degrees, for a ring of this thickness at this radius.</summary>
+        public static double MinGapDegFor(double ballRadius, double thickness, double radius) =>
+            AngleFor(ballRadius * 2.0 * MinClearBalls, thickness, radius);
 
         /// <summary>Share of a single gap's angle that two openings get between them.</summary>
         public const double TwoGapShare = 0.85;
@@ -126,13 +136,13 @@ namespace HR.Core
         /// most generous. Asking for fewer openings instead keeps the rule intact: a ring gets
         /// three ways out only while three still cost something.
         /// </summary>
-        public static int LargestAffordableCount(double singleGapDeg, int wanted)
+        public static int LargestAffordableCount(double singleGapDeg, int wanted, double minGapDeg)
         {
             for (int count = wanted; count > 1; count--)
             {
                 var shares = count == 2 ? TwoWay : ThreeWay;
                 double narrowest = TotalFor(singleGapDeg, count) * shares[count - 1];
-                if (narrowest >= MinGapDeg) return count;
+                if (narrowest >= minGapDeg) return count;
             }
 
             return 1;
@@ -151,7 +161,7 @@ namespace HR.Core
         /// Deliberately uneven: equal openings put the ways out at tidy intervals, and a tunnel
         /// of evenly divided rings reads as a machine rather than as a place.
         /// </summary>
-        public static int Split(double singleGapDeg, int count, double[] into)
+        public static int Split(double singleGapDeg, int count, double[] into, double minGapDeg)
         {
             if (into == null) throw new ArgumentNullException(nameof(into));
             if (count < 1 || count > RingGaps.MaxGaps) throw new ArgumentOutOfRangeException(nameof(count));
@@ -167,7 +177,7 @@ namespace HR.Core
             var shares = count == 2 ? TwoWay : ThreeWay;
             for (int i = 0; i < count; i++) into[i] = total * shares[i];
 
-            ApplyFloor(into, count);
+            ApplyFloor(into, count, minGapDeg);
             return count;
         }
 
@@ -177,14 +187,14 @@ namespace HR.Core
         /// Off the widest rather than spread evenly, because the widest is the one that can
         /// afford it: shaving every opening equally is how all three end up at the floor.
         /// </summary>
-        static void ApplyFloor(double[] angles, int count)
+        static void ApplyFloor(double[] angles, int count, double minGapDeg)
         {
             for (int i = 0; i < count; i++)
             {
-                if (angles[i] >= MinGapDeg) continue;
+                if (angles[i] >= minGapDeg) continue;
 
-                double deficit = MinGapDeg - angles[i];
-                angles[i] = MinGapDeg;
+                double deficit = minGapDeg - angles[i];
+                angles[i] = minGapDeg;
 
                 int widest = -1;
                 for (int j = 0; j < count; j++)
@@ -196,7 +206,7 @@ namespace HR.Core
                 // Everyone is already at the floor: the total grows past a single gap's angle,
                 // which is the documented exception rather than a bug to paper over.
                 if (widest < 0) continue;
-                angles[widest] = Math.Max(MinGapDeg, angles[widest] - deficit);
+                angles[widest] = Math.Max(minGapDeg, angles[widest] - deficit);
             }
         }
 

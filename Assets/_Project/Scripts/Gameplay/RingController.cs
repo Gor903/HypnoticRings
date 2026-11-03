@@ -65,73 +65,8 @@ namespace HR.Gameplay
         /// <summary>How many ways out this ring has.</summary>
         public int GapCount => _gapCount;
 
-        /// <summary>What the generator made this ring for. Colour and the wave both read it.</summary>
+        /// <summary>What the generator made this ring for.</summary>
         public RingKind Kind { get; private set; }
-
-        /// <summary>Which opening carries the bead, or -1. Set by the tunnel, not the generator.</summary>
-        public int BeadGap { get; private set; } = -1;
-
-        /// <summary>True while a bead is sitting in this ring waiting to be taken.</summary>
-        public bool HasBead => BeadGap >= 0 && _bead != null && _bead.activeSelf;
-
-        GameObject _bead;
-        Transform _beadTransform;
-
-        /// <summary>
-        /// Puts a bead in one of this ring's openings, or takes it away.
-        ///
-        /// The object is built once with the ring and then only shown and hidden: a bead is
-        /// created every few rings for a whole run, and creating one each time is the kind of
-        /// per-ring allocation an endless game turns into a leak.
-        /// </summary>
-        public void SetBead(int gapIndex, Material material, float radius)
-        {
-            BeadGap = gapIndex;
-
-            if (gapIndex < 0)
-            {
-                if (_bead != null) _bead.SetActive(false);
-                return;
-            }
-
-            if (_bead == null)
-            {
-                _bead = new GameObject("Bead", typeof(MeshFilter), typeof(MeshRenderer));
-                _bead.transform.SetParent(transform, false);
-                _bead.GetComponent<MeshFilter>().sharedMesh = TunnelFactory.BuildDiscMesh(radius, 12);
-                _bead.GetComponent<MeshRenderer>().sharedMaterial = material;
-                _beadTransform = _bead.transform;
-            }
-
-            _bead.SetActive(true);
-            PlaceBead();
-        }
-
-        /// <summary>Taken. The ring keeps the slot so nothing tries to hand out a second one.</summary>
-        public void TakeBead()
-        {
-            if (_bead != null) _bead.SetActive(false);
-            BeadGap = -1;
-        }
-
-        /// <summary>
-        /// Keeps the bead in its opening as the ring shrinks.
-        ///
-        /// A child of the ring, so rotation is free — the bead turns with the finger like the
-        /// opening it sits in. Only the radius has to be followed.
-        /// </summary>
-        void PlaceBead()
-        {
-            if (_beadTransform == null || BeadGap < 0 || BeadGap >= _gapCount) return;
-
-            double rad = _openings[BeadGap].CentreDeg / TunnelMath.DegPerRad;
-            _beadTransform.localPosition = new Vector3(
-                (float)(System.Math.Cos(rad) * _radius), (float)(System.Math.Sin(rad) * _radius), 0f);
-        }
-
-        /// <summary>Where the bead is in the world, for the pick-up test.</summary>
-        public Vector3 BeadWorldPosition =>
-            _beadTransform != null ? _beadTransform.position : transform.position;
 
         /// <summary>World-space angle of the first gap's centre, which is what the ball cares about.</summary>
         public double GapCentreWorldDeg => TunnelMath.NormalizeDeg(GapCentreLocalDeg + TotalRotationDeg);
@@ -317,8 +252,6 @@ namespace HR.Gameplay
         {
             _openings = gaps;
             IsHot = false;
-            if (_bead != null) _bead.SetActive(false);
-            BeadGap = -1;
             GapCentreLocalDeg = gaps.Count > 0 ? gaps.A.CentreDeg : 0.0;
             GapArcWidth = gaps.Count > 0 ? gaps.A.Opening : 0.0;
             _autoSpinDeg = autoSpinDeg;
@@ -363,10 +296,6 @@ namespace HR.Gameplay
                         RebuildGeometry(radius);
                     break;
             }
-
-            // Every step, not only on a rebuild: the bead has to stay in its opening while the
-            // ring closes in, and the rebuild threshold is coarse enough to be visible.
-            if (BeadGap >= 0) PlaceBead();
         }
 
         /// <summary>Advances autonomous spin and applies the shared user angle.</summary>
