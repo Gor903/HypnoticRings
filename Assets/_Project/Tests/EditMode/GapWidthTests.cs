@@ -15,6 +15,33 @@ namespace HR.Tests.EditMode
             GapSplit.MinGapDegFor(difficulty.BallRadius, difficulty.Thickness,
                                   difficulty.ReferenceRadius);
 
+        [Test]
+        public void Three_openings_are_asked_for_and_never_granted()
+        {
+            var config = Config();
+            try
+            {
+                int threes = 0, twos = 0;
+                for (int score = 0; score <= 200; score += 10)
+                {
+                    var difficulty = new DifficultyCurve(config.ToSettings()).SnapshotAt(score);
+                    var generator = new RingGenerator(seed: 4096 + score);
+
+                    for (int i = 0; i < 400; i++)
+                    {
+                        int count = generator.Next(difficulty, 0.0).Gaps.Count;
+                        if (count == 3) threes++;
+                        if (count == 2) twos++;
+                    }
+                }
+
+                Assert.Greater(twos, 0, "two openings never came out either — the sweep is broken");
+                Assert.AreEqual(0, threes,
+                    $"{threes} three-gap rings came out; the floor used to refuse all of them");
+            }
+            finally { Object.DestroyImmediate(config); }
+        }
+
         static double[] ClearancesAt(GameConfig config, int score, int gapCount)
         {
             var difficulty = new DifficultyCurve(config.ToSettings()).SnapshotAt(score);
