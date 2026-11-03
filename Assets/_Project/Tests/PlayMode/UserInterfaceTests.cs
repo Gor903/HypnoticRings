@@ -298,10 +298,14 @@ namespace HR.Tests.PlayMode
             // gesture, so every player had the config's feel whatever the setting said.
             var settings = _boot.Ui.ScreenFor(GameState.Settings);
 
-            Slider sensitivity = null;
-            foreach (var slider in settings.GetComponentsInChildren<Slider>(includeInactive: true))
-                if (slider.name == "Sensitivity") sensitivity = slider;
-            Assert.IsNotNull(sensitivity, "no sensitivity slider on the settings screen");
+            // Found through its row rather than by its own name: a settings row is named for the
+            // setting and holds a label and one control, which is what makes every row the same
+            // shape.
+            var row = FindByName(settings, "set.sensitivity");
+            Assert.IsNotNull(row, "no sensitivity row on the settings screen");
+
+            var sensitivity = row.GetComponentInChildren<Slider>(includeInactive: true);
+            Assert.IsNotNull(sensitivity, "the sensitivity row has no slider in it");
 
             double atDefault = QuarterTurnOfAFinger();
             Assert.AreEqual(90.0 * _config.sensitivity, atDefault, 1e-3,
@@ -315,34 +319,33 @@ namespace HR.Tests.PlayMode
         }
 
         [UnityTest]
-        public IEnumerator Sound_and_music_are_switched_and_levelled_independently_and_persist()
+        public IEnumerator Sound_and_music_are_switched_independently_and_persist()
         {
-            // Phase 7's gate, taken literally: independent, and still independent after a reload.
+            // Phase 7's gate, taken literally: independent, and still independent after a
+            // reload. The levels it also checked are gone — two sliders bought a finer answer
+            // to a question almost nobody asks, at the cost of the rows that made the settings
+            // screen fit a phone (D-077). What a player wants from a bus is off, not quieter.
             var settings = _boot.Ui.ScreenFor(GameState.Settings);
 
-            Toggle sound = null;
+            Toggle sound = null, music = null;
             foreach (var toggle in settings.GetComponentsInChildren<Toggle>(includeInactive: true))
+            {
                 if (toggle.name == "set.sound") sound = toggle;
-            Assert.IsNotNull(sound, "no sound switch on the settings screen");
+                if (toggle.name == "set.music") music = toggle;
+            }
 
-            Slider musicLevel = null;
-            foreach (var slider in settings.GetComponentsInChildren<Slider>(includeInactive: true))
-                if (slider.name == "set.music.level") musicLevel = slider;
-            Assert.IsNotNull(musicLevel, "no music level on the settings screen");
+            Assert.IsNotNull(sound, "no sound switch on the settings screen");
+            Assert.IsNotNull(music, "no music switch on the settings screen");
 
             sound.isOn = false;
-            musicLevel.value = 0.25f;
             yield return null;
 
             Assert.IsFalse(_boot.Settings.soundEnabled);
             Assert.IsTrue(_boot.Settings.musicEnabled, "turning sound off also turned music off");
-            Assert.AreEqual(0.25f, _boot.Settings.musicVolume, 0.001f);
 
             var reloaded = new SaveService(Path.Combine(_directory, SaveService.FileName)).Load();
             Assert.IsFalse(reloaded.soundEnabled, "the sound switch did not survive a reload");
             Assert.IsTrue(reloaded.musicEnabled);
-            Assert.AreEqual(0.25f, reloaded.musicVolume, 0.001f,
-                "the music level did not survive a reload");
         }
 
         static RectTransform FindByName(RectTransform parent, string name)

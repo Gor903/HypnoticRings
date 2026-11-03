@@ -27,6 +27,26 @@ namespace HR.UI
         public const int BodySize = 44;
         public const int ButtonSize = 52;
 
+        /// <summary>A switch is wider than it is tall, or it reads as a checkbox.</summary>
+        public const float TrackWidth = 132f;
+        public const float TrackHeight = 72f;
+
+        /// <summary>Breathing room between the knob and the track it rides in.</summary>
+        public const float KnobInset = 8f;
+
+        /// <summary>Margin at each end of a slider, so the bar does not run into the screen.</summary>
+        public const float SliderEndInset = 32f;
+
+        /// <summary>
+        /// A slider's bar, and the knob that rides it.
+        ///
+        /// Kept close together on purpose: a 72-unit knob on a 24-unit line read as a slab
+        /// dropped on a wire rather than as one control.
+        /// </summary>
+        public const float SliderTrackHeight = 36f;
+
+        public const float SliderKnobSize = 60f;
+
         static Font _font;
         static Sprite _disc;
 
@@ -72,6 +92,71 @@ namespace HR.UI
                 return _disc;
             }
         }
+
+        static Sprite _rounded;
+
+        /// <summary>
+        /// A capsule, drawn once and sliced nine ways.
+        ///
+        /// One sprite serves every corner radius in the game. The texture is fully rounded —
+        /// its corner is as large as a corner can be — and each control shrinks that corner
+        /// with the renderer's own border multiplier. Generating a texture per radius would
+        /// mean a texture per theme per control height, which is a lot of memory for an effect
+        /// the renderer can scale for free.
+        ///
+        /// Built at the canvas's own reference density, so the border reads directly in layout
+        /// units: sixty-four means a corner of sixty-four, divided by whatever multiplier a
+        /// control asks for.
+        /// </summary>
+        public static Sprite Rounded
+        {
+            get
+            {
+                if (_rounded != null) return _rounded;
+
+                const int size = 128;
+                const float radius = size * 0.5f;
+                var texture = new Texture2D(size, size, TextureFormat.RGBA32, false)
+                {
+                    name = "HR.Rounded",
+                    filterMode = FilterMode.Bilinear,
+                    wrapMode = TextureWrapMode.Clamp,
+                };
+
+                var pixels = new Color32[size * size];
+                for (int y = 0; y < size; y++)
+                for (int x = 0; x < size; x++)
+                {
+                    // A square whose corner radius is half its side is a circle, and sliced
+                    // down the middle it gives four corner quadrants and four straight edges —
+                    // which is exactly a rounded rectangle, at any size the border is stretched
+                    // to.
+                    float dx = x + 0.5f - radius;
+                    float dy = y + 0.5f - radius;
+                    float corner = radius - Mathf.Sqrt(dx * dx + dy * dy);
+                    byte alpha = (byte)(Mathf.Clamp01(corner) * 255f);
+                    pixels[y * size + x] = new Color32(255, 255, 255, alpha);
+                }
+
+                texture.SetPixels32(pixels);
+                texture.Apply();
+
+                // Built at the canvas reference density, not at one pixel per unit. A sprite
+                // declaring one pixel per unit against a canvas counting a hundred makes every
+                // sliced border a hundred times too large: the nine pieces cannot fit, the
+                // renderer shrinks the whole sprite to compensate, and a button meant to have a
+                // gentle corner comes out an ellipse. Tests cannot see that; a frame grab can.
+                _rounded = Sprite.Create(texture, new Rect(0, 0, size, size),
+                                         new Vector2(0.5f, 0.5f), pixelsPerUnit: 100f, extrude: 0,
+                                         meshType: SpriteMeshType.FullRect,
+                                         border: new Vector4(radius, radius, radius, radius));
+                _rounded.name = "HR.Rounded";
+                return _rounded;
+            }
+        }
+
+        /// <summary>Half the rounded sprite's size — the largest corner it can draw.</summary>
+        public const float RoundedBorder = 64f;
 
         /// <summary>
         /// The built-in runtime font. It is a dynamic font, so on a device it falls back to the
@@ -213,8 +298,10 @@ namespace HR.UI
             var rect = (RectTransform)go.transform;
             rect.sizeDelta = new Vector2(0f, Mathf.Max(height, TouchTarget));
 
+            // Opaque. The theme paints it with a surface or accent colour afterwards, and a
+            // fill that keeps an alpha of its own is a fill the palette cannot make visible.
             var image = go.GetComponent<Image>();
-            image.color = new Color(1f, 1f, 1f, 0.08f);
+            image.color = Color.white;
 
             var label = CreateLabel("Label", go.transform, text, ButtonSize);
             Stretch((RectTransform)label.transform);
@@ -236,8 +323,12 @@ namespace HR.UI
             var rect = (RectTransform)go.transform;
             rect.sizeDelta = new Vector2(0f, TouchTarget);
 
+            // Present for the finger, absent to the eye. At five per cent white it was invisible
+            // on the three light themes and a grubby grey band on the three dark ones — and the
+            // settings rows that are not switches have no backing at all, so half the screen had
+            // bands and half did not.
             var background = go.GetComponent<Image>();
-            background.color = new Color(1f, 1f, 1f, 0.05f);
+            background.color = new Color(1f, 1f, 1f, 0f);
 
             var label = CreateLabel("Label", go.transform, text, BodySize, TextAnchor.MiddleLeft);
             var labelRect = (RectTransform)label.transform;
@@ -245,20 +336,38 @@ namespace HR.UI
             labelRect.offsetMin = new Vector2(32f, 0f);
             labelRect.offsetMax = new Vector2(-180f, 0f);
 
-            var markGo = new GameObject("Mark", typeof(RectTransform), typeof(Image));
-            markGo.transform.SetParent(go.transform, false);
-            var markRect = (RectTransform)markGo.transform;
-            markRect.anchorMin = new Vector2(1f, 0.5f);
-            markRect.anchorMax = new Vector2(1f, 0.5f);
-            markRect.pivot = new Vector2(1f, 0.5f);
-            markRect.anchoredPosition = new Vector2(-32f, 0f);
-            markRect.sizeDelta = new Vector2(72f, 72f);
+            // A track that never disappears, with a knob that slides along it. uGUI's own
+            // answer is to hide the tick when off, which leaves a row of text with nothing
+            // beside it — a setting the player cannot tell is a setting.
+            var trackGo = new GameObject("Track", typeof(RectTransform), typeof(Image));
+            trackGo.transform.SetParent(go.transform, false);
+            var trackRect = (RectTransform)trackGo.transform;
+            trackRect.anchorMin = new Vector2(1f, 0.5f);
+            trackRect.anchorMax = new Vector2(1f, 0.5f);
+            trackRect.pivot = new Vector2(1f, 0.5f);
+            trackRect.anchoredPosition = new Vector2(-32f, 0f);
+            trackRect.sizeDelta = new Vector2(TrackWidth, TrackHeight);
+
+            var knobGo = new GameObject("Knob", typeof(RectTransform), typeof(Image));
+            knobGo.transform.SetParent(trackGo.transform, false);
+            var knobRect = (RectTransform)knobGo.transform;
+            knobRect.sizeDelta = new Vector2(TrackHeight - KnobInset * 2f,
+                                             TrackHeight - KnobInset * 2f);
+
+            var visual = go.AddComponent<ToggleVisual>();
+            visual.Track = trackGo.GetComponent<Image>();
+            visual.Knob = knobGo.GetComponent<Image>();
 
             var toggle = go.GetComponent<Toggle>();
             toggle.targetGraphic = background;
-            toggle.graphic = markGo.GetComponent<Image>();
+
+            // Deliberately not uGUI's graphic slot: that slot exists to be hidden, and hiding
+            // is the behaviour being replaced.
+            toggle.graphic = null;
             toggle.isOn = value;
+            toggle.onValueChanged.AddListener(visual.Apply);
             if (onChanged != null) toggle.onValueChanged.AddListener(v => onChanged(v));
+            visual.Apply(value);
 
             return toggle;
         }
@@ -276,25 +385,43 @@ namespace HR.UI
             trackGo.transform.SetParent(go.transform, false);
             var track = (RectTransform)trackGo.transform;
             Stretch(track);
-            track.offsetMin = new Vector2(32f, TouchTarget * 0.42f);
-            track.offsetMax = new Vector2(-32f, -TouchTarget * 0.42f);
+            track.offsetMin = new Vector2(SliderEndInset, (TouchTarget - SliderTrackHeight) * 0.5f);
+            track.offsetMax = new Vector2(-SliderEndInset, -(TouchTarget - SliderTrackHeight) * 0.5f);
             trackGo.GetComponent<Image>().color = new Color(1f, 1f, 1f, 0.2f);
+            trackGo.name = "Track";
 
+            // The part behind the handle, so the slider says how far along it is without the
+            // player having to judge a handle's position against a bare line.
+            var fillArea = new GameObject("FillArea", typeof(RectTransform));
+            fillArea.transform.SetParent(go.transform, false);
+            var fillAreaRect = (RectTransform)fillArea.transform;
+            Stretch(fillAreaRect);
+            fillAreaRect.offsetMin = new Vector2(SliderEndInset, (TouchTarget - SliderTrackHeight) * 0.5f);
+            fillAreaRect.offsetMax = new Vector2(-SliderEndInset, -(TouchTarget - SliderTrackHeight) * 0.5f);
+
+            var fillGo = new GameObject("Fill", typeof(RectTransform), typeof(Image));
+            fillGo.transform.SetParent(fillArea.transform, false);
+            var fillRect = (RectTransform)fillGo.transform;
+            Stretch(fillRect);
+
+            // Pulled in by half a knob at each end. uGUI centres the knob on the value, so an
+            // area that reached the track's ends hung half a knob off the slider at nought and
+            // at full — which is exactly how the captured frames showed it, sliced by the margin.
             var handleArea = new GameObject("HandleArea", typeof(RectTransform));
             handleArea.transform.SetParent(go.transform, false);
             var handleAreaRect = (RectTransform)handleArea.transform;
             Stretch(handleAreaRect);
-            float inset = (TouchTarget - 72f) * 0.5f;
-            handleAreaRect.offsetMin = new Vector2(32f, inset);
-            handleAreaRect.offsetMax = new Vector2(-32f, -inset);
+            float inset = (TouchTarget - SliderKnobSize) * 0.5f;
+            handleAreaRect.offsetMin = new Vector2(SliderEndInset + SliderKnobSize * 0.5f, inset);
+            handleAreaRect.offsetMax = new Vector2(-(SliderEndInset + SliderKnobSize * 0.5f), -inset);
 
             var handleGo = new GameObject("Handle", typeof(RectTransform), typeof(Image));
             handleGo.transform.SetParent(handleArea.transform, false);
             var handle = (RectTransform)handleGo.transform;
-            handle.sizeDelta = new Vector2(72f, 72f);
+            handle.sizeDelta = new Vector2(SliderKnobSize, SliderKnobSize);
 
             var slider = go.GetComponent<Slider>();
-            slider.fillRect = null;
+            slider.fillRect = fillRect;
             slider.handleRect = handle;
             slider.targetGraphic = handleGo.GetComponent<Image>();
             slider.direction = Slider.Direction.LeftToRight;
@@ -391,6 +518,91 @@ namespace HR.UI
             image.color = new Color(1f, 1f, 1f, alpha);
             image.raycastTarget = false;
             return image;
+        }
+
+        /// <summary>
+        /// Two or three controls side by side, sharing the width evenly.
+        ///
+        /// What a row buys is rank: four buttons stacked all claim the same importance, and the
+        /// eye has to read every one to find the one it wants. Demoting the two that are not
+        /// the point of the screen into a single row says which is which without a word.
+        /// </summary>
+        public static HorizontalLayoutGroup CreateRow(string name, Transform parent,
+                                                      float height = TouchTarget,
+                                                      float spacing = 24f)
+        {
+            var go = new GameObject(name, typeof(RectTransform), typeof(HorizontalLayoutGroup));
+            go.transform.SetParent(parent, false);
+            ((RectTransform)go.transform).sizeDelta = new Vector2(0f, height);
+
+            var layout = go.GetComponent<HorizontalLayoutGroup>();
+            layout.spacing = spacing;
+            layout.childAlignment = TextAnchor.MiddleCenter;
+            layout.childControlWidth = true;
+            layout.childControlHeight = true;
+            layout.childForceExpandWidth = true;
+            layout.childForceExpandHeight = true;
+
+            return layout;
+        }
+
+        /// <summary>
+        /// A plate that hugs what is put on it, with a margin at the sides so the screen behind
+        /// it is still a screen.
+        ///
+        /// The band it replaces ran edge to edge and had square corners against round ones
+        /// everywhere else — it read as the interface having broken rather than as a panel.
+        ///
+        /// <paramref name="anchorY"/> is where on the screen it sits, 0 at the bottom and 0.5 in
+        /// the middle; the pivot follows it, so a bottom-anchored card grows upward and the last
+        /// control on it stays exactly <paramref name="inset"/> above the edge — which is how
+        /// the one action the screen is for ends up under the thumb rather than above it.
+        /// </summary>
+        public static VerticalLayoutGroup CreateCard(string name, Transform parent,
+                                                     float sideMargin, float anchorY = 0.5f,
+                                                     float inset = 0f, float spacing = 24f)
+        {
+            var go = new GameObject(name, typeof(RectTransform), typeof(Image),
+                                    typeof(VerticalLayoutGroup), typeof(ContentSizeFitter));
+            go.transform.SetParent(parent, false);
+
+            var rect = (RectTransform)go.transform;
+            rect.anchorMin = new Vector2(0f, anchorY);
+            rect.anchorMax = new Vector2(1f, anchorY);
+            rect.pivot = new Vector2(0.5f, anchorY);
+            rect.offsetMin = new Vector2(sideMargin, 0f);
+            rect.offsetMax = new Vector2(-sideMargin, 0f);
+            rect.anchoredPosition = new Vector2(0f, inset);
+
+            var layout = go.GetComponent<VerticalLayoutGroup>();
+            layout.spacing = spacing;
+            layout.padding = new RectOffset(40, 40, 48, 48);
+            layout.childAlignment = TextAnchor.UpperCenter;
+            layout.childControlHeight = false;
+            layout.childControlWidth = true;
+            layout.childForceExpandHeight = false;
+            layout.childForceExpandWidth = true;
+
+            go.GetComponent<ContentSizeFitter>().verticalFit = ContentSizeFitter.FitMode.PreferredSize;
+            go.GetComponent<Image>().color = Color.white;
+
+            return layout;
+        }
+
+        /// <summary>
+        /// Empty space with a height, for separating groups of rows.
+        ///
+        /// Proximity is the whole grouping mechanism here: no headings, because three more
+        /// words on a settings screen is three more things to read, and no icons, because the
+        /// project draws no image files at all.
+        /// </summary>
+        public static RectTransform CreateSpacer(Transform parent, float height)
+        {
+            var go = new GameObject("Spacer", typeof(RectTransform));
+            go.transform.SetParent(parent, false);
+            var rect = (RectTransform)go.transform;
+            rect.sizeDelta = new Vector2(0f, height);
+            return rect;
         }
 
         /// <summary>

@@ -146,6 +146,13 @@ namespace HR.App
             _tunnel = tunnelGo.AddComponent<TunnelController>();
             var pool = new RingPool(config, tunnelGo.transform, material);
             _tunnel.Initialise(config, _ball, pool);
+
+            // The tunnel is driven by GameManager and by nothing else. Left to step itself it
+            // advanced TWICE per physics frame — once from its own FixedUpdate, once from the
+            // game loop — so compression and retraction ran at double the speed the difficulty
+            // curve asks for. And its own FixedUpdate knows nothing about pause, so the tunnel
+            // kept closing in behind the pause panel.
+            _tunnel.AutoStep = false;
             _tunnel.RegisterSpareBall(_spareBall);
             _tunnel.SetBeadMaterial(material);
             _ringPhysics = ringPhysics;
@@ -238,15 +245,7 @@ namespace HR.App
 
             _ui.Clicked += () => _audio.PlayClick();
 
-            _ui.ThemeChosen += theme =>
-            {
-                if (!_game.ScoreKeeper.IsUnlocked(theme)) return;
-                _settings.Theme = theme;
-                _themes.Apply(theme);
-                _ui.ApplyTheme(_themes.Palette);
-                ApplyThemeToEffects();
-                Persist();
-            };
+            _ui.ThemeChosen += ChooseTheme;
 
             _ui.SettingsChanged += () =>
             {
@@ -326,13 +325,41 @@ namespace HR.App
         /// </summary>
         void ShowWorld(GameState state)
         {
-            bool inPlay = state == GameState.Playing || state == GameState.Paused
-                          || state == GameState.GameOver;
+            // Frozen before it is hidden, thawed after it is back. A body on a disabled object
+            // reads as being at rest and accepts no velocity at all, so doing either on the
+            // wrong side of the switch loses the throw: freezing after hiding stored a zero,
+            // thawing before showing wrote one into nothing. Both resumed the game by dropping
+            // the ball straight down, and both looked like a physics bug rather than an order.
+            bool playing = state == GameState.Playing;
+            if (!playing)
+            {
+                if (_ball != null) _ball.SetFrozen(true);
+                if (_spareBall != null) _spareBall.SetFrozen(true);
+            }
+
+            // The whole playfield goes away behind the pause card, tunnel and ball together.
+            // Left showing, pause is a free look at where every gap sits — the one thing the
+            // player is supposed to be reading under time pressure. Game over keeps it: spec
+            // 10.3 asks for the frozen scene there, and by then there is nothing left to learn.
+            bool inPlay = state == GameState.Playing || state == GameState.GameOver;
             if (_ball != null) _ball.gameObject.SetActive(inPlay);
             // The spare only ever appears through a bead, so it stays hidden here and the
             // tunnel is what wakes it.
             if (!inPlay && _spareBall != null) _spareBall.gameObject.SetActive(false);
             if (_centre != null) _centre.gameObject.SetActive(inPlay);
+            if (_tunnel != null) _tunnel.gameObject.SetActive(state != GameState.Paused);
+
+            // The trail is its own pool and outlives whatever it was following, so hiding the
+            // ball left four of its own dots hanging over an otherwise empty screen. Game over
+            // keeps them: there the trail is part of the frozen moment the spec asks for.
+            if (state == GameState.Paused && _effects != null) _effects.Clear();
+
+            // Only a running game simulates. Pause and the game-over screen are pictures of a
+            // moment, and a ball that carries on flying through either is the clearest possible
+            // proof that the game never actually stopped.
+            if (!playing) return;
+            if (_ball != null) _ball.SetFrozen(false);
+            if (_spareBall != null) _spareBall.SetFrozen(false);
         }
 
         /// <summary>
@@ -347,12 +374,37 @@ namespace HR.App
             _juice.Enabled = wanted;
             _haptics.Enabled = _settings.vibrationEnabled;
 
+            // The interface reads the flag only while it is being painted, so switching the
+            // setting has to repaint it. Left out, "reduce effects" took hold everywhere except
+            // on the screen the player was looking at when they pressed it.
+            if (_ui != null && _themes != null) _ui.ApplyTheme(_themes.Palette);
+
             if (!wanted)
             {
                 _effects.Clear();
                 _juice.Clear();
                 _tunnel.transform.localRotation = Quaternion.identity;
             }
+        }
+
+        /// <summary>
+        /// Switches theme the way the menu does: palette, tunnel, interface, effects and save,
+        /// in that order and in one place.
+        ///
+        /// Public because the screenshot rig needs the same path, and reaching past it is how a
+        /// picture of something the game never shows gets taken. Applying the palette alone left
+        /// the transition curtain in the previous theme's colour — a flat pale wash over the
+        /// whole frame, which cost an hour of looking for a glow that was not there.
+        /// </summary>
+        public void ChooseTheme(Theme theme)
+        {
+            if (_game == null || !_game.ScoreKeeper.IsUnlocked(theme)) return;
+
+            _settings.Theme = theme;
+            _themes.Apply(theme);
+            _ui.ApplyTheme(_themes.Palette);
+            ApplyThemeToEffects();
+            Persist();
         }
 
         void ApplyThemeToEffects()

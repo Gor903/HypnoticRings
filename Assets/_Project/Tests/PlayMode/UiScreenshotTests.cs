@@ -146,6 +146,73 @@ namespace HR.Tests.PlayMode
             Debug.Log($"[HR] ui screenshots: {written} frames in {OutputDir}");
         }
 
+        /// <summary>One shape is enough here: what changes between these frames is the skin.</summary>
+        static readonly (string Name, int Width, int Height) SkinShape = ("9x16", 1080, 1920);
+
+        /// <summary>The screens that carry the most chrome — edges, halos, cards, switches.</summary>
+        static readonly (string Name, GameState State)[] SkinScreens =
+        {
+            ("menu", GameState.Menu),
+            ("settings", GameState.Settings),
+            ("gameover", GameState.GameOver),
+        };
+
+        [UnityTest]
+        [Category("Art")]
+        [Timeout(600_000)]
+        public IEnumerator Capture_every_theme_wearing_its_own_skin()
+        {
+            // The other capture proves the layout on five shapes in one theme. This one proves
+            // the opposite axis: six themes on one shape, because a skin that quietly falls back
+            // to the default looks perfectly fine until it is put beside the one it copied.
+            if (SystemInfo.graphicsDeviceType == GraphicsDeviceType.Null)
+                Assert.Ignore("needs a renderer — run tools/screenshots.sh, which keeps one");
+
+            Directory.CreateDirectory(SkinDir);
+
+            // Every theme open, because this sheet exists to compare all six and a locked one
+            // would simply be skipped.
+            _boot.Game.ScoreKeeper.RestoreBest(999);
+            _boot.Ui.RefreshStrings();
+
+            // No transitions for the length of the sweep. A sheet of skins is a comparison of
+            // resting states, and the curtain that covers the screen between two of them does
+            // not care which theme it is covering: left running it washed six frames flat, and
+            // the wash looked exactly like a glow that had gone wrong.
+            _boot.Juice.Enabled = false;
+            _boot.Juice.Clear();
+
+            int written = 0;
+            foreach (var theme in ThemePalette.All)
+            {
+                // The path the menu uses, not a shortcut past it. Applying the palette alone
+                // leaves the transition curtain in the previous theme's colour, and a curtain
+                // still fading from the last screen washes the next one out completely.
+                _boot.ChooseTheme(theme);
+                yield return null;
+
+                foreach (var screen in SkinScreens)
+                {
+                    PrepareFor(screen.State);
+                    yield return null;
+
+                    // After the frame, not before it: the state change raises its own effects,
+                    // and a trail that outlived its ball is somebody else's frame.
+                    _boot.Juice.Clear();
+                    _boot.Effects.Clear();
+                    yield return null;
+
+                    yield return Capture($"{theme}-{screen.Name}", SkinShape, SkinDir);
+                    written++;
+                }
+            }
+
+            Assert.AreEqual(ThemePalette.All.Length * SkinScreens.Length, written);
+            Debug.Log($"[HR] skin screenshots: {written} frames in {SkinDir}");
+        }
+
+        const string SkinDir = "docs/publishing/art/screenshots/skins";
+
         void Press(GameState screen, string button)
         {
             foreach (var candidate in _boot.Ui.ScreenFor(screen)
@@ -194,7 +261,8 @@ namespace HR.Tests.PlayMode
             return false;
         }
 
-        IEnumerator Capture(string screen, (string Name, int Width, int Height) shape)
+        IEnumerator Capture(string screen, (string Name, int Width, int Height) shape,
+                            string directory = OutputDir)
         {
             // The layout is told its size outright. Sizing only the texture would capture the
             // batch window's shape five times over and label the files as five devices.
@@ -227,7 +295,7 @@ namespace HR.Tests.PlayMode
 
             // Written only once it is a picture. The file is a tracked store asset, and writing
             // first meant every failed run replaced one with a grey rectangle.
-            string path = Path.Combine(OutputDir, $"{screen}-{shape.Name}.png");
+            string path = Path.Combine(directory, $"{screen}-{shape.Name}.png");
             Assert.IsTrue(varied, $"{path} is a single flat colour — nothing rendered");
             File.WriteAllBytes(path, readback.EncodeToPNG());
 

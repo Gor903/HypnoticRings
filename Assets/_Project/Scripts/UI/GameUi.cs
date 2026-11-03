@@ -39,8 +39,23 @@ namespace HR.UI
 
         readonly Dictionary<GameState, RectTransform> _screens = new Dictionary<GameState, RectTransform>();
         readonly List<Action> _stringRefreshers = new List<Action>();
+        // One list per role rather than one list for everything. The old single list painted
+        // every element with the text colour and let it keep its own alpha, which is how a
+        // button's fill ended up being the text colour at eight per cent — invisible, and
+        // unfixable by styling while the palette knew only ink and paper.
         readonly List<Graphic> _tinted = new List<Graphic>();
+        readonly List<Graphic> _surfaces = new List<Graphic>();
+        readonly List<Graphic> _accents = new List<Graphic>();
+        readonly List<Graphic> _accentTexts = new List<Graphic>();
         readonly List<Image> _scrims = new List<Image>();
+
+        // Shape is tracked separately from colour because it needs a number colour does not:
+        // the control's height, which is what a corner radius is a share of.
+        readonly List<(Image Image, float Height)> _shaped = new List<(Image, float)>();
+        readonly List<ToggleVisual> _switches = new List<ToggleVisual>();
+        readonly List<PressFeedback> _presses = new List<PressFeedback>();
+        readonly List<Image> _knobs = new List<Image>();
+        readonly List<Image> _tracks = new List<Image>();
         readonly Dictionary<Theme, Text> _themeLocks = new Dictionary<Theme, Text>();
         readonly Dictionary<Theme, Button> _themeButtons = new Dictionary<Theme, Button>();
         readonly Dictionary<Theme, Text> _themeLabels = new Dictionary<Theme, Text>();
@@ -56,6 +71,15 @@ namespace HR.UI
         Text _overUnlockLabel;
         Text _hintLabel;
         Button _pauseButton;
+        Button _languageChip;
+        CarouselSnapping _carousel;
+        UiShimmer _shimmer;
+
+        /// <summary>The theme's breath, so a test can ask whether anything is moving.</summary>
+        public UiShimmer Shimmer => _shimmer;
+
+        /// <summary>The palette in force, for the few things painted outside the role lists.</summary>
+        ThemePalette _palette;
         RectTransform _confirmPanel;
         RectTransform _aboutPanel;
 
@@ -138,6 +162,7 @@ namespace HR.UI
             UiBuilder.EnsureEventSystem(transform);
 
             _canvas = UiBuilder.CreateCanvas("UI", transform, camera);
+            _shimmer = gameObject.AddComponent<UiShimmer>();
             var canvas = _canvas;
             var safe = UiBuilder.CreateSafeArea(canvas.transform);
             _safeArea = safe.GetComponent<SafeAreaFitter>();
@@ -175,7 +200,7 @@ namespace HR.UI
 
             if (state == GameState.Menu) RefreshMenu();
             if (state == GameState.GameOver) RefreshGameOver();
-            if (state == GameState.ThemeSelect) RefreshThemes();
+            if (state == GameState.ThemeSelect) { RefreshThemes(); FocusChosenTheme(); }
             if (_confirmPanel != null) _confirmPanel.gameObject.SetActive(false);
             if (_aboutPanel != null) _aboutPanel.gameObject.SetActive(false);
         }
@@ -189,6 +214,12 @@ namespace HR.UI
         public void ApplyTheme(ThemePalette palette)
         {
             if (palette == null) return;
+            _palette = palette;
+
+            // Before anything is painted. The breath moves colours away from where it found
+            // them, and painting over a mid-exhale control would make that drifted value the
+            // new resting colour — a theme change that quietly dims itself a little each time.
+            if (_shimmer != null) _shimmer.Rest();
             var ink = new Color(palette.Ui.R / 255f, palette.Ui.G / 255f, palette.Ui.B / 255f, 1f);
             var paper = new Color(palette.Background.R / 255f, palette.Background.G / 255f,
                                   palette.Background.B / 255f, 1f);
@@ -210,6 +241,97 @@ namespace HR.UI
                 faded.a = graphic.color.a;
                 graphic.color = faded;
             }
+
+            // Roles are painted at full strength. Keeping the element's own alpha is what made
+            // a fill invisible in the first place — alpha is how "quiet" was expressed when
+            // there was only one colour to be quiet with, and there is no longer only one.
+            Paint(_surfaces, ThemeApplier.ToColor(palette.Surface));
+            Paint(_accents, ThemeApplier.ToColor(palette.Accent));
+            Paint(_accentTexts, ThemeApplier.ToColor(palette.AccentText));
+
+            // Shape travels with the theme, not with the screen. A palette swap that left every
+            // control the same grey rectangle would be a recolour; the point of six themes is
+            // that they feel like six places.
+            var skin = UiSkin.For(palette.Theme);
+
+            // Glow and breath are the player's call, not the theme's. "Reduce effects" is one
+            // decision in this game rather than a setting each effect consults on its own, and
+            // the interface is the last place that was still ignoring it.
+            bool effects = _settings == null || !_settings.reduceEffects;
+            var edge = ThemeApplier.ToColor(palette.Outline);
+            var halo = ThemeApplier.ToColor(palette.Accent);
+
+            foreach (var (image, height) in _shaped)
+            {
+                UiPainter.Shape(image, height, skin);
+                UiPainter.Edge(image, skin, edge, palette.Glow, halo, effects);
+            }
+
+            var trackOff = ThemeApplier.ToColor(palette.TrackOff);
+            var trackOn = ThemeApplier.ToColor(palette.TrackOn);
+            var knobInk = ThemeApplier.ToColor(palette.Background);
+
+            foreach (var visual in _switches)
+            {
+                if (visual == null) continue;
+                UiPainter.Shape(visual.Track, UiBuilder.TrackHeight, skin);
+                UiPainter.ShapeKnob(visual.Knob, skin);
+                visual.SetColours(trackOff, trackOn, knobInk);
+            }
+
+            foreach (var track in _tracks)
+            {
+                if (track == null) continue;
+                track.color = trackOff;
+                UiPainter.Shape(track, UiBuilder.SliderTrackHeight, skin);
+            }
+
+            foreach (var knob in _knobs)
+            {
+                if (knob == null) continue;
+                knob.color = ThemeApplier.ToColor(palette.Accent);
+                UiPainter.ShapeKnob(knob, skin);
+            }
+
+            // Pressing has to be re-taught after a repaint: a flash returns to the colour it
+            // remembered, and a colour remembered before a theme change is the old theme's.
+            var rippleInk = ThemeApplier.ToColor(palette.Ui);
+            foreach (var press in _presses)
+            {
+                if (press == null) continue;
+                press.Configure(skin, press.Fill, rippleInk);
+            }
+
+            // The pause button is round in every skin: it is the only control on the screen
+            // that has to be found by the thumb without the eye leaving the tunnel.
+            if (_pauseFill != null)
+            {
+                _pauseFill.sprite = UiBuilder.Disc;
+                _pauseFill.type = Image.Type.Simple;
+            }
+
+            if (_scoreOutline != null) _scoreOutline.effectColor = paper;
+            if (_bestOutline != null) _bestOutline.effectColor = paper;
+
+            // Last, and after the roles: the theme cards are painted by which one is chosen,
+            // and that answer is not in any of the lists above.
+            RefreshThemes();
+
+            // After everything else has been painted, because what it animates is whatever the
+            // accents ended up being. Breathing toward the paper rather than toward white: on a
+            // light theme white is the background, and a control would exhale into invisibility.
+            if (_shimmer != null)
+                _shimmer.Configure(effects ? palette.ShimmerSeconds : 0.0, palette.ShimmerDepth,
+                                   paper, _accents);
+        }
+
+        static void Paint(List<Graphic> graphics, Color colour)
+        {
+            foreach (var graphic in graphics)
+            {
+                if (graphic == null) continue;
+                graphic.color = colour;
+            }
         }
 
         void SetHudDetail(bool visible)
@@ -224,6 +346,23 @@ namespace HR.UI
             foreach (var refresh in _stringRefreshers) refresh();
             RefreshMenu();
             RefreshThemes();
+            RefreshLanguageChip();
+        }
+
+        /// <summary>The chip shows the setting, not the language the interface came out in.</summary>
+        void RefreshLanguageChip()
+        {
+            if (_languageChip == null || _settings == null) return;
+
+            var label = _languageChip.GetComponentInChildren<Text>();
+            if (label == null) return;
+
+            label.text = Strings.Get(_settings.Language switch
+            {
+                LanguageSetting.Russian => "set.lang.ru",
+                LanguageSetting.English => "set.lang.en",
+                _ => "set.lang.auto",
+            });
         }
 
         // ---------------------------------------------------------------- screens
@@ -240,7 +379,12 @@ namespace HR.UI
             _menuBestLabel = UiBuilder.CreateLabel("Best", column.transform, string.Empty, UiBuilder.BodySize);
             Track(_menuBestLabel);
 
-            Button(column.transform, "menu.play", () => PlayPressed?.Invoke(), UiBuilder.TouchTarget * 1.4f);
+            // Four stacked buttons of one size all claimed the same importance, and the screen
+            // read as a list of four things rather than as one thing with three ways out of it.
+            // Play is the biggest and the only accent; hardcore is a plain button under it;
+            // themes and settings share a single row, which demotes them without hiding them.
+            Button(column.transform, "menu.play", () => PlayPressed?.Invoke(),
+                   UiBuilder.TouchTarget * 1.6f, primary: true);
 
             _hardcoreButton = Button(column.transform, "menu.hardcore",
                                      () => HardcorePressed?.Invoke());
@@ -248,8 +392,9 @@ namespace HR.UI
                                                        string.Empty, UiBuilder.BodySize);
             Track(_hardcoreLockLabel);
 
-            Button(column.transform, "menu.themes", () => ThemesPressed?.Invoke());
-            Button(column.transform, "menu.settings", () => SettingsPressed?.Invoke());
+            var utilities = UiBuilder.CreateRow("Utilities", column.transform);
+            Button(utilities.transform, "menu.themes", () => ThemesPressed?.Invoke());
+            Button(utilities.transform, "menu.settings", () => SettingsPressed?.Invoke());
 
             Track(title);
         }
@@ -270,16 +415,35 @@ namespace HR.UI
             _hudBestLabel.color = new Color(1f, 1f, 1f, 0.6f);
             Track(_hudBestLabel);
 
+            // Both sit directly on the tunnel with nothing behind them, and a ring crossing a
+            // glyph takes it apart. An outline in the background's own colour is what the rings
+            // already use for the ball, costs four extra quads, and needs no panel that would
+            // cover the thing the player is watching.
+            _scoreOutline = Outline(_scoreLabel, ScoreOutlineWidth);
+            _bestOutline = Outline(_hudBestLabel, BestOutlineWidth);
+
             var pause = UiBuilder.CreateButton("Pause", screen, "II", () => PausePressed?.Invoke());
             _pauseButton = pause;
-            Track(pause.targetGraphic);
+
+            // Fill as a surface, glyph as ink. Tracked as ink it was the one button in the game
+            // painted the same colour as its own label: a solid black disc with nothing on it.
+            TrackSurface(pause.targetGraphic);
             Track(pause.GetComponentInChildren<Text>());
+            _presses.Add(Press(pause));
             var pauseRect = (RectTransform)pause.transform;
             pauseRect.anchorMin = new Vector2(1f, 1f);
             pauseRect.anchorMax = new Vector2(1f, 1f);
-            pauseRect.pivot = new Vector2(1f, 1f);
-            pauseRect.anchoredPosition = new Vector2(-32f, -32f);
-            pauseRect.sizeDelta = new Vector2(UiBuilder.TouchTarget, UiBuilder.TouchTarget);
+
+            // Pivoted on its own centre and pulled a full radius clear of the corner. Pinned by
+            // its top-right corner at an inset of 32 it sat half off the screen on 9x16 — the
+            // glyph was sliced down the middle on every captured frame.
+            pauseRect.pivot = new Vector2(0.5f, 0.5f);
+            pauseRect.sizeDelta = new Vector2(PauseButtonSize, PauseButtonSize);
+            pauseRect.anchoredPosition =
+                new Vector2(-(PauseButtonSize * 0.5f + PauseInset),
+                            -(PauseButtonSize * 0.5f + PauseInset));
+
+            _pauseFill = pause.targetGraphic as Image;
 
             _hintLabel = UiBuilder.CreateLabel("Hint", screen, Strings.Get("hint.swipe"), UiBuilder.BodySize);
             var hintRect = (RectTransform)_hintLabel.transform;
@@ -297,11 +461,13 @@ namespace HR.UI
             var screen = UiBuilder.CreatePanel("Pause", parent, new Color(0f, 0f, 0f, 0.4f));
             _screens[GameState.Paused] = screen;
 
-            var column = UiBuilder.CreateScrollColumn("Column", screen);
-            Scrim(UiBuilder.AddCard(column, 0.92f));
-            Track(Label(column.transform, "pause.title", UiBuilder.TitleSize));
-            Button(column.transform, "pause.resume", () => ResumePressed?.Invoke(), UiBuilder.TouchTarget * 1.3f);
-            Button(column.transform, "pause.home", () => HomePressed?.Invoke());
+            // Anchored low, so the control the screen exists for lands under the thumb that is
+            // already holding the phone rather than in the middle, where it is a reach.
+            var card = Card("Card", screen, anchorY: 0f, inset: CardInset);
+            Track(Label(card.transform, "pause.title", UiBuilder.TitleSize));
+            Button(card.transform, "pause.home", () => HomePressed?.Invoke());
+            Button(card.transform, "pause.resume", () => ResumePressed?.Invoke(),
+                   UiBuilder.TouchTarget * 1.4f, primary: true);
         }
 
         void BuildGameOver(Transform parent)
@@ -310,18 +476,40 @@ namespace HR.UI
             var screen = UiBuilder.CreatePanel("GameOver", parent, new Color(0f, 0f, 0f, 0.4f));
             _screens[GameState.GameOver] = screen;
 
-            var column = UiBuilder.CreateScrollColumn("Column", screen);
-            Scrim(UiBuilder.AddCard(column, 0.92f));
+            var card = Card("Card", screen, anchorY: 0f, inset: CardInset);
 
-            _overScoreLabel = UiBuilder.CreateLabel("Score", column.transform, "0", UiBuilder.ScoreSize);
-            _overBestLabel = UiBuilder.CreateLabel("Best", column.transform, string.Empty, UiBuilder.BodySize);
-            _overUnlockLabel = UiBuilder.CreateLabel("Unlocked", column.transform, string.Empty, UiBuilder.BodySize);
+            _overScoreLabel = UiBuilder.CreateLabel("Score", card.transform, "0", UiBuilder.ScoreSize);
+            _overBestLabel = UiBuilder.CreateLabel("Best", card.transform, string.Empty, UiBuilder.BodySize);
+            _overUnlockLabel = UiBuilder.CreateLabel("Unlocked", card.transform, string.Empty, UiBuilder.BodySize);
             Track(_overScoreLabel); Track(_overBestLabel); Track(_overUnlockLabel);
 
-            // Retry is the big one and sits lowest, where the thumb already is.
-            Button(column.transform, "over.retry", () => RetryPressed?.Invoke(), UiBuilder.TouchTarget * 1.4f);
-            Button(column.transform, "over.home", () => HomePressed?.Invoke());
-            Button(column.transform, "over.themes", () => ThemesPressed?.Invoke());
+            // The two ways out share a row above, and Retry is the last thing on the card —
+            // which, on a card anchored to the bottom, is the lowest thing on the screen.
+            var exits = UiBuilder.CreateRow("Exits", card.transform);
+            Button(exits.transform, "over.home", () => HomePressed?.Invoke());
+            Button(exits.transform, "over.themes", () => ThemesPressed?.Invoke());
+
+            Button(card.transform, "over.retry", () => RetryPressed?.Invoke(),
+                   UiBuilder.TouchTarget * 1.4f, primary: true);
+        }
+
+        /// <summary>
+        /// A card, registered so that the theme gives it a surface, a shape and a dimmed screen
+        /// behind it.
+        /// </summary>
+        VerticalLayoutGroup Card(string name, Transform parent, float anchorY, float inset)
+        {
+            var card = UiBuilder.CreateCard(name, parent, CardMargin, anchorY, inset);
+
+            // The plate is paper, not a surface. Given the surface colour it would be the same
+            // grey as the buttons standing on it, and a card is only a card while the controls
+            // on it are something else. A trace of the frozen scene still shows through, which
+            // is what spec 10.3 asks for.
+            var plate = card.GetComponent<Image>();
+            plate.color = new Color(1f, 1f, 1f, CardOpacity);
+            Scrim(plate);
+            TrackShape(plate, CardCornerHeight);
+            return card;
         }
 
         void BuildThemes(Transform parent)
@@ -337,18 +525,27 @@ namespace HR.UI
             Track(title);
 
             // Spec 10.4: a sideways carousel of cards, not a list of words.
-            var carousel = UiBuilder.CreateCarousel("Carousel", column.transform, 720f);
+            var carousel = UiBuilder.CreateCarousel("Carousel", column.transform, CardHeight + 20f,
+                                                    CarouselSpacing);
+            _carousel = carousel.gameObject.AddComponent<CarouselSnapping>();
+            _carousel.CardWidth = CardWidth;
+            _carousel.Spacing = CarouselSpacing;
 
             foreach (var theme in ThemePalette.All)
             {
                 var captured = theme;
                 var card = UiBuilder.CreateButton($"Theme{theme}", carousel.content,
                     string.Empty,
-                    () => { Clicked?.Invoke(); ThemeChosen?.Invoke(captured); }, 700f);
+                    () => { Clicked?.Invoke(); ThemeChosen?.Invoke(captured); }, CardHeight);
 
                 var cardRect = (RectTransform)card.transform;
-                cardRect.sizeDelta = new Vector2(540f, 700f);
-                Track(card.targetGraphic);
+                cardRect.sizeDelta = new Vector2(CardWidth, CardHeight);
+
+                // Shaped and surfaced like every other control. Tracked as ink the card fill
+                // was the theme's text colour, which is why the cards were invisible plates
+                // with a preview floating on them.
+                TrackShape(card.targetGraphic as Image, CardCornerHeight);
+                _presses.Add(Press(card));
 
                 var palette = ThemePalette.For(theme);
                 var rings = new Color[palette.RingColours.Length];
@@ -357,7 +554,7 @@ namespace HR.UI
 
                 // Left untracked on purpose: a preview shows its own theme's colours, not the
                 // colours of whichever theme happens to be active.
-                var preview = UiBuilder.CreateRingPreview("Preview", card.transform, 400f,
+                var preview = UiBuilder.CreateRingPreview("Preview", card.transform, PreviewSize,
                     ThemeApplier.ToColor(palette.Background), rings, ThemeApplier.ToColor(palette.Ball));
                 preview.anchorMin = new Vector2(0.5f, 1f);
                 preview.anchorMax = new Vector2(0.5f, 1f);
@@ -385,8 +582,6 @@ namespace HR.UI
                 _themeButtons[theme] = card;
                 _themeLabels[theme] = label;
                 _themeLocks[theme] = lockLabel;
-                Track(label);
-                Track(lockLabel);
             }
 
             var back = Button(column.transform, "common.back", () => BackPressed?.Invoke());
@@ -406,34 +601,51 @@ namespace HR.UI
 
             var column = UiBuilder.CreateScrollColumn("Column", screen, 16f);
 
-            // Spec 10.5 asks for a switch and a level for each, independently. The switch alone
-            // is the difference between "quieter" and "off", and a player on a bus wants both.
+            Track(Label(column.transform, "set.title", UiBuilder.TitleSize));
+
+            // Three groups, separated by space rather than by headings. The volume levels are
+            // gone: two sliders bought a finer answer to a question almost nobody asks, and
+            // cost the rows that made the screen fit on a phone without scrolling. On or off
+            // is the distinction a player on a bus actually wants (D-077).
             Toggle(column.transform, "set.sound", _settings.soundEnabled,
                 v => { _settings.soundEnabled = v; SettingsChanged?.Invoke(); });
-            Level(column.transform, "set.sound.level", _settings.soundVolume,
-                v => { _settings.soundVolume = v; SettingsChanged?.Invoke(); });
-
             Toggle(column.transform, "set.music", _settings.musicEnabled,
                 v => { _settings.musicEnabled = v; SettingsChanged?.Invoke(); });
-            Level(column.transform, "set.music.level", _settings.musicVolume,
-                v => { _settings.musicVolume = v; SettingsChanged?.Invoke(); });
+            Toggle(column.transform, "set.vibration", _settings.vibrationEnabled,
+                v => { _settings.vibrationEnabled = v; SettingsChanged?.Invoke(); });
 
-            Track(Label(column.transform, "set.sensitivity", UiBuilder.BodySize));
-            var sensitivity = UiBuilder.CreateSlider("Sensitivity", column.transform,
+            UiBuilder.CreateSpacer(column.transform, GroupGap);
+
+            // The one row with a continuous answer, laid out like the switches beside it:
+            // name on the left, control on the right.
+            Level(column.transform, "set.sensitivity",
                 SaveData.MinSensitivity, SaveData.MaxSensitivity, _settings.sensitivity,
                 v => { _settings.sensitivity = v; SettingsChanged?.Invoke(); });
-            foreach (var part in sensitivity.GetComponentsInChildren<Image>(true)) Track(part);
 
             Toggle(column.transform, "set.invert", _settings.invertRotation,
                 v => { _settings.invertRotation = v; SettingsChanged?.Invoke(); });
-            Toggle(column.transform, "set.vibration", _settings.vibrationEnabled,
-                v => { _settings.vibrationEnabled = v; SettingsChanged?.Invoke(); });
+
+            UiBuilder.CreateSpacer(column.transform, GroupGap);
+
             Toggle(column.transform, "set.lowfx", _settings.reduceEffects,
                 v => { _settings.reduceEffects = v; SettingsChanged?.Invoke(); });
 
-            Button(column.transform, "set.language", CycleLanguage);
-            Button(column.transform, "set.about", () => { ShowAbout(); AboutPressed?.Invoke(); });
-            Button(column.transform, "set.reset", ShowResetConfirm);
+            // A chip that says which language is on. Named one before, it was the only control
+            // on the screen that showed a question and not its answer.
+            _languageChip = Chip(column.transform, "set.language", CycleLanguage);
+
+            // Filled the moment it exists. Refreshed only on a change, it was blank until the
+            // player pressed it — the one state in which it says less than the label it replaced.
+            RefreshLanguageChip();
+
+            UiBuilder.CreateSpacer(column.transform, GroupGap);
+
+            // Neither is a setting: one is a page to read and the other is a thing you do once
+            // and regret twice. Demoted into a single row of plain words.
+            var links = UiBuilder.CreateRow("Links", column.transform);
+            Link(links.transform, "set.about", () => { ShowAbout(); AboutPressed?.Invoke(); });
+            Link(links.transform, "set.reset", ShowResetConfirm);
+
             Button(column.transform, "common.back", () => BackPressed?.Invoke());
 
             BuildResetConfirm(screen);
@@ -498,10 +710,80 @@ namespace HR.UI
                 LanguageSetting.Russian => LanguageSetting.English,
                 _ => LanguageSetting.Auto,
             };
+            RefreshLanguageChip();
             SettingsChanged?.Invoke();
         }
 
         // ---------------------------------------------------------------- refresh
+
+        /// <summary>
+        /// Round, and no smaller than anything else you are asked to hit. The project's floor
+        /// is 150 units and a round button has less area than a square one of the same box, so
+        /// shaving it was the wrong place to save room.
+        /// </summary>
+        public const float PauseButtonSize = UiBuilder.TouchTarget;
+
+        /// <summary>Distance from the safe area's edge to the button's edge.</summary>
+        public const float PauseInset = 28f;
+
+        /// <summary>Space that separates one group of settings from the next.</summary>
+        const float GroupGap = 28f;
+
+        /// <summary>Margin between a row's edge and what sits in it.</summary>
+        const float RowInset = 32f;
+
+        /// <summary>Width of the control at the end of a settings row.</summary>
+        const float LevelWidth = 420f;
+
+        const float ChipWidth = 320f;
+
+        /// <summary>Side margin of a centred card, so the screen behind it is still a screen.</summary>
+        const float CardMargin = 56f;
+
+        /// <summary>How far the lowest control on a card sits above the safe area's edge.</summary>
+        const float CardInset = 72f;
+
+        /// <summary>
+        /// The height a card's corner is figured from.
+        ///
+        /// Not the card's own height: a skin states its corner as a share, and half of an
+        /// 800-unit card is a capsule. Taken from a button instead, the card's corners match
+        /// the corners of the controls standing on it, which is the point of a skin.
+        /// </summary>
+        const float CardCornerHeight = UiBuilder.TouchTarget;
+
+        /// <summary>A trace of the frozen scene still shows through the plate (spec 10.3).</summary>
+        const float CardOpacity = 0.96f;
+
+        /// <summary>
+        /// A theme card, and the gap to the next one.
+        ///
+        /// Narrow enough that both neighbours peek past a centred card on the narrowest screen
+        /// the game ships on — the peek is what says there are more than the one in front of you.
+        /// </summary>
+        const float CardWidth = 600f;
+
+        const float CardHeight = 700f;
+        const float CarouselSpacing = 32f;
+        const float PreviewSize = 360f;
+
+        Image _pauseFill;
+        UnityEngine.UI.Outline _scoreOutline;
+        UnityEngine.UI.Outline _bestOutline;
+
+        /// <summary>Thick enough to survive a ring crossing a stroke of the digit.</summary>
+        public const float ScoreOutlineWidth = 6f;
+        public const float BestOutlineWidth = 4f;
+
+        static UnityEngine.UI.Outline Outline(Graphic graphic, float width)
+        {
+            if (graphic == null) return null;
+
+            var outline = graphic.gameObject.AddComponent<UnityEngine.UI.Outline>();
+            outline.effectDistance = new Vector2(width, width);
+            outline.useGraphicAlpha = false;
+            return outline;
+        }
 
         Button _hardcoreButton;
         Text _hardcoreLockLabel;
@@ -563,6 +845,21 @@ namespace HR.UI
             if (_hintLabel != null) _hintLabel.gameObject.SetActive(visible);
         }
 
+        /// <summary>
+        /// Opens the carousel on the theme that is already on.
+        ///
+        /// Opening on the first card instead means the player has to find their own theme
+        /// before they can see what they are changing from.
+        /// </summary>
+        void FocusChosenTheme()
+        {
+            if (_carousel == null || _settings == null) return;
+
+            var all = ThemePalette.All;
+            for (int i = 0; i < all.Length; i++)
+                if (all[i] == _settings.Theme) { _carousel.Focus(i, immediate: true); return; }
+        }
+
         void RefreshGameOver()
         {
             if (_score == null) return;
@@ -586,6 +883,14 @@ namespace HR.UI
         {
             if (_score == null) return;
 
+            // Painted here rather than through the role lists, because which card is which is
+            // not a property of the theme being applied — it is a property of the one chosen.
+            // Without it the six cards were identical plates and nothing said which was on.
+            var surface = _palette != null ? ThemeApplier.ToColor(_palette.Surface) : Color.grey;
+            var accent = _palette != null ? ThemeApplier.ToColor(_palette.Accent) : Color.white;
+            var ink = _palette != null ? ThemeApplier.ToColor(_palette.Ui) : Color.black;
+            var accentText = _palette != null ? ThemeApplier.ToColor(_palette.AccentText) : Color.white;
+
             foreach (var theme in ThemePalette.All)
             {
                 if (!_themeButtons.TryGetValue(theme, out var button)) continue;
@@ -593,11 +898,15 @@ namespace HR.UI
                 bool unlocked = _score.IsUnlocked(theme);
                 button.interactable = unlocked;
 
+                bool chosen = _settings != null && _settings.Theme == theme;
+                if (button.targetGraphic != null)
+                    button.targetGraphic.color = chosen ? accent : surface;
+
                 // A locked card reads as locked by its own weight. Greying only the fill leaves
                 // a full-strength name on it, which is the one part the eye actually goes to.
                 var label = _themeLabels[theme];
                 label.text = Strings.ThemeName(theme);
-                var colour = label.color;
+                var colour = chosen ? accentText : ink;
                 colour.a = unlocked ? 1f : 0.45f;
                 label.color = colour;
 
@@ -607,7 +916,7 @@ namespace HR.UI
                 padlock.text = unlocked
                     ? string.Empty
                     : Strings.Format("theme.locked", ScoreKeeper.RequiredBestFor(theme));
-                var lockColour = padlock.color;
+                var lockColour = chosen ? accentText : ink;
                 lockColour.a = unlocked ? 0f : 0.7f;
                 padlock.color = lockColour;
             }
@@ -622,27 +931,129 @@ namespace HR.UI
             return label;
         }
 
-        Button Button(Transform parent, string key, Action onClick, float height = UiBuilder.TouchTarget)
+        /// <summary>
+        /// A button. <paramref name="primary"/> marks the one action the screen exists for —
+        /// Play, Retry — which takes the accent instead of the surface.
+        /// </summary>
+        Button Button(Transform parent, string key, Action onClick,
+                      float height = UiBuilder.TouchTarget, bool primary = false)
         {
             var button = UiBuilder.CreateButton(key, parent, Strings.Get(key),
                 () => { Clicked?.Invoke(); onClick?.Invoke(); }, height);
             var label = button.GetComponentInChildren<Text>();
             _stringRefreshers.Add(() => label.text = Strings.Get(key));
+
+            TrackShape(button.targetGraphic as Image, Mathf.Max(height, UiBuilder.TouchTarget));
+
+            _presses.Add(Press(button));
+
+            if (primary)
+            {
+                TrackAccent(button.targetGraphic, label);
+                return button;
+            }
+
+            TrackSurface(button.targetGraphic);
             Track(label);
-            // The fill is tinted as well, not just the text. Left white it is invisible against
-            // a light theme, and the buttons read as loose words floating on the background.
-            Track(button.targetGraphic);
             return button;
         }
 
-        /// <summary>A labelled 0..1 slider, tinted like everything else.</summary>
-        Slider Level(Transform parent, string key, float value, Action<float> onChanged)
+        /// <summary>
+        /// A named setting with a control at the end of the row.
+        ///
+        /// The shape every settings row shares: name on the left, the thing you touch on the
+        /// right. A label centred above its own slider — which is what this was — reads as a
+        /// heading for everything below it rather than as the name of one control.
+        /// </summary>
+        RectTransform Row(Transform parent, string key, float controlWidth)
         {
-            Track(Label(parent, key, UiBuilder.BodySize));
+            var go = new GameObject(key, typeof(RectTransform));
+            go.transform.SetParent(parent, false);
+            var rect = (RectTransform)go.transform;
+            rect.sizeDelta = new Vector2(0f, UiBuilder.TouchTarget);
 
-            var slider = UiBuilder.CreateSlider(key, parent, 0f, 1f, value, onChanged);
-            foreach (var part in slider.GetComponentsInChildren<Image>(true)) Track(part);
+            var label = UiBuilder.CreateLabel("Label", go.transform, Strings.Get(key),
+                                              UiBuilder.BodySize, TextAnchor.MiddleLeft);
+            var labelRect = (RectTransform)label.transform;
+            UiBuilder.Stretch(labelRect);
+            labelRect.offsetMin = new Vector2(RowInset, 0f);
+            labelRect.offsetMax = new Vector2(-(controlWidth + RowInset * 2f), 0f);
+            _stringRefreshers.Add(() => label.text = Strings.Get(key));
+            Track(label);
+
+            return rect;
+        }
+
+        /// <summary>Puts a control at the right-hand end of a row, vertically centred.</summary>
+        static void PinRight(RectTransform rect, float width, float height)
+        {
+            rect.anchorMin = new Vector2(1f, 0.5f);
+            rect.anchorMax = new Vector2(1f, 0.5f);
+            rect.pivot = new Vector2(1f, 0.5f);
+            rect.sizeDelta = new Vector2(width, height);
+            rect.anchoredPosition = new Vector2(-RowInset, 0f);
+        }
+
+        /// <summary>A named setting with a slider at the end of it.</summary>
+        Slider Level(Transform parent, string key, float min, float max, float value,
+                     Action<float> onChanged)
+        {
+            var row = Row(parent, key, LevelWidth);
+
+            var slider = UiBuilder.CreateSlider("Slider", row, min, max, value, onChanged);
+
+            // Widened by its own end margins and pushed out by the row's, so that the bar ends
+            // where a switch's track ends. Pinned like any other control it stopped short of
+            // them by exactly one margin, and the right-hand edge of the screen zig-zagged.
+            var rect = (RectTransform)slider.transform;
+            PinRight(rect, LevelWidth + UiBuilder.SliderEndInset * 2f, UiBuilder.TouchTarget);
+            rect.anchoredPosition = new Vector2(-(RowInset - UiBuilder.SliderEndInset), 0f);
+
+            RegisterSlider(slider);
             return slider;
+        }
+
+        /// <summary>
+        /// A named setting whose value is a word, shown on the button that changes it.
+        ///
+        /// The label alone said "Language" and nothing else — the only control on the screen
+        /// that showed its question and not its answer, on the one screen a player opens
+        /// precisely because the answer is currently wrong.
+        /// </summary>
+        Button Chip(Transform parent, string key, Action onClick)
+        {
+            var row = Row(parent, key, ChipWidth);
+
+            var chip = UiBuilder.CreateButton("Value", row, string.Empty,
+                () => { Clicked?.Invoke(); onClick?.Invoke(); });
+            PinRight((RectTransform)chip.transform, ChipWidth, UiBuilder.TouchTarget);
+
+            TrackShape(chip.targetGraphic as Image, UiBuilder.TouchTarget);
+            TrackSurface(chip.targetGraphic);
+            Track(chip.GetComponentInChildren<Text>());
+            _presses.Add(Press(chip));
+            return chip;
+        }
+
+        /// <summary>
+        /// A word you can press, with no button around it.
+        ///
+        /// For the two things on the settings screen that are not settings. They still carry a
+        /// fill, because a transparent one is what the finger lands on; it simply is not drawn.
+        /// </summary>
+        Button Link(Transform parent, string key, Action onClick)
+        {
+            var button = UiBuilder.CreateButton(key, parent, Strings.Get(key),
+                () => { Clicked?.Invoke(); onClick?.Invoke(); });
+
+            if (button.targetGraphic is Image fill) fill.color = new Color(1f, 1f, 1f, 0f);
+
+            var label = button.GetComponentInChildren<Text>();
+            label.fontSize = UiBuilder.BodySize;
+            _stringRefreshers.Add(() => label.text = Strings.Get(key));
+            Track(label);
+            _presses.Add(Press(button));
+            return button;
         }
 
         Toggle Toggle(Transform parent, string key, bool value, Action<bool> onChanged)
@@ -651,12 +1062,65 @@ namespace HR.UI
             var label = toggle.GetComponentInChildren<Text>();
             _stringRefreshers.Add(() => label.text = Strings.Get(key));
             Track(label);
-            Track(toggle.targetGraphic);
-            Track(toggle.graphic);
+
+            // The row's own backing stays faint — it is a hit area, not a control. What the eye
+            // is meant to find is the switch at the end of it.
+            var visual = toggle.GetComponent<ToggleVisual>();
+            if (visual != null) _switches.Add(visual);
             return toggle;
         }
 
+        /// <summary>
+        /// Takes a slider apart into the roles its pieces play: a quiet track, a filled part
+        /// in the accent, and a knob the finger is aiming for. Painted as one colour before,
+        /// which is how the handle ended up a black slab taller than the line it rode on.
+        /// </summary>
+        void RegisterSlider(Slider slider)
+        {
+            if (slider == null) return;
+
+            foreach (var part in slider.GetComponentsInChildren<Image>(true))
+            {
+                if (part.name == "Handle") { _knobs.Add(part); continue; }
+
+                // Shaped like the track it sits in, or a rounded bar ends in a square stub.
+                if (part.name == "Fill")
+                {
+                    _accents.Add(part);
+                    TrackShape(part, UiBuilder.SliderTrackHeight);
+                    continue;
+                }
+
+                _tracks.Add(part);
+            }
+        }
+
+        /// <summary>Gives a button something to do under a finger.</summary>
+        static PressFeedback Press(Button button)
+        {
+            var press = button.gameObject.AddComponent<PressFeedback>();
+            press.Fill = button.targetGraphic;
+            return press;
+        }
+
+        /// <summary>Text and anything else that should be the theme's ink.</summary>
         void Track(Graphic graphic) { if (graphic != null) _tinted.Add(graphic); }
+
+        /// <summary>The fill of a control: opaque, and distinct from the screen behind it.</summary>
+        void TrackSurface(Graphic graphic) { if (graphic != null) _surfaces.Add(graphic); }
+
+        /// <summary>Registers a control whose corners follow the theme's skin.</summary>
+        void TrackShape(Image image, float height)
+        {
+            if (image != null) _shaped.Add((image, height));
+        }
+
+        /// <summary>The one action a screen is for. Fill and label move together.</summary>
+        void TrackAccent(Graphic fill, Graphic label)
+        {
+            if (fill != null) _accents.Add(fill);
+            if (label != null) _accentTexts.Add(label);
+        }
 
         void Scrim(RectTransform panel)
         {
