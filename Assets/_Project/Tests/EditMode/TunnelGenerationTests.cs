@@ -6,16 +6,12 @@ namespace HR.Tests.EditMode
 {
     public class RingGeneratorTests
     {
-        // A generous time budget so these tests exercise the spacing and direction rules rather
-        // than tripping over the reachability ceiling, which has its own tests below.
         static DifficultySnapshot Spinning(double spin, bool alternate = false)
             => new DifficultySnapshot(0.3, 2.0, 2.2, spin, alternate, 20.0, 200.0, 1.10, 1.28);
 
         [Test]
         public void The_same_seed_produces_the_same_tunnel()
         {
-            // A balance report nobody can replay cannot be told apart from luck, and a bug
-            // report without a seed is a bug nobody can reproduce.
             var a = new RingGenerator(1234);
             var b = new RingGenerator(1234);
 
@@ -69,8 +65,6 @@ namespace HR.Tests.EditMode
                 buckets[(int)(centre / 45.0)]++;
             }
 
-            // Not a statistics test — just that no eighth of the circle is unreachable, which a
-            // sign error or a stray clamp would produce.
             foreach (int count in buckets) Assert.Greater(count, 0, "part of the circle never gets a gap");
         }
 
@@ -85,7 +79,6 @@ namespace HR.Tests.EditMode
         [Test]
         public void Neighbouring_rings_never_turn_at_the_same_rate()
         {
-            // Identical neighbours read as one rigid object instead of a tunnel of rings.
             var generator = new RingGenerator(31);
             double previous = 0.0;
 
@@ -137,7 +130,6 @@ namespace HR.Tests.EditMode
         [Test]
         public void The_ball_ring_and_the_next_are_fully_visible()
         {
-            // These are the two the player is actually reading.
             Assert.AreEqual(1.0, Alpha(3.0), 1e-9);
             Assert.AreEqual(1.0, Alpha(3.0 + Step), 1e-9);
         }
@@ -162,8 +154,6 @@ namespace HR.Tests.EditMode
         [Test]
         public void Nothing_ever_pops_in_or_out()
         {
-            // Walk the whole visible range and assert no step in opacity is large enough to read
-            // as an appearance or a disappearance.
             double previous = Alpha(Vanish);
             for (double r = Vanish; r <= 3.0 + Step * Ahead; r += 0.01)
             {

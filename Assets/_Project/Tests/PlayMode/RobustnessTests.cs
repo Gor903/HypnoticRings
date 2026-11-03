@@ -9,14 +9,6 @@ using UnityEngine.TestTools;
 
 namespace HR.Tests.PlayMode
 {
-    /// <summary>
-    /// Phase 9: what the game does when it is treated badly.
-    ///
-    /// Everything here is a case a player reaches by accident — a frame that took a second
-    /// because the phone woke up, a pause button hit four times, a restart before the previous
-    /// run finished dying. None of them appear in normal play, all of them appear in a crash
-    /// report, and none of them are reachable from a test that only plays the game properly.
-    /// </summary>
     public class RobustnessTests
     {
         const float Dt = 1f / 90f;
@@ -86,9 +78,6 @@ namespace HR.Tests.PlayMode
         [UnityTest]
         public IEnumerator A_frame_that_took_no_time_at_all_changes_nothing()
         {
-            // CONTRACT.md G-14. dt = 0 arrives on the first frame after a resume, and a divide
-            // by it turns the whole tunnel into NaN — which then never recovers, because NaN
-            // propagates through every later step.
             Build(seed: 3);
             for (int i = 0; i < 50; i++) _tunnel.Step(Dt);
 
@@ -106,9 +95,6 @@ namespace HR.Tests.PlayMode
         [UnityTest]
         public IEnumerator A_frame_that_took_a_whole_second_does_not_teleport_the_tunnel()
         {
-            // CONTRACT.md G-14: game logic clamps dt at 0.1 s. Without the clamp, one stalled
-            // frame compresses the tunnel by a second's worth in a single step and kills a
-            // player who did nothing wrong.
             Build(seed: 4);
             for (int i = 0; i < 50; i++) _tunnel.Step(Dt);
 
@@ -148,9 +134,6 @@ namespace HR.Tests.PlayMode
         [UnityTest]
         public IEnumerator Fifty_restarts_in_a_row_leave_the_pool_where_it_started()
         {
-            // Spec 14, case 9. The number that matters is the high-water mark, not the live
-            // count: a pool that grows by one ring per restart looks perfectly stable at any
-            // single moment.
             Build(seed: 6);
             for (int i = 0; i < 200; i++) _tunnel.Step(Dt);
 
@@ -169,21 +152,14 @@ namespace HR.Tests.PlayMode
         }
 
         [UnityTest]
-        // What this covers is rings, not minutes, and D-059 quadrupled how fast they arrive: the
-        // same nonsense now delivers about 240 passes where it used to deliver 60. So the clock
-        // was halved rather than the coverage — at ten simulated minutes the run walked past its
-        // own twenty-minute timeout, because a tighter corridor doubled the cost of a step too.
+
         [Timeout(1_200_000)]
         public IEnumerator Five_minutes_of_nonsense_input_never_breaks_the_tunnel()
         {
-            // Fuzzing, deterministically: the same nonsense every run, so a failure can be
-            // reproduced rather than waited for. Jumps across the ±180 seam, taps with no
-            // movement, and fingers that leave and return mid-swipe are all here because each
-            // one is reachable with a real thumb.
             Build(seed: 7);
             var random = new System.Random(20261027);
 
-            const int steps = 27000;   // five minutes at 90 Hz
+            const int steps = 27000;
             for (int i = 0; i < steps; i++)
             {
                 switch (random.Next(5))
@@ -224,15 +200,8 @@ namespace HR.Tests.PlayMode
         [UnityTest]
         public IEnumerator The_game_loop_allocates_nothing_once_it_is_running()
         {
-            // CONTRACT.md: no allocations in the game loop. Measured with the profiler recorder
-            // rather than GC.GetTotalMemory, which reports the heap's size and not whether this
-            // frame added to it.
             Build(seed: 8);
 
-            // Warmed by playing, not by stepping a still tunnel. The pool only reaches its
-            // working size once rings have actually been passed and retired, and a warmup that
-            // never scores leaves the first pass of the measured window building a ring — which
-            // is the pool filling up, not the loop leaking.
             for (int i = 0; i < 1800; i++)
             {
                 _fingerAngle += 3.0;
@@ -246,7 +215,7 @@ namespace HR.Tests.PlayMode
             var recorder = ProfilerRecorder.StartNew(ProfilerCategory.Memory, "GC Allocated In Frame");
             Assert.IsTrue(recorder.Valid, "the allocation recorder is unavailable");
 
-            yield return null;   // let the recorder settle on a real frame
+            yield return null;
 
             long worst = 0;
             int createdBefore = _pool.Created;
@@ -265,14 +234,9 @@ namespace HR.Tests.PlayMode
 
             recorder.Dispose();
 
-            // Not zero: the test runner's own coroutine machinery allocates on every frame it
-            // drives, and that is not the game's doing. The bar is that the game loop cannot be
-            // what is producing kilobytes per frame.
             Debug.Log($"[HR] allocation gate: worst frame allocated {worst} bytes, "
                       + $"{_pool.Created - createdBefore} rings built during the window");
 
-            // Named separately because it is the one cause worth telling apart: a ring built
-            // mid-run is the pool failing, and the byte count alone does not say which it was.
             Assert.AreEqual(createdBefore, _pool.Created,
                 $"the pool built {_pool.Created - createdBefore} ring(s) during a running game");
             Assert.Less(worst, 4096,

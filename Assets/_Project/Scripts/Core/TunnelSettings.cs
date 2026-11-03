@@ -2,14 +2,6 @@ using System.Collections.Generic;
 
 namespace HR.Core
 {
-    /// <summary>
-    /// Every number the tunnel's rules depend on, in one engine-free snapshot. The GameConfig
-    /// asset is the editable source; this is what the rules actually read, so the rules can be
-    /// tested without an asset and the asset can be checked against the contract.
-    ///
-    /// Values are CONTRACT.md §2 starting values. They are meant to be tuned by bot simulation;
-    /// the invariants in Validate are not.
-    /// </summary>
     public readonly struct TunnelSettings
     {
         public readonly double Thickness;
@@ -20,14 +12,7 @@ namespace HR.Core
         public readonly double RedRadius;
         public readonly double PassMargin;
         public readonly double MinGapWidth;
-        /// <summary>
-        /// Retraction pull, expressed per step rather than absolutely.
-        ///
-        /// The pull term of the compression law is k·(R−R_target), and after a pass R is exactly
-        /// one step out. Holding k fixed while the step shrinks would make the snap-back weaker
-        /// the further a run goes, purely as a side effect of the corridor tightening. Holding
-        /// this product fixed keeps the snap-back feeling the same: k = PullPerStep / step.
-        /// </summary>
+
         public readonly double PullPerStep;
         public readonly double MaxCompressionSpeed;
         public readonly double ComfortSpinDeg;
@@ -61,26 +46,12 @@ namespace HR.Core
             CapPoints = capPoints;
         }
 
-        /// <summary>
-        /// Narrowest corridor the difficulty curve may ask for, in ball diameters. One of the
-        /// generator's hard floors rather than a taste setting.
-        /// </summary>
         public const double CorridorFloorInDiameters = 1.3;
 
-        /// <summary>
-        /// Distance between the centre lines of neighbouring rings, at the opening corridor
-        /// width. Once a run is going the corridor narrows with difficulty, so the live step
-        /// comes from the snapshot — this is the starting value and what Validate reasons about.
-        /// </summary>
         public double Step => Clearance + Thickness;
 
-        /// <summary>Step for a given corridor width, which is the one that moves over a run.</summary>
         public double StepFor(double clearance) => clearance + Thickness;
 
-        /// <summary>
-        /// Radius at which a ring's inner edge touches the red circle, which ends the run.
-        /// Drawn at exactly this size, so the player sees the boundary rather than guessing it.
-        /// </summary>
         public double CrushRadius => RedRadius + Thickness * 0.5;
 
         public static TunnelSettings Default => new TunnelSettings(
@@ -90,11 +61,6 @@ namespace HR.Core
             maxBallSpeed: 14.0, maxArcStepDeg: 7.5, maxSegmentSweepDeg: 120.0,
             ringsAhead: 9, capPoints: 4);
 
-        /// <summary>
-        /// Relationships that must hold whatever the balance pass does to the numbers. An empty
-        /// list means the configuration is playable; anything else would produce a tunnel the
-        /// ball cannot physically use, which is far cheaper to catch here than in a simulation.
-        /// </summary>
         public List<string> Validate()
         {
             var problems = new List<string>();
@@ -102,21 +68,13 @@ namespace HR.Core
             if (Thickness <= 0) problems.Add("thickness must be positive");
             if (BallRadius <= 0) problems.Add("ball radius must be positive");
 
-            // The corridor has to admit the ball with room to move, or it is a wall. A corridor
-            // exactly one ball wide technically fits and is unplayable: the ball can only travel
-            // along it, never across, so the floor is a share above the diameter rather than the
-            // diameter itself.
             if (Clearance < BallRadius * 2 * CorridorFloorInDiameters)
                 problems.Add($"clearance {Clearance} is under {CorridorFloorInDiameters} ball "
                              + $"diameters ({BallRadius * 2 * CorridorFloorInDiameters:F3})");
 
-            // Narrower than the ball and no gap is ever passable, whatever the difficulty curve says.
             if (MinGapWidth < BallRadius * 2)
                 problems.Add($"minimum gap {MinGapWidth} is narrower than the ball");
 
-            // A ring must be able to reach the crush radius before it would be culled, or the
-            // lose condition can never fire.
-            // The red circle has to be able to hold the ball, or the run ends before it starts.
             if (RedRadius < BallRadius)
                 problems.Add($"red circle {RedRadius} is smaller than the ball {BallRadius}");
 

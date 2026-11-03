@@ -6,21 +6,12 @@ using UnityEngine;
 
 namespace HR.Save
 {
-    /// <summary>
-    /// Reads and writes the one save file.
-    ///
-    /// Two rules shape everything here. A write must be atomic, because the phone can be killed
-    /// between opening a file and finishing it, and a half-written save is worse than none. And
-    /// a load must never throw: whatever is on disk — truncated, hand-edited, from an older
-    /// build, or not there at all — the game has to start.
-    /// </summary>
     public sealed class SaveService
     {
         public const string FileName = "save.json";
 
         readonly string _path;
 
-        /// <summary>Path is injected so tests write to a temporary directory, not the real save.</summary>
         public SaveService(string path)
         {
             if (string.IsNullOrEmpty(path)) throw new ArgumentNullException(nameof(path));
@@ -30,19 +21,12 @@ namespace HR.Save
         public static SaveService Default() =>
             new SaveService(Path.Combine(Application.persistentDataPath, FileName));
 
-        /// <summary>Not named Path: that shadows System.IO.Path inside this class.</summary>
         public string FilePath => _path;
         public bool Exists => File.Exists(_path);
 
-        /// <summary>Everything the last Load or Save had to repair or could not do.</summary>
         public IReadOnlyList<string> LastReport => _report;
         readonly List<string> _report = new List<string>();
 
-        /// <summary>
-        /// Loads, repairing whatever it must. Never throws and never returns null — a fresh
-        /// install and a corrupt file both end up at sane defaults, and the difference is
-        /// recorded in the report rather than in a crash.
-        /// </summary>
         public SaveData Load()
         {
             _report.Clear();
@@ -87,10 +71,6 @@ namespace HR.Save
             return data;
         }
 
-        /// <summary>
-        /// Writes atomically: a temporary file first, then one replace. A process killed partway
-        /// leaves either the old save or the new one, never half of either.
-        /// </summary>
         public bool Save(SaveData data)
         {
             if (data == null) throw new ArgumentNullException(nameof(data));
@@ -110,8 +90,6 @@ namespace HR.Save
             }
             catch (Exception e)
             {
-                // A save that cannot be written is worth reporting and surviving. Losing a best
-                // score is a disappointment; refusing to run because of it is a bug.
                 _report.Add($"could not write the save ({e.GetType().Name}: {e.Message})");
                 TryDelete(temporary);
                 return false;
@@ -128,7 +106,6 @@ namespace HR.Save
 
             try
             {
-                // Replace is the atomic one where the platform has it.
                 File.Replace(temporary, destination, destinationBackupFileName: null);
             }
             catch (PlatformNotSupportedException)
@@ -143,7 +120,6 @@ namespace HR.Save
             }
         }
 
-        /// <summary>Wipes the save. The settings screen asks first (CONTRACT.md §4).</summary>
         public bool Delete()
         {
             _report.Clear();
@@ -163,7 +139,7 @@ namespace HR.Save
         static void TryDelete(string path)
         {
             try { if (File.Exists(path)) File.Delete(path); }
-            catch { /* best effort; the next write replaces it anyway */ }
+            catch {  }
         }
     }
 }

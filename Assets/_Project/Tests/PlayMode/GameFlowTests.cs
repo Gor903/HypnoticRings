@@ -8,10 +8,6 @@ using UnityEngine.TestTools;
 
 namespace HR.Tests.PlayMode
 {
-    /// <summary>
-    /// Phase 4's play-mode gates: losing properly, restarting cleanly, and fifty restarts in a
-    /// row leaving nothing behind.
-    /// </summary>
     public class GameFlowTests
     {
         const float Dt = 1f / 90f;
@@ -47,8 +43,6 @@ namespace HR.Tests.PlayMode
         [UnityTest]
         public IEnumerator Resuming_holds_the_tunnel_still_for_the_grace_period()
         {
-            // CONTRACT.md G-02 and G-08. The contract rules out a countdown, so the only thing
-            // standing between a returning player and a tunnel caught mid-squeeze is this.
             Build();
             _game.StartRun(99);
             for (int i = 0; i < 10; i++) _game.Tick(Dt, 0.0);
@@ -59,7 +53,6 @@ namespace HR.Tests.PlayMode
 
             double radiusAtResume = _tunnel.Rings[0].Radius;
 
-            // Just short of the grace: the clock has moved, the tunnel has not.
             int steps = Mathf.FloorToInt((float)(GameManager.ResumeGraceSeconds / Dt)) - 1;
             for (int i = 0; i < steps; i++) _game.Tick(Dt, 0.0);
 
@@ -67,7 +60,6 @@ namespace HR.Tests.PlayMode
                 "the tunnel advanced during the grace period");
             Assert.AreEqual(GameState.Playing, _game.State);
 
-            // Past it, the game moves again.
             for (int i = 0; i < 4; i++) _game.Tick(Dt, 0.0);
             Assert.IsFalse(_game.IsWarmingUp, "the grace never ended");
 
@@ -80,8 +72,6 @@ namespace HR.Tests.PlayMode
         [UnityTest]
         public IEnumerator A_retry_gets_no_leftover_grace()
         {
-            // The grace belongs to a resume. Carried into a fresh run it would be a free moment
-            // at the start of every retry, which is a different game.
             Build();
             _game.StartRun(1);
             for (int i = 0; i < 5; i++) _game.Tick(Dt, 0.0);
@@ -120,18 +110,8 @@ namespace HR.Tests.PlayMode
             _game.Initialise(_config, _tunnel, _ball, best);
         }
 
-        /// <summary>
-        /// Steps a run to its end on purpose rather than by luck.
-        ///
-        /// Doing nothing does not reliably lose: the ball flies, and a gap sooner or later ends
-        /// up on its path whatever the player does. A test that waits for a loss would therefore
-        /// pass or fail on the seed.
-        /// </summary>
         void StepLosing(int steps)
         {
-            // Sealed, not steered. Holding the opening away from the bottom used to keep a
-            // resting ball in; a flying one leaves through whichever gap it reaches, so the only
-            // honest way to say "the player did not get out" is to give them no way out.
             Seal(_tunnel.ResolveBallRing());
 
             for (int i = 0; i < steps; i++)
@@ -143,7 +123,6 @@ namespace HR.Tests.PlayMode
             }
         }
 
-        /// <summary>Closes a ring's opening and gives its new colliders the ring material back.</summary>
         void Seal(RingController ring)
         {
             if (ring == null) return;
@@ -152,7 +131,6 @@ namespace HR.Tests.PlayMode
                 ring.SegmentAt(i).Collider.sharedMaterial = _ringPhysics;
         }
 
-        /// <summary>The ring furthest out, which is the one no cull can take.</summary>
         RingController Outermost()
         {
             RingController best = null;
@@ -179,8 +157,6 @@ namespace HR.Tests.PlayMode
         [UnityTest]
         public IEnumerator A_ball_with_no_way_out_loses_the_run_and_only_once()
         {
-            // The ring closes onto the red circle. The budget at the opening pace is about four
-            // and a half seconds since D-059, so forty is generous several times over.
             Build();
             _game.StartRun(seed: 2);
 
@@ -219,10 +195,6 @@ namespace HR.Tests.PlayMode
 
             Assert.IsTrue(_game.Pause());
 
-            // One ring, held by reference. Watching Rings[0] instead watches a slot, not a ring:
-            // a cull removes an entry and everything behind it shifts forward, so the slot can
-            // come back holding a ring further out — which reads exactly like a tunnel that
-            // stopped closing. The outermost ring is the one the cull can never take.
             var ring = Outermost();
             double radius = ring.Radius;
 
@@ -238,8 +210,6 @@ namespace HR.Tests.PlayMode
         [UnityTest]
         public IEnumerator The_crush_fires_on_geometry_and_not_a_moment_early()
         {
-            // The lose condition is measured, not inferred from a collision: the run ends when
-            // a ring's inner edge reaches the red circle, and not a moment before.
             Build();
             _game.StartRun(seed: 5);
             Seal(_tunnel.ResolveBallRing());
@@ -290,8 +260,6 @@ namespace HR.Tests.PlayMode
         [Timeout(600_000)]
         public IEnumerator Fifty_restarts_leave_nothing_behind()
         {
-            // The phase 4 gate. Each run is played to its end and restarted; what matters is
-            // that the fiftieth leaves the scene the same size as the second.
             Build();
             _game.StartRun(seed: 0);
             StepLosing(Mathf.RoundToInt(40f / Dt));
@@ -313,11 +281,6 @@ namespace HR.Tests.PlayMode
                 if (run % 10 == 0) yield return null;
             }
 
-            // The same distinction D-018 drew for the endless gate, which I should have applied
-            // here first time: a pool settles at its high-water mark, and that mark need not be
-            // reached by the second run. A leak is unbounded; a pool is not. So the pool must
-            // stay inside the live-ring budget, and every transform that appeared has to be
-            // accounted for by those pooled rings and nothing else.
             double furthestBallRing = _settings.TargetRadius + 2.0 * _settings.Step;
             int inside = (int)Math.Floor((furthestBallRing - _settings.VanishRadius) / _settings.Step);
             int allowedLive = inside + 1 + _settings.RingsAhead + 1;

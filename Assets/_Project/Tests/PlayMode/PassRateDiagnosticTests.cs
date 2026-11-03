@@ -7,13 +7,6 @@ using UnityEngine.TestTools;
 
 namespace HR.Tests.PlayMode
 {
-    /// <summary>
-    /// How long a ball takes to clear a ring, and where that time goes.
-    ///
-    /// Written because the endurance test started reporting a stall after the dissolve timing
-    /// was fixed — four times as many steps per ring — and the endurance test says only that it
-    /// happened, never why. This one is short enough to run while thinking.
-    /// </summary>
     public sealed class PassRateDiagnosticTests
     {
         const float Dt = 1f / 90f;
@@ -62,15 +55,10 @@ namespace HR.Tests.PlayMode
             if (_config != null) Object.DestroyImmediate(_config);
         }
 
-        /// <summary>
-        /// Drives a perfect hand — the gap is simply placed under the ball every step — and
-        /// counts how long a ring takes anyway. With the aim removed as a variable, what is left
-        /// is the tunnel itself.
-        /// </summary>
         [UnityTest]
         public IEnumerator A_perfect_hand_still_tells_us_how_long_a_ring_takes()
         {
-            const int steps = 27000;   // five minutes of play
+            const int steps = 27000;
             int passes = 0;
             _tunnel.RingPassed += _ => passes++;
 
@@ -94,11 +82,6 @@ namespace HR.Tests.PlayMode
                     stuckInSameRing = 0;
                 }
 
-                // A hand that never misses, but still a hand: the turn per step is capped at a
-                // comfortable thumb. Correcting the whole error every step instead sweeps the
-                // wall at an absurd angular speed and bats the ball about — the first version of
-                // this diagnostic did exactly that and reported 2700 steps per ring, which was a
-                // measurement of its own stirring rather than of the tunnel.
                 double want = TunnelMath.ShortestDeltaDeg(
                     ring.NearestGapWorldDeg(_ball.AngleDeg), _ball.AngleDeg);
                 double most = _config.comfortSpinDeg * Dt;

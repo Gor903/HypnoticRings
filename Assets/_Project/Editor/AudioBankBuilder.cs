@@ -6,14 +6,6 @@ using UnityEngine;
 
 namespace HR.Editor
 {
-    /// <summary>
-    /// Points the audio bank at the clips `tools/gen_audio.py` generated, and sets their import
-    /// settings for a phone.
-    ///
-    /// Unlike the game config this is rebuilt every time rather than left alone: nothing here is
-    /// hand-tuned, every field is derived from a filename, and a bank holding a stale reference
-    /// is a sound that silently stops playing.
-    /// </summary>
     public static class AudioBankBuilder
     {
         public const string AudioDir = "Assets/_Project/Audio";
@@ -63,8 +55,6 @@ namespace HR.Editor
 
             var settings = importer.defaultSampleSettings;
 
-            // Vorbis for the drone, which is long enough for the saving to matter; the one-shots
-            // stay uncompressed, where decode latency costs more than the kilobytes it saves.
             settings.loadType = streaming
                 ? AudioClipLoadType.Streaming
                 : AudioClipLoadType.DecompressOnLoad;

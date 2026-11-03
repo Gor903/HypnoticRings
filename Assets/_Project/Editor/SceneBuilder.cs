@@ -6,23 +6,13 @@ using UnityEngine;
 
 namespace HR.Editor
 {
-    /// <summary>
-    /// Scenes are built by this script, never by hand-editing YAML. A scene that cannot be
-    /// regenerated with one command drifts the moment two sessions touch it.
-    /// </summary>
     public static class SceneBuilder
     {
         public const string ScenesDir = "Assets/_Project/Scenes";
         public const string BootScene = ScenesDir + "/Boot.unity";
         public const string MainScene = ScenesDir + "/Main.unity";
 
-        // Deliberately absent from the build list: the sandbox is a workbench, and a stray scene
-        // in a shipping build is exactly what ProjectSetup.Verify is there to catch.
         public const string SandboxScene = ScenesDir + "/Sandbox.unity";
-
-        // CONTRACT.md G-10: the camera is static, and how it frames the tunnel is two numbers in
-        // GameConfig — read from there rather than repeated here, because the runtime reads them
-        // too and a second copy is a second answer.
 
         [MenuItem("Hypnotic Rings/Setup/Rebuild scenes")]
         public static void BuildAll()
@@ -52,9 +42,6 @@ namespace HR.Editor
             var scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
             CreateCamera("Main Camera");
 
-            // One object. GameBootstrap raises the tunnel, the input, the themes and the
-            // interface underneath itself at runtime, so empty roots waiting here would only be
-            // a second place for the same hierarchy to be described.
             var go = new GameObject("Game");
             var bootstrap = go.AddComponent<HR.App.GameBootstrap>();
 
@@ -76,7 +63,6 @@ namespace HR.Editor
             var go = new GameObject("Sandbox");
             var bootstrap = go.AddComponent<HR.Gameplay.SandboxBootstrap>();
 
-            // Wired here rather than by hand, so regenerating the scene cannot lose the link.
             var config = ConfigBuilder.EnsureGameConfig();
             var serialized = new SerializedObject(bootstrap);
             serialized.FindProperty("config").objectReferenceValue = config;
@@ -106,7 +92,6 @@ namespace HR.Editor
 
         static void RegisterInBuildSettings()
         {
-            // Order matters, not just membership: the first enabled scene is the one that loads.
             var scenes = new List<EditorBuildSettingsScene>
             {
                 new EditorBuildSettingsScene(BootScene, true),

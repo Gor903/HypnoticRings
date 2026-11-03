@@ -3,7 +3,6 @@ using NUnit.Framework;
 
 namespace HR.Tests.EditMode
 {
-    /// <summary>CONTRACT.md G-13, checked at the boundaries rather than by ear.</summary>
     public class ToneLadderTests
     {
         [Test]
@@ -25,9 +24,6 @@ namespace HR.Tests.EditMode
         [Test]
         public void Exactly_three_seconds_still_counts_as_a_streak()
         {
-            // The rule says "no more than three seconds", so the boundary is inside it. Written
-            // down because off-by-one at a boundary is the defect this class is most likely to
-            // have, and listening to it would never reveal which side of 3.0 the code chose.
             var ladder = new ToneLadder();
             ladder.Pass(0.0);
             Assert.AreEqual(1, ladder.Pass(ToneLadder.StreakWindowSeconds));
@@ -36,7 +32,6 @@ namespace HR.Tests.EditMode
         [Test]
         public void A_gap_longer_than_the_window_drops_back_to_the_bottom()
         {
-            // Two passes are one rise, not two: the first is the bottom of the ladder.
             var ladder = new ToneLadder();
             ladder.Pass(0.0);
             ladder.Pass(1.0);
@@ -65,7 +60,6 @@ namespace HR.Tests.EditMode
 
             ladder.Reset();
 
-            // Well inside the window, and still back at the bottom: the reset is what decides.
             Assert.AreEqual(0, ladder.Pass(0.6));
         }
     }

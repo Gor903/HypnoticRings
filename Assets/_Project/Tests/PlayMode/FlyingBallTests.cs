@@ -8,11 +8,6 @@ using UnityEngine.TestTools;
 
 namespace HR.Tests.PlayMode
 {
-    /// <summary>
-    /// The run as it is played after D-058: the ball flies instead of resting, a ring is retired
-    /// the moment the ball leaves it, and the only way to lose is a ring closing onto the red
-    /// circle at the centre.
-    /// </summary>
     public class FlyingBallTests
     {
         const float Dt = 1f / 90f;
@@ -40,8 +35,6 @@ namespace HR.Tests.PlayMode
             Physics2D.simulationMode = SimulationMode2D.Script;
             Physics2D.gravity = new Vector2(0f, -14f);
 
-            // The player's build gets this from the project settings; a scripted fixture has to
-            // say so itself, and without it a ball with a full bounce quietly stops bouncing.
             Physics2D.bounceThreshold = 0.01f;
         }
 
@@ -86,7 +79,6 @@ namespace HR.Tests.PlayMode
                     ring.SegmentAt(i).Collider.sharedMaterial = _ringPhysics;
         }
 
-        /// <summary>One step of everything, the way the real loop orders it.</summary>
         void Step(double userAngleDeg = 0.0)
         {
             _game.Tick(Dt, userAngleDeg);
@@ -114,8 +106,6 @@ namespace HR.Tests.PlayMode
             float slowest = float.MaxValue;
             for (int i = 0; i < 90 * 60; i++)
             {
-                // Compression off: this is about the flight, and a run that ends at fifteen
-                // seconds cannot say anything about a minute of it.
                 _tunnel.CompressionEnabled = false;
                 Step();
 
@@ -180,10 +170,6 @@ namespace HR.Tests.PlayMode
                 Assert.IsFalse(ring.SegmentAt(i).Collider.enabled,
                     "a ring the ball has left can still bat it back");
 
-            // And it is gone once the fade is over, back in the pool rather than destroyed.
-            // Not a claim that nothing was built: the ball's ring going away does leave the
-            // tunnel one short of its rings ahead, and filling that is the right thing to do.
-            // That the pool settles instead of growing is the restart and endless gates' job.
             int steps = Mathf.CeilToInt(_config.dissolveSeconds / Dt) + 2;
             for (int i = 0; i < steps; i++) Step();
 
@@ -202,8 +188,6 @@ namespace HR.Tests.PlayMode
             int scored = 0;
             _tunnel.RingPassed += _ => scored++;
 
-            // Walk the ball out through the gap by hand: this is about the latch surviving the
-            // ring's disappearance, not about whether a flight happens to find the opening.
             var ring = _tunnel.ResolveBallRing();
             double gap = ring.GapCentreWorldDeg * Mathf.Deg2Rad;
             double outside = ring.Radius + _settings.Thickness * 0.5 + _settings.PassMargin + 0.2;
@@ -217,7 +201,6 @@ namespace HR.Tests.PlayMode
             Assert.AreEqual(1, scored, "clearing a ring scored something other than once");
             Assert.AreEqual(1, _tunnel.PassedCount);
 
-            // And it stays once, through the whole dissolve and past it.
             int steps = Mathf.CeilToInt(_config.dissolveSeconds / Dt) + 60;
             for (int i = 0; i < steps; i++) Step();
             Assert.AreEqual(1, scored, "the same ring scored again after it dissolved");
@@ -229,9 +212,6 @@ namespace HR.Tests.PlayMode
             Build();
             StartRun(seed: 13);
 
-            // The ball's ring is sealed for this one. A flying ball finds the opening by itself
-            // often enough that "did nothing" does not mean "went nowhere", and a run that
-            // scores has a different timer — this test is about the timer, not about luck.
             var sealedRing = _tunnel.ResolveBallRing();
             sealedRing.ConfigureSolid(sealedRing.Radius, autoSpinDeg: 0.0);
             for (int i = 0; i < sealedRing.ActiveSegmentCount; i++)
@@ -266,17 +246,12 @@ namespace HR.Tests.PlayMode
             _tunnel.CompressionEnabled = false;
             yield return null;
 
-            // Straight across the centre, right over the circle.
             _ball.Place(new Vector2(-2f, 0f));
             _ball.Body.linearVelocity = new Vector2(_config.cruiseSpeed, 0f);
 
             bool crossed = false;
             bool emerged = false;
 
-            // Stops at the far side of the circle rather than running a fixed two seconds. The
-            // ball flies on and bounces off the ring beyond, and whether it happens to be heading
-            // right again at step 180 is a matter of its speed dividing the time — which D-059
-            // changed, and which says nothing at all about the circle.
             for (int i = 0; i < 180 && !emerged; i++)
             {
                 Step();
@@ -290,7 +265,6 @@ namespace HR.Tests.PlayMode
             Assert.IsTrue(crossed, "the ball never actually reached the circle");
             Assert.IsTrue(emerged, "the ball never came out the far side of the circle");
 
-            // Nothing deflected it, so it is still heading the way it was sent.
             Assert.Greater(_ball.Body.linearVelocity.x, 0f, "the circle pushed the ball back");
         }
 
@@ -304,7 +278,6 @@ namespace HR.Tests.PlayMode
 
             var ring = _tunnel.ResolveBallRing();
 
-            // The ball parked far from the centre, the ring brought down onto the circle.
             _ball.Place(new Vector2(0f, -(float)(_settings.TargetRadius - _settings.Thickness * 0.5
                                                  - _settings.BallRadius)));
             _ball.Body.linearVelocity = Vector2.zero;

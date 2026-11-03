@@ -3,14 +3,6 @@ using NUnit.Framework;
 
 namespace HR.Tests.EditMode
 {
-    /// <summary>
-    /// The colour roles the interface is built from, checked on every theme.
-    ///
-    /// Worth its own file because the failure these guard against does not look like a failure.
-    /// A palette with only ink and paper painted every control with the ink and let it keep its
-    /// own alpha, so a button's fill was the text colour at eight per cent: present in the
-    /// hierarchy, correct in every test, and invisible on the screen.
-    /// </summary>
     public sealed class UiRoleTests
     {
         [Test]
@@ -50,9 +42,6 @@ namespace HR.Tests.EditMode
                 Assert.GreaterOrEqual(againstScreen, Contrast.Required,
                     $"{theme}: the accent at {againstScreen:F2} does not stand out at all");
 
-                // Button labels are large type, so the large-text floor is the right one. The
-                // accent is taken from a ring colour and can land anywhere on the scale, which
-                // is exactly why the label colour is chosen rather than fixed.
                 double label = Contrast.Ratio(palette.AccentText, palette.Accent);
                 Assert.GreaterOrEqual(label, ThemePalette.LargeTextRequired,
                     $"{theme}: accent label at {label:F2}");
@@ -62,8 +51,6 @@ namespace HR.Tests.EditMode
         [Test]
         public void The_accent_is_not_the_same_colour_as_an_ordinary_button()
         {
-            // Otherwise the hierarchy is a lie: the main action looks exactly like the rest and
-            // the player has nothing to aim at.
             foreach (var theme in ThemePalette.All)
             {
                 var palette = ThemePalette.For(theme);
@@ -77,8 +64,6 @@ namespace HR.Tests.EditMode
         [Test]
         public void A_switch_that_is_off_is_still_something_you_can_see()
         {
-            // The old one drew nothing at all when off, so a setting that was not enabled read
-            // as a line of text with no control beside it.
             foreach (var theme in ThemePalette.All)
             {
                 var palette = ThemePalette.For(theme);
@@ -120,8 +105,6 @@ namespace HR.Tests.EditMode
         [Test]
         public void Every_role_is_a_real_colour_on_every_theme()
         {
-            // Cheap, and it catches the one failure mode a derived palette has: a role that
-            // quietly comes out identical to the thing it is supposed to sit on.
             foreach (var theme in ThemePalette.All)
             {
                 var palette = ThemePalette.For(theme);

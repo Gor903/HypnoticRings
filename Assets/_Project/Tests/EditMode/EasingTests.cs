@@ -3,12 +3,6 @@ using NUnit.Framework;
 
 namespace HR.Tests.EditMode
 {
-    /// <summary>
-    /// The effect curves, checked where they matter: at the ends and at the peak. A pulse that
-    /// does not come back to zero leaves the score permanently larger, and a shake that does not
-    /// leaves the camera permanently crooked — both are cumulative, and both look like nothing
-    /// at all for the first few repetitions.
-    /// </summary>
     public class EasingTests
     {
         [Test]
@@ -23,7 +17,6 @@ namespace HR.Tests.EditMode
         {
             Assert.AreEqual(1.0, Easing.Pulse(0.5), 1e-12);
 
-            // Monotone up to the peak and down after it: one swell, not a flicker.
             for (int i = 1; i < 50; i++)
             {
                 Assert.Greater(Easing.Pulse(i / 100.0), Easing.Pulse((i - 1) / 100.0));
@@ -34,7 +27,6 @@ namespace HR.Tests.EditMode
         [Test]
         public void Repeating_a_pulse_cannot_accumulate()
         {
-            // The property that actually matters: a hundred pulses leave no residue.
             double scale = 1.0;
             for (int pulse = 0; pulse < 100; pulse++)
                 for (int step = 0; step <= 20; step++)
@@ -82,7 +74,6 @@ namespace HR.Tests.EditMode
         [Test]
         public void A_shake_is_the_same_every_time_it_is_asked()
         {
-            // Deterministic by design: a shake built on Random cannot be tested at all.
             for (int i = 0; i <= 100; i++)
                 Assert.AreEqual(Easing.Shake(i / 100.0), Easing.Shake(i / 100.0), 1e-15);
         }
@@ -105,7 +96,6 @@ namespace HR.Tests.EditMode
         [Test]
         public void Every_curve_is_clamped_outside_its_range()
         {
-            // Frames overshoot. A curve asked for t = 1.3 must not start growing again.
             Assert.AreEqual(0.0, Easing.Pulse(1.3), 1e-12);
             Assert.AreEqual(0.0, Easing.Pulse(-0.3), 1e-12);
             Assert.AreEqual(0.0, Easing.Fade(1.3), 1e-12);

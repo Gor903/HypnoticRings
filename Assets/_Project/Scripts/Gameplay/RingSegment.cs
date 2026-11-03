@@ -4,13 +4,6 @@ using UnityEngine;
 
 namespace HR.Gameplay
 {
-    /// <summary>
-    /// One solid arc of a ring: its mesh and its collider. Knows geometry and nothing else —
-    /// colour belongs to ThemeApplier, rotation to RingController (CONTRACT.md §6).
-    ///
-    /// Buffers are sized once for the worst case and refilled in place, so a tunnel that shrinks
-    /// every physics step produces no garbage.
-    /// </summary>
     [RequireComponent(typeof(MeshFilter), typeof(MeshRenderer), typeof(PolygonCollider2D))]
     public sealed class RingSegment : MonoBehaviour
     {
@@ -19,8 +12,6 @@ namespace HR.Gameplay
         PolygonCollider2D _collider;
         Mesh _mesh;
 
-        // The halo: the same arc, wider, drawn behind the core. Its own object because the
-        // shader is opaque and has no second pass — depth is the only thing that can order it.
         MeshFilter _haloFilter;
         MeshRenderer _haloRenderer;
         Mesh _haloMesh;
@@ -29,13 +20,6 @@ namespace HR.Gameplay
         readonly List<Vector3> _haloMeshVertices = new List<Vector3>();
         readonly List<int> _haloMeshTriangles = new List<int>();
 
-        /// <summary>
-        /// How far behind the core the halo sits.
-        ///
-        /// Every halo in the tunnel is at the same depth, so halos never sort against each other
-        /// — only against cores, which all sit at zero. An opaque shader gives no other way to
-        /// say "behind", and per-ring depths would make neighbouring rings fight. Plan [X-13].
-        /// </summary>
         public const float HaloDepth = 0.1f;
 
         Point2[] _bandVertices;
@@ -46,9 +30,6 @@ namespace HR.Gameplay
         readonly List<int> _meshTriangles = new List<int>();
         readonly List<Vector2> _path = new List<Vector2>();
 
-        // Fixed for the life of the segment: a constant tessellation keeps every buffer the same
-        // size whatever the sweep, which is what makes refilling allocation-free. A narrow
-        // segment simply gets a finer step than asked for, which is never worse.
         int _steps;
         int _capPoints;
         bool _ready;
@@ -89,13 +70,8 @@ namespace HR.Gameplay
             _ready = true;
         }
 
-        /// <summary>
-        /// Width added on each side of the core by the halo, in world units. Zero switches it
-        /// off entirely — no object, no mesh, no draw call.
-        /// </summary>
         public float HaloWidth { get; set; }
 
-        /// <summary>Builds the halo object the first time a theme asks for one.</summary>
         void EnsureHalo(in TunnelSettings settings)
         {
             if (_haloFilter != null) return;
@@ -115,7 +91,6 @@ namespace HR.Gameplay
             _haloFilter.sharedMesh = _haloMesh;
         }
 
-        /// <summary>Rebuilds mesh and collider for a span at a radius. Allocation-free after the first call.</summary>
         public void Rebuild(ArcSpan span, double radius, in TunnelSettings settings)
         {
             if (!_ready) Initialise(settings);
@@ -134,7 +109,6 @@ namespace HR.Gameplay
 
             if (_meshTriangles.Count != _bandTriangles.Length)
             {
-                // Index order never changes once the step count is fixed, so this runs once.
                 _meshTriangles.Clear();
                 for (int i = 0; i < _bandTriangles.Length; i++) _meshTriangles.Add(_bandTriangles[i]);
                 _mesh.SetVertices(_meshVertices);
@@ -165,9 +139,6 @@ namespace HR.Gameplay
             EnsureHalo(settings);
             _haloRenderer.enabled = true;
 
-            // The same arc with a thicker band. Nothing about the collider changes — the halo
-            // is light, not wall, and a ring that looked thicker than it hits would be a lie
-            // the player pays for.
             ArcGeometry.FillBand(radius, settings.Thickness + HaloWidth * 2f,
                                  span.StartDeg, span.SweepDeg,
                                  _steps, _capPoints, _haloVertices, _haloTriangles);
@@ -192,7 +163,6 @@ namespace HR.Gameplay
 
         public MeshRenderer HaloRenderer => _haloRenderer;
 
-        /// <summary>Used by the TransformScale benchmark arm, which never rebuilds geometry.</summary>
         public void SetUniformScale(float scale)
         {
             transform.localScale = new Vector3(scale, scale, 1f);

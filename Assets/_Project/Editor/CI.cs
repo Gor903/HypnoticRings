@@ -6,15 +6,10 @@ using UnityEngine;
 
 namespace HR.Editor
 {
-    /// <summary>
-    /// Command-line entry points. Each one exits with a real status code — a batch-mode editor
-    /// will happily exit 0 after logging a failure, so every method here decides its own code.
-    /// </summary>
     public static class CI
     {
         const string BuildDir = "Build";
 
-        /// <summary>Applies project settings, regenerates the scenes, then reads it all back.</summary>
         public static void CIBootstrap()
         {
             Run(() =>
@@ -24,16 +19,12 @@ namespace HR.Editor
                 SceneBuilder.BuildAll();
                 AssetDatabase.SaveAssets();
 
-                // Applying is not evidence. Unity 6 changed Fixed Timestep to a rational, and the
-                // old float assignment failed with a log line and no exception — the only thing
-                // that caught it was reading the value back.
                 var problems = ProjectSetup.Verify();
                 if (problems.Count > 0)
                     throw new Exception("settings did not apply:\n  " + string.Join("\n  ", problems));
             });
         }
 
-        /// <summary>Development APK. Proves the Android toolchain works end to end.</summary>
         public static void CIBuildAndroidDev()
         {
             Run(() =>
@@ -44,10 +35,6 @@ namespace HR.Editor
                 EditorUserBuildSettings.buildAppBundle = false;
                 EditorUserBuildSettings.androidBuildSubtarget = MobileTextureSubtarget.ASTC;
 
-                // The debug key, always. ReleaseTool leaves a keystore path in the project
-                // settings and wipes its password in a finally block, so a dev build that
-                // inherits that state fails with "Unable to sign the Android application" —
-                // which says nothing about the dev path and everything about the release one.
                 bool customKeystore = PlayerSettings.Android.useCustomKeystore;
                 PlayerSettings.Android.useCustomKeystore = false;
 
@@ -66,8 +53,6 @@ namespace HR.Editor
                 if (summary.result != BuildResult.Succeeded)
                     throw new Exception($"Android build {summary.result} with {summary.totalErrors} error(s)");
 
-                // Size is read from the file, not from the report: the report's totalSize field has
-                // been observed measuring the intermediate Gradle project instead of the artifact.
                 PlayerSettings.Android.useCustomKeystore = customKeystore;
 
                 long bytes = new FileInfo(output).Length;

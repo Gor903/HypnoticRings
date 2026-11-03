@@ -3,14 +3,6 @@ using UnityEngine.UI;
 
 namespace HR.UI
 {
-    /// <summary>
-    /// Centres a scrolling column while its content still fits, and lets it scroll once it does
-    /// not.
-    ///
-    /// One alignment cannot serve both screens that use the same column: the theme list is five
-    /// rows and belongs in the middle of the screen like every other menu, while settings is
-    /// eleven rows and has to start at the top or the first one is unreachable.
-    /// </summary>
     [RequireComponent(typeof(ScrollRect))]
     public sealed class ScrollCentering : MonoBehaviour
     {

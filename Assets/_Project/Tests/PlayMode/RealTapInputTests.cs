@@ -13,13 +13,6 @@ using UnityEngine.UI;
 
 namespace HR.Tests.PlayMode
 {
-    /// <summary>
-    /// Proves a real tap reaches a button. Every other interface test presses by calling
-    /// onClick directly, which is the one path a phone never takes: it skips the EventSystem,
-    /// the input module and the raycaster entirely. A build with none of them passes the whole
-    /// suite and then does nothing whatsoever when a finger lands on Play — which is exactly
-    /// what shipped.
-    /// </summary>
     public class RealTapInputTests : InputTestFixture
     {
         GameConfig _config;
@@ -30,8 +23,6 @@ namespace HR.Tests.PlayMode
 
         public override void Setup()
         {
-            // Before the game is raised, not after: the input module hooks its actions in
-            // OnEnable, and it must hook them to the test runtime rather than the real one.
             base.Setup();
 
             _config = ScriptableObject.CreateInstance<GameConfig>();
@@ -70,7 +61,6 @@ namespace HR.Tests.PlayMode
             return null;
         }
 
-        /// <summary>Where on the glass the finger has to land to hit this button.</summary>
         Vector2 ScreenPointOf(Button button)
         {
             var rect = (RectTransform)button.transform;
@@ -84,15 +74,11 @@ namespace HR.Tests.PlayMode
         [UnityTest]
         public IEnumerator The_interface_brings_an_event_system_with_it()
         {
-            // A GraphicRaycaster with nobody driving it raycasts for nobody. Without this object
-            // in the scene no uGUI button in the game can ever be pressed on a device.
             var system = Object.FindAnyObjectByType<EventSystem>();
             Assert.IsNotNull(system, "the interface was built without an EventSystem");
             Assert.IsNotNull(system.GetComponent<BaseInputModule>(),
                              "the EventSystem carries no input module, so it reads nothing");
 
-            // currentInputModule is only picked up when the EventSystem first ticks, so the
-            // claim that the module is live rather than merely present costs a frame.
             yield return null;
             Assert.IsNotNull(system.currentInputModule, "the input module never came up");
         }
@@ -135,11 +121,6 @@ namespace HR.Tests.PlayMode
                             "a real tap on Themes did not reach the button");
         }
 
-        /// <summary>
-        /// Android 13 and up deliver back to a callback rather than as a key, and the game has to
-        /// act on it: with nothing registered the press is swallowed by androidx and the screen
-        /// simply never closes, which is what a phone did.
-        /// </summary>
         [UnityTest]
         public IEnumerator System_back_closes_the_screen_it_opened()
         {
@@ -154,7 +135,6 @@ namespace HR.Tests.PlayMode
             yield return null;
             Assert.AreEqual(GameState.Settings, _boot.Game.State, "settings never opened");
 
-            // Exactly what the platform callback does when the gesture happens.
             _boot.Back.Raise();
             yield return null;
 
@@ -167,13 +147,9 @@ namespace HR.Tests.PlayMode
         {
             yield return null;
 
-            // Playing is the one state where back is reversible — it pauses, and back again
-            // resumes. So a press counted twice lands exactly where it started, which is the
-            // difference this test can see.
             _boot.Game.StartRun(7);
             Assert.AreEqual(GameState.Playing, _boot.Game.State, "the run did not start");
 
-            // A device that sends the key *and* invokes the callback delivers both in one frame.
             _boot.Back.Raise();
             _boot.Back.Raise();
             yield return null;

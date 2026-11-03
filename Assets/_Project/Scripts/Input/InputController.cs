@@ -6,14 +6,6 @@ using Touch = UnityEngine.InputSystem.EnhancedTouch.Touch;
 
 namespace HR.Input
 {
-    /// <summary>
-    /// Reads the finger and hands the gesture to a GestureTracker. Thin on purpose: all the
-    /// behaviour that can be got wrong lives in the tracker, where it is tested without
-    /// hardware (CONTRACT.md §2.10, §6.3).
-    ///
-    /// The player may touch anywhere on screen, not only on a ring — the gesture is about the
-    /// angle around the tunnel centre, not about hitting anything.
-    /// </summary>
     public sealed class InputController : MonoBehaviour
     {
         GestureTracker _tracker;
@@ -23,10 +15,6 @@ namespace HR.Input
         bool _pointerWasDown;
         int _activeTouchId = -1;
 
-        /// <summary>
-        /// Set while a test or the bot supplies pointer samples directly. Polling is skipped so
-        /// the two sources cannot fight over the same gesture.
-        /// </summary>
         public bool ExternalDriver { get; set; }
 
         public GestureTracker Tracker => _tracker;
@@ -54,10 +42,6 @@ namespace HR.Input
             _tracker.Tick(dt);
         }
 
-        /// <summary>
-        /// Supplies one pointer sample, in world units. The seam the bot and the gesture tests
-        /// use — the same path a real touch takes, minus the hardware.
-        /// </summary>
         public void FeedPointer(bool pressed, Vector2 worldPosition, float dt)
         {
             if (_tracker == null) return;
@@ -65,7 +49,6 @@ namespace HR.Input
             _tracker.Tick(dt);
         }
 
-        /// <summary>Paused, backgrounded, or focus lost: the gesture is void and its momentum with it.</summary>
         public void Cancel()
         {
             _pointerWasDown = false;
@@ -102,8 +85,6 @@ namespace HR.Input
                 return false;
             }
 
-            // Only the first finger steers. A second finger landing mid-gesture must not take
-            // the ring with it, and lifting it must not end the gesture either.
             for (int i = 0; i < touches.Count; i++)
             {
                 var touch = touches[i];

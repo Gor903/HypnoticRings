@@ -3,22 +3,15 @@ using UnityEngine;
 
 namespace HR.Gameplay
 {
-    /// <summary>How a ring's geometry follows its shrinking radius. Measured in phase 1.</summary>
     public enum CompressionMode
     {
-        /// <summary>Scale the transform. Cheapest, and it scales thickness too — see the benchmark.</summary>
         TransformScale = 0,
-        /// <summary>Rebuild mesh and collider every physics step. Exact, and the most work.</summary>
+
         RebuildEveryStep = 1,
-        /// <summary>Rebuild once the radius has moved past a threshold. Cheap, slightly stale.</summary>
+
         RebuildOnThreshold = 2,
     }
 
-    /// <summary>
-    /// The editable source for every number the game depends on. Nothing in the gameplay code
-    /// carries a literal — CLAUDE.md forbids it, and bot simulation is supposed to move these.
-    /// Values are CONTRACT.md §2 starting values.
-    /// </summary>
     [CreateAssetMenu(menuName = "Hypnotic Rings/Game Config", fileName = "GameConfig")]
     public sealed class GameConfig : ScriptableObject
     {
@@ -131,13 +124,8 @@ namespace HR.Gameplay
         [Tooltip("Radius change that triggers a rebuild in RebuildOnThreshold mode.")]
         public float rebuildThreshold = 0.02f;
 
-        /// <summary>Where the camera sits so the tunnel centre lands at its share of the height.</summary>
         public float CameraOffsetY => (0.5f - centreHeightFraction) * 2f * orthoSize;
 
-        /// <summary>
-        /// The player's slider scales the base gain rather than replacing it, so the setting
-        /// keeps the spec's 0.6–1.6 range while the feel of 1.0 is ours to choose.
-        /// </summary>
         public GestureSettings ToGestureSettings(float playerSensitivity = 1f, bool inverted = false) =>
             new GestureSettings(sensitivity * playerSensitivity, maxUserAngularSpeedDeg,
                                 inertiaDecay, deadZoneRadius, inverted);
@@ -148,8 +136,7 @@ namespace HR.Gameplay
             maxBallSpeed, maxArcStepDeg, maxSegmentSweepDeg, ringsAhead, capPoints);
 
 #if UNITY_EDITOR
-        // OnValidate only ever runs in the editor, so it does not belong in a player build at
-        // all — and leaving it there is what makes a logging check fire on shipping code.
+
         void OnValidate()
         {
             var problems = ToSettings().Validate();

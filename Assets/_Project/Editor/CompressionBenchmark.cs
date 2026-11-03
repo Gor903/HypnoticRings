@@ -12,14 +12,6 @@ using Debug = UnityEngine.Debug;
 
 namespace HR.Editor
 {
-    /// <summary>
-    /// Measures the three ways a ring can follow its shrinking radius (plan, phase 1). Reports
-    /// cost *and* geometric error, because the cheapest option is only interesting if the tunnel
-    /// it produces is the one the contract describes.
-    ///
-    /// Writes a markdown table to .artifacts/ so the numbers in DECISIONS come from a file
-    /// rather than from memory.
-    /// </summary>
     public static class CompressionBenchmark
     {
         const int Rings = 6;
@@ -89,8 +81,6 @@ namespace HR.Editor
                                        270.0, settings.MinGapWidth, 20.0);
                 }
 
-                // Shrink from the starting radius down towards the crush radius, which is the
-                // whole range the game ever uses.
                 double span = settings.TargetRadius - settings.CrushRadius;
                 double perStep = span / Steps;
 
@@ -110,7 +100,6 @@ namespace HR.Editor
                 }
                 watch.Stop();
 
-                // Error is read from the built colliders, not computed from the mode.
                 double thickness = rings[0].MeasureWorldThickness();
                 double opening = rings[0].MeasureWorldGapArcLength();
 

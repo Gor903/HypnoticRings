@@ -9,10 +9,6 @@ using UnityEngine.TestTools;
 
 namespace HR.Tests.PlayMode
 {
-    /// <summary>
-    /// Reports what the tunnel is actually doing, step by step. Not a gate — a way to see the
-    /// state rather than guess at it when a run misbehaves.
-    /// </summary>
     public class TunnelDiagnosticTests
     {
         const float Dt = 1f / 90f;
@@ -59,7 +55,7 @@ namespace HR.Tests.PlayMode
             _tunnel = tunnelGo.AddComponent<TunnelController>();
             _pool = new RingPool(_config, tunnelGo.transform, material);
             _tunnel.Initialise(_config, _ball, _pool);
-            _tunnel.AutoStep = false;   // this fixture steps explicitly
+            _tunnel.AutoStep = false;
             _tunnel.BeginRun(99);
 
             foreach (var ring in _tunnel.Rings)
@@ -98,7 +94,6 @@ namespace HR.Tests.PlayMode
                 var ring = _tunnel.ResolveBallRing();
                 if (ring != null)
                 {
-                    // The bot decides a ring angle; the finger moves that divided by the gain.
                     fingerAngle += bot.Decide(TunnelMath.BottomAngleDeg, ring.GapCentreWorldDeg, Dt)
                                    / _config.sensitivity;
                     _input.FeedPointer(true, Finger(fingerAngle), Dt);

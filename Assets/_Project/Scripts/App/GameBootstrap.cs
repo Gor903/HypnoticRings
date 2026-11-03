@@ -10,15 +10,6 @@ using UnityEngine.Rendering.Universal;
 
 namespace HR.App
 {
-    /// <summary>
-    /// Wires the game together: save, settings, tunnel, input, themes and interface.
-    ///
-    /// This is the one place that knows about every layer, which is why it is its own assembly.
-    /// CONTRACT.md §6 keeps the layers from reaching sideways into each other — the interface
-    /// does not know about the finger, the tunnel does not know about the save — and something
-    /// has to join them up. That job is composition, and it lives here rather than being
-    /// smuggled into whichever layer happened to need it first.
-    /// </summary>
     public sealed class GameBootstrap : MonoBehaviour
     {
         [SerializeField] GameConfig config;
@@ -41,7 +32,6 @@ namespace HR.App
         CentreMarker _centre;
         Camera _camera;
 
-        /// <summary>The numbers the scene was raised from, so a test can check against the source.</summary>
         public GameConfig Config => config;
 
         public GameManager Game => _game;
@@ -55,10 +45,8 @@ namespace HR.App
         public ScreenJuice Juice => _juice;
         public Haptics Haptics => _haptics;
 
-        /// <summary>The red circle at the centre, so a test can read what it was painted.</summary>
         public CentreMarker Centre => _centre;
 
-        /// <summary>The system back button, so a test can press it without a phone.</summary>
         public AndroidBackButton Back => _back;
 
         bool _built;
@@ -66,15 +54,6 @@ namespace HR.App
         SaveService _configuredSaves;
         Camera _configuredCamera;
 
-        /// <summary>
-        /// Supplies the config, and optionally the save location, before Awake runs. Create the
-        /// object inactive, configure it, then activate.
-        ///
-        /// The save location has to be settable here rather than afterwards: Awake fires the
-        /// moment the object is activated, and a Build call made after that arrives too late to
-        /// change anything. Without it a test reads and writes the player's real save — which it
-        /// did, silently, until a value from a previous test run turned up in an assertion.
-        /// </summary>
         public void Configure(GameConfig gameConfig, int runSeed = 0, SaveService saves = null,
                               Camera view = null)
         {
@@ -98,7 +77,6 @@ namespace HR.App
             Build(_configuredSaves ?? SaveService.Default());
         }
 
-        /// <summary>Public so a test can point the save somewhere disposable.</summary>
         public void Build(SaveService saves)
         {
             if (_built) return;
@@ -109,10 +87,6 @@ namespace HR.App
 
             Strings.Apply(_settings.Language, DeviceLanguage());
 
-            // Camera.main is whichever enabled camera happens to be tagged MainCamera, and a
-            // test that has loaded a scene has two. The background then gets themed on one
-            // camera while the picture is taken through the other, which looks exactly like a
-            // theme that failed to apply — it is not, and it cost a round of screenshots.
             _camera = _configuredCamera != null ? _configuredCamera : Camera.main;
             if (_camera != null && _camera.GetComponent<UniversalAdditionalCameraData>() == null)
                 _camera.gameObject.AddComponent<UniversalAdditionalCameraData>();
@@ -136,11 +110,6 @@ namespace HR.App
             var pool = new RingPool(config, tunnelGo.transform, material);
             _tunnel.Initialise(config, _ball, pool);
 
-            // The tunnel is driven by GameManager and by nothing else. Left to step itself it
-            // advanced TWICE per physics frame — once from its own FixedUpdate, once from the
-            // game loop — so compression and retraction ran at double the speed the difficulty
-            // curve asks for. And its own FixedUpdate knows nothing about pause, so the tunnel
-            // kept closing in behind the pause panel.
             _tunnel.AutoStep = false;
             _ringPhysics = ringPhysics;
 
@@ -183,7 +152,6 @@ namespace HR.App
 
             ApplyEffectSettings();
 
-            // Registered once the screens exist, because the first press can arrive immediately.
             _back = new AndroidBackButton();
             _back.Pressed += SystemBack;
 
@@ -197,11 +165,6 @@ namespace HR.App
 
         PhysicsMaterial2D _ringPhysics;
 
-        /// <summary>
-        /// Points the camera at the tunnel the way the config asks. Done here rather than only
-        /// in SceneBuilder because the framing is a number to be tuned, and tuning it should not
-        /// mean regenerating the scenes — both read the same asset, so neither can drift.
-        /// </summary>
         void ApplyFraming()
         {
             if (_camera == null) return;
@@ -219,9 +182,6 @@ namespace HR.App
             _ui.PlayPressed += () => { _game.Mode = GameMode.Normal; StartRun(); };
             _ui.HardcorePressed += () => { _game.Mode = GameMode.Hardcore; StartRun(); };
 
-            // Retry keeps the mode it was playing: a player who just lost a hardcore run wants
-            // another hardcore run, and silently dropping them into the ordinary game would be
-            // the worst possible answer to pressing the biggest button on the screen.
             _ui.RetryPressed += StartRun;
             _ui.PausePressed += () => { _game.Pause(); _input.Cancel(); _ui.Show(_game.State); };
             _ui.ResumePressed += () => { _game.Resume(); _ui.Show(_game.State); };
@@ -255,7 +215,6 @@ namespace HR.App
 
             _ball.Struck += _ => _audio.PlayKnock();
 
-
             _game.Scored += score =>
             {
                 _audio.PlayPass(Time.timeAsDouble);
@@ -274,9 +233,6 @@ namespace HR.App
 
             _tunnel.BallTouchedRing += touches =>
             {
-                // The ordinary game already knocks on contact through BallController.Struck.
-                // This is the hardcore warning: the touch that spends the allowance sounds
-                // different from the one that does not.
                 if (_game.Mode == GameMode.Hardcore && touches == GameManager.HardcoreTouchAllowance)
                     _haptics.Pass();
             };
@@ -297,54 +253,29 @@ namespace HR.App
                     Persist();
                 }
 
-                // The curtain closes on the way out of a run and opens on the way in, which is
-                // the whole of spec 11.4's menu-to-game transition.
                 if (to == GameState.Playing || to == GameState.Menu) _juice.Fade(toClear: true);
             };
         }
 
-        /// <summary>
-        /// The ball belongs to a run. Left visible on the menu it sits over the buttons, which
-        /// is exactly what the first captured frame showed.
-        /// </summary>
         void ShowWorld(GameState state)
         {
-            // Frozen before it is hidden, thawed after it is back. A body on a disabled object
-            // reads as being at rest and accepts no velocity at all, so doing either on the
-            // wrong side of the switch loses the throw: freezing after hiding stored a zero,
-            // thawing before showing wrote one into nothing. Both resumed the game by dropping
-            // the ball straight down, and both looked like a physics bug rather than an order.
             bool playing = state == GameState.Playing;
             if (!playing)
             {
                 if (_ball != null) _ball.SetFrozen(true);
             }
 
-            // The whole playfield goes away behind the pause card, tunnel and ball together.
-            // Left showing, pause is a free look at where every gap sits — the one thing the
-            // player is supposed to be reading under time pressure. Game over keeps it: spec
-            // 10.3 asks for the frozen scene there, and by then there is nothing left to learn.
             bool inPlay = state == GameState.Playing || state == GameState.GameOver;
             if (_ball != null) _ball.gameObject.SetActive(inPlay);
             if (_centre != null) _centre.gameObject.SetActive(inPlay);
             if (_tunnel != null) _tunnel.gameObject.SetActive(state != GameState.Paused);
 
-            // The trail is its own pool and outlives whatever it was following, so hiding the
-            // ball left four of its own dots hanging over an otherwise empty screen. Game over
-            // keeps them: there the trail is part of the frozen moment the spec asks for.
             if (state == GameState.Paused && _effects != null) _effects.Clear();
 
-            // Only a running game simulates. Pause and the game-over screen are pictures of a
-            // moment, and a ball that carries on flying through either is the clearest possible
-            // proof that the game never actually stopped.
             if (!playing) return;
             if (_ball != null) _ball.SetFrozen(false);
         }
 
-        /// <summary>
-        /// One switch for every effect, so "Reduce effects" is a single decision rather than a
-        /// setting each effect remembers to consult.
-        /// </summary>
         void ApplyEffectSettings()
         {
             bool wanted = !_settings.reduceEffects;
@@ -353,9 +284,6 @@ namespace HR.App
             _juice.Enabled = wanted;
             _haptics.Enabled = _settings.vibrationEnabled;
 
-            // The interface reads the flag only while it is being painted, so switching the
-            // setting has to repaint it. Left out, "reduce effects" took hold everywhere except
-            // on the screen the player was looking at when they pressed it.
             if (_ui != null && _themes != null) _ui.ApplyTheme(_themes.Palette);
 
             if (!wanted)
@@ -366,15 +294,6 @@ namespace HR.App
             }
         }
 
-        /// <summary>
-        /// Switches theme the way the menu does: palette, tunnel, interface, effects and save,
-        /// in that order and in one place.
-        ///
-        /// Public because the screenshot rig needs the same path, and reaching past it is how a
-        /// picture of something the game never shows gets taken. Applying the palette alone left
-        /// the transition curtain in the previous theme's colour — a flat pale wash over the
-        /// whole frame, which cost an hour of looking for a glow that was not there.
-        /// </summary>
         public void ChooseTheme(Theme theme)
         {
             if (_game == null || !_game.ScoreKeeper.IsUnlocked(theme)) return;
@@ -399,7 +318,6 @@ namespace HR.App
             _game.StartRun(seed == 0 ? UnityEngine.Random.Range(1, int.MaxValue) : seed);
             _input.ResetAngle();
 
-            // The menu left the tunnel turning; a run starts square.
             _tunnel.transform.localRotation = Quaternion.identity;
             _effects.Clear();
 
@@ -413,7 +331,6 @@ namespace HR.App
             _ui.Show(_game.State);
         }
 
-        /// <summary>Slow enough to be hypnotic rather than busy.</summary>
         const float MenuSpinDegPerSecond = 6f;
 
         void Update()
@@ -427,26 +344,16 @@ namespace HR.App
             }
             else if (_game.State == GameState.GameOver)
             {
-                // Still ticking after the loss: this is the one effect that plays out when the
-                // game itself has stopped.
                 _effects.Tick(Time.deltaTime);
             }
-            // The palette breathes wherever the tunnel is visible, menu included — it is the
-            // same tunnel, and a theme that only moved during a run would read as a glitch the
-            // moment the player pressed Play.
+
             if (_effects.Enabled) _themes.Tick(Time.deltaTime);
 
             if (_game.State == GameState.Menu && _effects.Enabled)
             {
-                // Spec 10.2 asks for slowly turning rings behind the menu. Rotating the whole
-                // tunnel object is purely visual — no ring moves relative to another, and the
-                // physics it carries is asleep while the menu is up.
                 _tunnel.transform.Rotate(0f, 0f, MenuSpinDegPerSecond * Time.deltaTime);
             }
 
-            // Escape, which is what Unity makes of a back *key*. Android 13 and up send the
-            // gesture to a callback instead, and AndroidBackButton picks that up; both land on
-            // SystemBack, which is where the one decision lives.
             if (UnityEngine.InputSystem.Keyboard.current != null
                 && UnityEngine.InputSystem.Keyboard.current.escapeKey.wasPressedThisFrame)
                 SystemBack();
@@ -454,10 +361,6 @@ namespace HR.App
 
         int _lastBackFrame = -1;
 
-        /// <summary>
-        /// One press of back, from whichever path the device uses. A device can deliver both at
-        /// once, so the second within a frame is dropped — otherwise one press closes two screens.
-        /// </summary>
         public void SystemBack()
         {
             if (_game == null || Time.frameCount == _lastBackFrame) return;
@@ -467,7 +370,6 @@ namespace HR.App
             else { _game.Back(); _ui.Show(_game.State); }
         }
 
-        /// <summary>Backgrounded or interrupted: pause, drop the gesture, and keep the record.</summary>
         void OnApplicationPause(bool paused)
         {
             if (!paused || _game == null) return;
@@ -483,7 +385,6 @@ namespace HR.App
             _input?.Cancel();
         }
 
-        /// <summary>The callback outlives the scene unless it is handed back.</summary>
         void OnDestroy()
         {
             if (_back == null) return;

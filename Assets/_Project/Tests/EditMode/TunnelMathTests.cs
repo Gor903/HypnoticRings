@@ -5,13 +5,8 @@ using NUnit.Framework;
 
 namespace HR.Tests.EditMode
 {
-    /// <summary>
-    /// The numbers asserted here come from CONTRACT.md §2 and the spec tables it quotes.
-    /// When balance moves, these move with it — deliberately, by editing the contract first.
-    /// </summary>
     public class TunnelMathTests
     {
-        // Starting values from CONTRACT.md §2.4 and §2.3.
         const double T = 0.30;
         const double Step = 1.55;
         const double TargetRadius = 3.0;
@@ -34,7 +29,6 @@ namespace HR.Tests.EditMode
         [Test]
         public void ShortestDelta_crosses_the_wrap_the_short_way()
         {
-            // The ±180 crossing is the gesture bug that looks like a sudden reversal.
             Assert.AreEqual(20.0, TunnelMath.ShortestDeltaDeg(350.0, 10.0), 1e-9);
             Assert.AreEqual(-20.0, TunnelMath.ShortestDeltaDeg(10.0, 350.0), 1e-9);
         }
@@ -42,7 +36,6 @@ namespace HR.Tests.EditMode
         [Test]
         public void Gap_keeps_its_arc_length_as_the_ring_shrinks()
         {
-            // The whole point of storing width as arc length: shrinking must not narrow the way out.
             const double arc = 1.5;
             foreach (double radius in new[] { 3.0, 2.0, 1.5, 0.9 })
             {
@@ -73,7 +66,6 @@ namespace HR.Tests.EditMode
         [Test]
         public void Compression_spikes_after_a_pass_and_is_capped()
         {
-            // Clearing a ring raises R_E by one step; that is what retracts the tunnel.
             double v = TunnelMath.CompressionSpeed(0.15, 3.0, 4.0, TargetRadius + Step, TargetRadius);
             Assert.AreEqual(4.0, v, 1e-9, "should saturate at v_max");
         }
@@ -81,7 +73,6 @@ namespace HR.Tests.EditMode
         [Test]
         public void Compression_never_runs_backwards()
         {
-            // Inside equilibrium the pull term goes negative; the tunnel must still close, not open.
             double v = TunnelMath.CompressionSpeed(0.15, 3.0, 4.0, TargetRadius - 1.0, TargetRadius);
             Assert.AreEqual(0.15, v, 1e-9);
         }
@@ -89,7 +80,6 @@ namespace HR.Tests.EditMode
         [Test]
         public void The_run_ends_exactly_when_a_ring_reaches_the_red_circle()
         {
-            // Free radius = R - T/2, and the circle is drawn at 0.55, so R = 0.70 is the line.
             Assert.IsTrue(TunnelMath.HasReachedRed(0.70, T, RedRadius));
             Assert.IsFalse(TunnelMath.HasReachedRed(0.7001, T, RedRadius));
         }
@@ -97,8 +87,6 @@ namespace HR.Tests.EditMode
         [Test]
         public void A_ring_holding_the_ball_outlives_the_vanish_radius()
         {
-            // Rings vanish at R < 0.9 but the circle is reached at 0.70, so the ball's own ring
-            // must survive below the vanish threshold or the run could never be lost.
             Assert.IsFalse(TunnelMath.HasReachedRed(0.9, T, RedRadius));
         }
 
@@ -147,8 +135,6 @@ namespace HR.Tests.EditMode
         [Test]
         public void A_clamped_ring_always_leaves_room_to_catch_it()
         {
-            // After clamping, the player keeps at least half of comfortable speed, so the
-            // reachability denominator can never collapse to zero.
             foreach (double raw in new[] { -400.0, -200.0, 0.0, 199.0, 200.0, 400.0 })
             {
                 double clamped = TunnelMath.ClampAutoSpin(raw, ComfortSpin);
@@ -183,8 +169,6 @@ namespace HR.Tests.EditMode
         [Test]
         public void HR_Core_references_no_engine_assembly()
         {
-            // The architectural boundary, asserted rather than trusted. noEngineReferences in the
-            // asmdef enforces it at compile time; this catches the day someone flips that flag.
             var offenders = typeof(TunnelMath).Assembly
                 .GetReferencedAssemblies()
                 .Select(a => a.Name)

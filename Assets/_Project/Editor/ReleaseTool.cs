@@ -8,18 +8,9 @@ using UnityEngine;
 
 namespace HR.Editor
 {
-    /// <summary>
-    /// Apply, Verify and Build — each reachable from the menu and from the
-    /// command line. Nothing the release depends on is a checkbox someone has to
-    /// remember ticking; it is all set here by script.
-    ///
-    /// Build calls Verify first and refuses to run when Verify returns anything.
-    /// </summary>
     public static class ReleaseTool
     {
         const string Tag = "[HypnoticRings]";
-
-        // ---- apply ------------------------------------------------------------
 
         [MenuItem("Hypnotic Rings/Release/Apply Settings")]
         public static void Apply()
@@ -34,35 +25,14 @@ namespace HR.Editor
             PlayerSettings.Android.minSdkVersion = (AndroidSdkVersions)ReleaseSettings.MinSdk;
             PlayerSettings.Android.targetSdkVersion = (AndroidSdkVersions)ReleaseSettings.TargetSdk;
 
-            // 64-bit is mandatory on the store; 32-bit keeps older minSdk devices.
-            // ARM64 alone. The template ships ARMv7 as well, which is right for a game that
-            // still supports 32-bit devices — this one does not: minSdk is 26 and the store has
-            // required a 64-bit library for years. Keeping ARMv7 would add a whole second native
-            // library to the bundle for devices the game already refuses to install on.
             PlayerSettings.Android.targetArchitectures = AndroidArchitecture.ARM64;
 
             PlayerSettings.SetScriptingBackend(UnityEditor.Build.NamedBuildTarget.Android, ScriptingImplementation.IL2CPP);
-            // Deferred rather than repeated. ProjectSetup already decides stripping and the
-            // IL2CPP configuration, and this file setting them too is how the two drifted apart
-            // in the first place: Release here against Master there, and whichever ran last won.
+
             ProjectSetup.ApplyStripping();
 
-            // These two are settings, not manifest attributes, whatever the custom manifest
-            // says. Verified by reading the merged manifest out of a built bundle: it carried
-            // extractNativeLibs="true" and resizeableActivity="true" while the file on disk
-            // asked for false on both. Unity's own values win the merge, so they have to be set
-            // where Unity reads them.
-            //
-            // Native-library packaging is not a PlayerSetting in Unity 6000.6 — there is no
-            // useLegacyPackaging any more — so it is set in gradleTemplate.properties instead,
-            // next to the custom manifest. Checked by reading the editor assembly for the
-            // symbol rather than assuming the old API survived.
-
-            // A portrait-locked phone game has nothing sensible to do in a resizable window.
             PlayerSettings.Android.resizeableActivity = false;
 
-            // Draw inside the cutout rather than letterboxing around it; the
-            // interface keeps itself clear with SafeAreaFitter.
             PlayerSettings.Android.renderOutsideSafeArea = true;
 
             PlayerSettings.Android.forceInternetPermission = ReleaseSettings.RequiresInternet;
@@ -83,7 +53,7 @@ namespace HR.Editor
                 .ToArray();
 
             PlayerSettings.bundleVersion = ReleaseSettings.VersionName;
-            // Only ever climbs: the store rejects a code it has already seen.
+
             if (PlayerSettings.Android.bundleVersionCode < 1)
                 PlayerSettings.Android.bundleVersionCode = 1;
 
@@ -105,18 +75,12 @@ namespace HR.Editor
                 : UIOrientation.LandscapeLeft;
 
             PlayerSettings.allowedAutorotateToPortrait = portrait || auto;
-            // Upside-down stays off even in Auto: a phone flipped end over end
-            // puts the earpiece at the bottom and nothing else expects it.
+
             PlayerSettings.allowedAutorotateToPortraitUpsideDown = false;
             PlayerSettings.allowedAutorotateToLandscapeLeft = landscape || auto;
             PlayerSettings.allowedAutorotateToLandscapeRight = landscape || auto;
         }
 
-        /// <summary>
-        /// Adaptive is the only non-obsolete Android icon kind in Unity 6 —
-        /// Legacy and Round both redirect to it — and it takes two layers rather
-        /// than one flattened image.
-        /// </summary>
         static void ApplyIcons()
         {
             var target = UnityEditor.Build.NamedBuildTarget.Android;
@@ -143,13 +107,6 @@ namespace HR.Editor
             PlayerSettings.SetPlatformIcons(target, kind, adaptive);
         }
 
-        // ---- verify -----------------------------------------------------------
-
-        /// <summary>
-        /// Returns a list of problems. Empty means the project is releasable.
-        /// Checks the same things Apply sets, plus the ones that go wrong
-        /// silently — a deleted manifest, a blank icon, a debug flag left on.
-        /// </summary>
         public static List<string> Verify()
         {
             var problems = new List<string>();
@@ -179,9 +136,6 @@ namespace HR.Editor
 
             problems.AddRange(VerifyOrientation());
 
-            // An APK is refused for the STORE and allowed for a phone. Both are release builds
-            // in every other respect — same signing, same IL2CPP, same stripped manifest — and
-            // the only difference is that one can be sideloaded and the other cannot.
             if (!EditorUserBuildSettings.buildAppBundle && !AllowApk)
                 problems.Add("Output format is APK; the store needs an app bundle.");
 
@@ -198,8 +152,6 @@ namespace HR.Editor
                 problems.Add($"forceInternetPermission is {PlayerSettings.Android.forceInternetPermission}, " +
                              $"expected {ReleaseSettings.RequiresInternet}.");
 
-            // The trap this check exists for: deleting the manifest restores the
-            // network permission with no warning anywhere.
             if (!File.Exists(ReleaseSettings.ManifestPath))
                 problems.Add($"Custom manifest is missing at {ReleaseSettings.ManifestPath}; " +
                              "without it Unity adds the network permission back.");
@@ -209,9 +161,6 @@ namespace HR.Editor
                 if (!ReleaseSettings.RequiresInternet && !manifest.Contains("permission.INTERNET"))
                     problems.Add("Custom manifest no longer removes the INTERNET permission.");
 
-                // This file replaces unityLibrary's manifest, so Unity contributes no
-                // activity of its own. Without one the app installs with no icon and
-                // cannot be started, and every other check here still passes.
                 if (!manifest.Contains("android.intent.category.LAUNCHER"))
                     problems.Add("Custom manifest declares no LAUNCHER activity; " +
                                  "the app would install with no icon and no way to start.");
@@ -251,7 +200,6 @@ namespace HR.Editor
                 yield return $"Default orientation is {PlayerSettings.defaultInterfaceOrientation}, " +
                              $"expected {expected} for {ReleaseSettings.Orientation}.";
 
-            // A locked game that still autorotates ships a layout nobody designed.
             if (portrait && (PlayerSettings.allowedAutorotateToLandscapeLeft ||
                              PlayerSettings.allowedAutorotateToLandscapeRight))
                 yield return "Orientation is Portrait but landscape autorotation is still allowed.";
@@ -260,9 +208,6 @@ namespace HR.Editor
                 yield return "Orientation is Landscape but portrait autorotation is still allowed.";
         }
 
-        // Editor-side agent tooling. Each one's runtime assembly declares no
-        // platform constraints, so a package left here is compiled into the app
-        // and drags its own module dependencies into the merged manifest.
         static readonly string[] DevOnlyPackages = { "com.coplaydev.unity-mcp" };
 
         const string PackageManifestPath = "Packages/manifest.json";
@@ -293,7 +238,6 @@ namespace HR.Editor
                 .Select(s => s.path)
                 .ToArray();
 
-            // Order matters: the first enabled scene is the one that loads.
             if (!actual.SequenceEqual(expected))
             {
                 yield return $"Build list is [{string.Join(", ", actual)}], " +
@@ -345,22 +289,9 @@ namespace HR.Editor
                            string.Join("\n  - ", problems));
         }
 
-        // ---- build ------------------------------------------------------------
-
         [MenuItem("Hypnotic Rings/Release/Build Bundle")]
         public static void BuildMenu() => Build();
 
-        /// <summary>
-        /// A signed release APK instead of a bundle.
-        ///
-        /// Not a shipping format — Play takes bundles — but the only honest way to put the
-        /// game on a phone and judge how it feels. The dev APK exists and is the wrong tool:
-        /// it is a development build, so it profiles differently from the thing players get,
-        /// and a verdict on feel taken from it is a verdict on a different game.
-        ///
-        /// Everything else is the release path unchanged, including the preflight that refuses
-        /// to build while an agent-only package is still in the manifest.
-        /// </summary>
         public static bool BuildApk() => Build(asApk: true);
 
         public static void CIBuildApk()
@@ -371,14 +302,12 @@ namespace HR.Editor
 
         public static bool Build() => Build(asApk: false);
 
-        /// <summary>Set only for the duration of an APK build, so Verify knows what was asked.</summary>
         static bool AllowApk;
 
         static bool Build(bool asApk)
         {
             AllowApk = asApk;
-            // The bundle switch is read by Verify as well, so it has to be set before the
-            // preflight rather than next to the build call.
+
             EditorUserBuildSettings.buildAppBundle = !asApk;
 
             List<string> problems = Verify();
@@ -415,7 +344,6 @@ namespace HR.Editor
             }
             finally
             {
-                // Passwords never linger in the project settings file.
                 WipeSigningFromProjectSettings();
                 AllowApk = false;
             }
@@ -425,19 +353,12 @@ namespace HR.Editor
                 ? $"{Tag} Build succeeded: {output}"
                 : $"{Tag} Build FAILED: {report.summary.result}, {report.summary.totalErrors} error(s)");
 
-            // The size in a build report measures the intermediate project, not
-            // the artifact. Read the file itself instead.
             if (ok && File.Exists(output))
                 Debug.Log($"{Tag} Artifact on disk: {new FileInfo(output).Length} bytes");
 
             return ok;
         }
 
-        /// <summary>
-        /// Signing credentials come from the environment, never from a file. An
-        /// unsigned build is still produced, but named so nobody can mistake it
-        /// for a releasable one.
-        /// </summary>
         static bool ApplySigningFromEnvironment(out string note)
         {
             string keystore = Environment.GetEnvironmentVariable(ReleaseSettings.EnvKeystore);
@@ -477,8 +398,6 @@ namespace HR.Editor
             AssetDatabase.SaveAssets();
         }
 
-        // ---- command line -------------------------------------------------------
-
         public static void CIApply()
         {
             Apply();
@@ -504,7 +423,6 @@ namespace HR.Editor
             EditorApplication.Exit(ok ? 0 : 1);
         }
 
-        /// <summary>Every upload needs a higher code; bumped here, never by hand.</summary>
         public static void CIBumpVersionCode()
         {
             PlayerSettings.Android.bundleVersionCode++;

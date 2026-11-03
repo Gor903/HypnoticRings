@@ -2,14 +2,6 @@ using UnityEngine;
 
 namespace HR.UI
 {
-    /// <summary>
-    /// Keeps a RectTransform inside the screen's safe area — clear of the camera cutout at the
-    /// top and the gesture bar at the bottom.
-    ///
-    /// Re-applies when the safe area changes rather than once at startup: it changes on
-    /// rotation, on a foldable opening, and on some devices a frame or two after launch, and a
-    /// one-shot fit leaves the pause button under the notch on exactly those.
-    /// </summary>
     [RequireComponent(typeof(RectTransform))]
     public sealed class SafeAreaFitter : MonoBehaviour
     {
@@ -33,10 +25,6 @@ namespace HR.UI
                 Apply();
         }
 
-        /// <summary>
-        /// Fits to an explicit area and stops tracking the device's. The screenshot rig needs it:
-        /// the real safe area belongs to the batch window, not to the shape being captured.
-        /// </summary>
         public void Pin(Rect area, Vector2Int resolution)
         {
             _pinned = true;
@@ -48,7 +36,6 @@ namespace HR.UI
             Fit(area, resolution.x, resolution.y);
         }
 
-        /// <summary>Public so a test or a screenshot rig can force a fit without waiting a frame.</summary>
         public void Apply()
         {
             if (_rect == null) _rect = GetComponent<RectTransform>();

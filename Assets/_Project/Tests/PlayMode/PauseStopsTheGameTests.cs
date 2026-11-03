@@ -10,14 +10,6 @@ using UnityEngine.TestTools;
 
 namespace HR.Tests.PlayMode
 {
-    /// <summary>
-    /// That a paused game is actually paused, and that a running one advances once per step.
-    ///
-    /// Both were false and neither was visible to any existing test, because every fixture in
-    /// the project switches the tunnel's self-stepping off and drives it by hand. The shipping
-    /// scene never did, so the tunnel stepped twice per physics frame in play and carried on
-    /// stepping behind the pause panel.
-    /// </summary>
     public sealed class PauseStopsTheGameTests
     {
         const float Dt = 1f / 90f;
@@ -43,8 +35,6 @@ namespace HR.Tests.PlayMode
             _camera.orthographicSize = _config.orthoSize;
             _camera.transform.position = new Vector3(0f, _config.CameraOffsetY, -10f);
 
-            // Configured before the object wakes: GameBootstrap reads its config in Awake and
-            // refuses to build without one.
             _root = new GameObject("Boot");
             cameraGo.transform.SetParent(_root.transform, false);
             _root.SetActive(false);
@@ -55,7 +45,6 @@ namespace HR.Tests.PlayMode
             _root.SetActive(true);
         }
 
-        /// <summary>Starts a run the way a player does — through the button, not the API.</summary>
         void PressPlay()
         {
             var screen = _boot.Ui.ScreenFor(GameState.Menu).gameObject;
@@ -83,9 +72,6 @@ namespace HR.Tests.PlayMode
         {
             yield return null;
 
-            // Driven only by GameManager. Anything else is a second clock nobody declared, and
-            // a second clock means the difficulty curve is asking for one tempo while the game
-            // plays another.
             Assert.IsFalse(_boot.Tunnel.AutoStep,
                 "the tunnel still steps itself, so it advances twice per physics frame");
         }
@@ -140,9 +126,6 @@ namespace HR.Tests.PlayMode
             var ball = _boot.Tunnel.BallAt(0);
             for (int i = 0; i < 5; i++) yield return new WaitForFixedUpdate();
 
-            // Read and freeze in the same frame. A bouncing ball changes heading every few
-            // steps, so reading it a frame earlier compares two different flights and calls the
-            // difference a bug.
             Vector2 flying = ball.Body.linearVelocity;
             Assert.Greater(flying.magnitude, 0.1f, "the ball was not moving to begin with");
             _boot.Game.Pause();
@@ -150,17 +133,10 @@ namespace HR.Tests.PlayMode
             yield return null;
             Assert.IsTrue(ball.Frozen, "the ball is still simulated on pause");
 
-            // Read with no frame in between. Thawing happens inside Resume, and a single
-            // physics frame is long enough for the ball to hit a wall and leave with a
-            // completely different heading — comparing across one would be comparing the throw
-            // with whatever it bounced into.
             _boot.Game.Resume();
 
             Assert.IsFalse(ball.Frozen, "the ball stayed frozen after resuming");
 
-            // Freezing a body is not required to preserve its velocity, so the ball has to be
-            // handed its flight back deliberately. Without that it resumes at a standstill and
-            // the regulator spins it up from nothing in a direction it never chose.
             Assert.AreEqual(flying.x, ball.Body.linearVelocity.x, 1e-3, "lost its heading in x");
             Assert.AreEqual(flying.y, ball.Body.linearVelocity.y, 1e-3, "lost its heading in y");
         }
@@ -168,9 +144,6 @@ namespace HR.Tests.PlayMode
         [UnityTest]
         public IEnumerator Pause_takes_the_playfield_off_the_screen()
         {
-            // Not a visual nicety. A pause that leaves the tunnel showing is an untimed look at
-            // where every gap sits, which is the one thing the game asks the player to read
-            // under pressure — pressing pause would be a move.
             yield return null;
             PressPlay();
             yield return null;

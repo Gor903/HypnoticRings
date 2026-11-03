@@ -2,7 +2,6 @@ using System;
 
 namespace HR.Core
 {
-    /// <summary>Where a run throws the ball, and how fast.</summary>
     public readonly struct LaunchPlan
     {
         public readonly double X;
@@ -22,14 +21,6 @@ namespace HR.Core
         public double Speed => Math.Sqrt(VelocityX * VelocityX + VelocityY * VelocityY);
     }
 
-    /// <summary>
-    /// Throws the ball into the opening ring.
-    ///
-    /// Engine-free and seeded: a run that cannot be replayed cannot be told apart from luck, and
-    /// "it started badly that one time" is not a bug report anyone can act on. Position and
-    /// direction are drawn independently, so a ball can start flying straight at the wall it is
-    /// nearest to — which is a legitimate opening, not one worth filtering out.
-    /// </summary>
     public static class BallLaunch
     {
         public static LaunchPlan For(int seed, double innerRadius, double outerRadius, double speed)
@@ -48,12 +39,6 @@ namespace HR.Core
                 Math.Cos(headAngle) * speed, Math.Sin(headAngle) * speed);
         }
 
-        /// <summary>
-        /// Where the ball may start: a thin band just inside the opening ring's wall, touching
-        /// nothing. Starting near the wall rather than anywhere in the disc means the first
-        /// flight crosses the whole opening, which is what the run should look like; starting
-        /// near the centre would have the ball drift over the red circle before it ever moves.
-        /// </summary>
         public static (double Inner, double Outer) BandFor(in TunnelSettings settings)
         {
             double outer = settings.TargetRadius - settings.Thickness * 0.5 - settings.BallRadius;

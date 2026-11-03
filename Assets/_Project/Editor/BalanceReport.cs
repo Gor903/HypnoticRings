@@ -10,14 +10,6 @@ using Debug = UnityEngine.Debug;
 
 namespace HR.Editor
 {
-    /// <summary>
-    /// Runs the difficulty sweep the plan asks for: thousands of runs per skill level, seeded so
-    /// the whole thing replays. Writes raw results; tools/plot_balance.py turns them into the
-    /// report and the charts.
-    ///
-    /// Splitting it that way is deliberate — the simulation has to be the game's own code, and
-    /// the plotting has to be able to change without re-running an hour of simulation.
-    /// </summary>
     public static class BalanceReport
     {
         public const int RunsPerLevel = 5000;
@@ -28,7 +20,6 @@ namespace HR.Editor
         [MenuItem("Hypnotic Rings/Benchmarks/Balance sweep")]
         public static void RunFromMenu() => Run();
 
-        /// <summary>Per-ring detail for one run. For understanding a result, not for reporting it.</summary>
         public static void CIDiagnose()
         {
             try
@@ -104,7 +95,6 @@ namespace HR.Editor
             return false;
         }
 
-        /// <summary>Error against time for one ring, to see the shape rather than the summary.</summary>
         static void Trace(BalanceSimulator sim, BotBrain bot, in RingSpec spec,
                           in DifficultySnapshot d, double userAngle)
         {
@@ -195,7 +185,6 @@ namespace HR.Editor
             }
         }
 
-        /// <summary>The curve itself, so the report can show what the numbers were produced from.</summary>
         static void WriteCurve(DifficultyCurve curve, in TunnelSettings settings)
         {
             var sb = new StringBuilder();

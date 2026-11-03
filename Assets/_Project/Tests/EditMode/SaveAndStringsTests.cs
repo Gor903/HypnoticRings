@@ -10,8 +10,6 @@ namespace HR.Tests.EditMode
         [Test]
         public void Defaults_match_the_contract()
         {
-            // CONTRACT.md G-05. A zero volume and a zero sensitivity are both perfectly
-            // plausible-looking values, which is why they are asserted rather than assumed.
             var d = SaveData.Defaults();
             Assert.IsTrue(d.soundEnabled);
             Assert.AreEqual(1.0f, d.soundVolume);
@@ -35,8 +33,6 @@ namespace HR.Tests.EditMode
         [Test]
         public void An_older_save_is_migrated_rather_than_rejected()
         {
-            // Version 0 predates the settings, so they arrive as zeroes — which would read as
-            // sound off, music off and no sensitivity at all.
             var old = new SaveData { version = 0, bestScore = 42 };
             var repairs = old.Normalise();
 
@@ -80,7 +76,6 @@ namespace HR.Tests.EditMode
         [Test]
         public void A_theme_the_score_has_not_earned_is_given_back()
         {
-            // Otherwise wiping the record leaves the player looking at a theme they no longer own.
             var data = SaveData.Defaults();
             data.Theme = Theme.Earth;
             data.bestScore = 0;
@@ -131,7 +126,7 @@ namespace HR.Tests.EditMode
         public void TearDown()
         {
             try { if (Directory.Exists(_directory)) Directory.Delete(_directory, true); }
-            catch { /* a temp directory that outlives the test harms nothing */ }
+            catch {  }
         }
 
         [Test]
@@ -213,8 +208,6 @@ namespace HR.Tests.EditMode
         [Test]
         public void A_save_that_cannot_be_written_is_reported_and_survived()
         {
-            // The parent is a file, so the directory can never be created. Losing a best score
-            // is a disappointment; refusing to run because of it would be a bug.
             string blocker = Path.Combine(_directory, "blocker");
             File.WriteAllText(blocker, "not a directory");
 
@@ -233,7 +226,6 @@ namespace HR.Tests.EditMode
             good.bestScore = 99;
             Assert.IsTrue(service.Save(good));
 
-            // Nothing partial should ever be observable: either the old save or the new one.
             Assert.IsFalse(File.Exists(_path + ".tmp"), "a temporary file was left behind");
             Assert.AreEqual(99, new SaveService(_path).Load().bestScore);
         }
@@ -272,8 +264,6 @@ namespace HR.Tests.EditMode
         [Test]
         public void The_two_editions_agree()
         {
-            // Every key in both, no blanks, and the same format slots — a slot present in one
-            // edition and not the other throws at runtime, in whichever language nobody tested.
             var problems = Strings.Validate();
             Assert.IsEmpty(problems, string.Join("; ", problems));
         }
@@ -327,7 +317,7 @@ namespace HR.Tests.EditMode
             try
             {
                 Strings.Use(Language.Russian);
-                Strings.Use(Language.Russian);   // already there; no event
+                Strings.Use(Language.Russian);
                 Strings.Use(Language.English);
             }
             finally { Strings.Changed -= Handler; }

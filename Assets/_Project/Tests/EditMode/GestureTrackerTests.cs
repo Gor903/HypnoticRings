@@ -4,15 +4,10 @@ using NUnit.Framework;
 
 namespace HR.Tests.EditMode
 {
-    /// <summary>
-    /// CONTRACT.md §6.3 lists the gesture cases that must not break. Each one is here, because
-    /// every one of them is a bug that feels like "the controls are broken" rather than like a
-    /// crash, and none of them would be caught by playing normally.
-    /// </summary>
     public class GestureTrackerTests
     {
         const double Dt = 1.0 / 60.0;
-        const double R = 2.0;   // comfortably outside the 0.6u dead zone
+        const double R = 2.0;
 
         static GestureTracker Make(double sensitivity = 1.0, double maxSpeed = 540.0,
                                    double decay = 5.0, double deadZone = 0.6, bool inverted = false)
@@ -68,8 +63,6 @@ namespace HR.Tests.EditMode
         [Test]
         public void A_violent_flick_is_capped_at_the_speed_limit()
         {
-            // Without the cap a single frame of input could spin the tunnel most of a turn, which
-            // is both unplayable and a way to shove the ball through geometry.
             var t = Make(maxSpeed: 540.0);
             Drag(t, 0.0, 170.0, steps: 1);
             Assert.AreEqual(540.0 * Dt, t.AngleDeg, 1e-6);
@@ -78,8 +71,6 @@ namespace HR.Tests.EditMode
         [Test]
         public void Crossing_the_wrap_reads_as_a_small_step_forward()
         {
-            // 179 to -179 is two degrees onward, not 358 degrees backward. Getting this wrong
-            // makes the tunnel lurch the wrong way whenever a gesture passes the left of screen.
             var t = Make();
             Drag(t, 179.0, -179.0, steps: 1);
             Assert.AreEqual(2.0, t.AngleDeg, 1e-6);
@@ -109,15 +100,13 @@ namespace HR.Tests.EditMode
         [Test]
         public void Dragging_through_the_centre_resumes_without_a_jump()
         {
-            // Near the centre a pixel is a huge angle. The gesture must pause and re-anchor on
-            // the far side rather than snap the tunnel round.
             var t = Make();
             t.Begin(X(0.0), Y(0.0));
             t.Move(X(0.0), Y(0.0), Dt);
 
-            t.Move(0.0, 0.0, Dt);                 // through the dead zone
+            t.Move(0.0, 0.0, Dt);
             double before = t.AngleDeg;
-            t.Move(X(180.0), Y(180.0), Dt);       // reappears on the opposite side
+            t.Move(X(180.0), Y(180.0), Dt);
 
             Assert.AreEqual(before, t.AngleDeg, 1e-9, "re-anchoring moved the tunnel");
             Assert.IsTrue(t.IsTracking, "tracking should resume once clear of the dead zone");
@@ -157,8 +146,6 @@ namespace HR.Tests.EditMode
         [Test]
         public void Losing_focus_mid_gesture_throws_the_momentum_away()
         {
-            // Returning from a phone call to a tunnel still spinning from before it is not a
-            // gesture the player made.
             var t = Make();
             Drag(t, 0.0, 20.0, steps: 4);
             double atCancel = t.AngleDeg;
@@ -186,7 +173,6 @@ namespace HR.Tests.EditMode
         [Test]
         public void A_finger_that_leaves_the_screen_coasts_rather_than_stopping_dead()
         {
-            // The platform reports this as the touch ending, so it must read as a release.
             var t = Make();
             Drag(t, 0.0, 20.0, steps: 4);
             t.End();
@@ -230,10 +216,6 @@ namespace HR.Tests.EditMode
         [Test]
         public void A_long_gesture_stays_exact_rather_than_accumulating_drift()
         {
-            // The angle is accumulated every frame for the whole run; a biased step would show
-            // up here as a slow drift that nothing else would explain.
-            // 5 degrees a step, deliberately under the 9 degrees that 540 deg/s allows at 1/60 s,
-            // so this measures accumulated error and not the speed cap.
             var t = Make();
             t.Begin(X(0.0), Y(0.0));
             for (int turn = 0; turn < 10; turn++)
@@ -242,6 +224,5 @@ namespace HR.Tests.EditMode
 
             Assert.AreEqual(3600.0, t.AngleDeg, 1e-6);
         }
-
     }
 }

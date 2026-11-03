@@ -2,21 +2,10 @@ using System;
 
 namespace HR.Core
 {
-    /// <summary>
-    /// Which note a pass plays.
-    ///
-    /// CONTRACT.md G-13: two passes within three seconds of each other climb one step of the
-    /// pentatonic ladder; a longer gap, a pause or a loss drops back to the bottom, and the
-    /// ceiling is one octave. The rule is the whole reward for playing well in a row, so it is
-    /// kept here — knowing nothing about audio — where it can be tested at the millisecond
-    /// rather than listened to.
-    /// </summary>
     public sealed class ToneLadder
     {
-        /// <summary>Longer than this between passes and the streak is over.</summary>
         public const double StreakWindowSeconds = 3.0;
 
-        /// <summary>Minor pentatonic plus the octave that caps it.</summary>
         public const int Steps = 6;
 
         int _step;
@@ -25,7 +14,6 @@ namespace HR.Core
 
         public int Step => _step;
 
-        /// <summary>Records a pass and returns the step it should sound at.</summary>
         public int Pass(double time)
         {
             bool inStreak = _started && time - _lastPass <= StreakWindowSeconds;
@@ -36,7 +24,6 @@ namespace HR.Core
             return _step;
         }
 
-        /// <summary>A pause or a loss ends the streak outright, however recent the last pass.</summary>
         public void Reset()
         {
             _step = 0;

@@ -9,23 +9,11 @@ namespace HR.Core
         English = 1,
     }
 
-    /// <summary>
-    /// Every string the player can see, in one table, one entry per string.
-    ///
-    /// Views and controllers hold no literals at all — a string discovered later is a string
-    /// that shipped untranslated once. CONTRACT.md §4 is the list; Validate checks the two
-    /// editions still agree.
-    /// </summary>
     public static class Strings
     {
         static readonly Dictionary<string, string> Russian;
         static readonly Dictionary<string, string> English;
 
-        /// <summary>
-        /// Built in a static constructor rather than field initialisers on purpose: those run
-        /// in textual order, so a table declared below this point would still be null while the
-        /// one above was being filled, and every lookup into it would throw.
-        /// </summary>
         static Strings()
         {
             Russian = new Dictionary<string, string>(StringComparer.Ordinal)
@@ -67,8 +55,7 @@ namespace HR.Core
                 ["set.lowfx"] = "Снизить эффекты",
                 ["set.language"] = "Язык",
                 ["set.lang.auto"] = "Авто",
-                // A language names itself in its own language, in both editions: a player who
-                // has the interface in the wrong one is looking for a word they recognise.
+
                 ["set.lang.ru"] = "Русский",
                 ["set.lang.en"] = "English",
                 ["set.reset"] = "Сбросить прогресс",
@@ -139,7 +126,6 @@ namespace HR.Core
 
         public static Language Current { get; private set; }
 
-        /// <summary>Raised when the language changes, so screens can refresh without a reload.</summary>
         public static event Action Changed;
 
         public static void Use(Language language)
@@ -149,10 +135,6 @@ namespace HR.Core
             Changed?.Invoke();
         }
 
-        /// <summary>
-        /// Applies the player's choice. Auto follows the device, and anything that is not
-        /// Russian falls back to English — the contract's rule, stated once, here.
-        /// </summary>
         public static void Apply(LanguageSetting setting, Language deviceLanguage)
         {
             switch (setting)
@@ -168,8 +150,6 @@ namespace HR.Core
             var table = Current == Language.Russian ? Russian : English;
             if (table.TryGetValue(key, out string value)) return value;
 
-            // Falling back to English beats showing a blank label; showing the key beats
-            // showing nothing at all, and it names the missing entry on sight.
             if (English.TryGetValue(key, out string fallback)) return fallback;
             return key;
         }
@@ -179,7 +159,6 @@ namespace HR.Core
 
         public static IEnumerable<string> Keys => English.Keys;
 
-        /// <summary>Entries one edition has and the other does not. Empty when they agree.</summary>
         public static List<string> Validate()
         {
             var problems = new List<string>();
@@ -194,8 +173,6 @@ namespace HR.Core
             {
                 if (!Russian.TryGetValue(pair.Key, out string russian)) continue;
 
-                // A format slot present in one edition and not the other throws at runtime, in
-                // whichever language nobody tested.
                 if (CountSlots(pair.Value) != CountSlots(russian))
                     problems.Add($"format slots differ for {pair.Key}: "
                                  + $"English {CountSlots(pair.Value)}, Russian {CountSlots(russian)}");
@@ -215,7 +192,6 @@ namespace HR.Core
             return count;
         }
 
-        /// <summary>The display name of a theme, for the carousel and the unlock message.</summary>
         public static string ThemeName(Theme theme) => Get("theme." + theme.ToString().ToLowerInvariant());
     }
 }
