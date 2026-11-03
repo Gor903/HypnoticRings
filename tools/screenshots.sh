@@ -30,7 +30,7 @@ else
   EXTRA=()
 fi
 
-ART="$PROJECT_ROOT/docs/publishing/art/screenshots"
+ART="$SHOTS_DIR"
 status=0
 
 # Play mode, not an editor method: under a scriptable pipeline an editor-side render of a

@@ -11,19 +11,26 @@ and run from the project root:  python3 docs/publishing/check-listing.py
 import re
 import struct
 import sys
+import glob
+import os
 import zlib
 from pathlib import Path
 
 # ---- CONFIG --------------------------------------------------------------
 
-# Where the art lives, relative to this file.
-ICON = "art/store-icon-512.png"
-FEATURE = "art/feature-graphic-1024x500.png"
-# Only the frames that go to the store. The much larger art/screenshots/ tree is the
-# UI review set — eight screens at five shapes, including 9:20 and 9:21, which are
-# correct for a phone and rejected by the store's 2:1 ceiling. Sweeping both together
-# reported eleven failures about files nobody was ever going to upload.
-SCREENSHOT_GLOB = "art/store-screenshots/*.png"
+# Where the art lives. Outside the project by house rule — art is an output, and the
+# text in this folder is the source. See HR.Core.ArtifactPaths for the single answer the
+# shell, the editor tooling and the tests all read.
+ART = Path(os.environ.get("HR_ARTIFACTS") or
+           Path.home() / "Desktop" / "game-builds" / "HypnoticRings") / "store-art"
+
+ICON = ART / "store-icon-512.png"
+FEATURE = ART / "feature-graphic-1024x500.png"
+# Only the frames that go to the store. The much larger screenshots/ tree is the UI review
+# set — eight screens at five shapes, including 9:20 and 9:21, which are correct for a phone
+# and rejected by the store's 2:1 ceiling. Sweeping both together reported eleven failures
+# about files nobody was ever going to upload.
+SCREENSHOT_GLOB = str(ART / "store-screenshots" / "*.png")
 
 # Privacy pages to check, relative to this file. One per locale.
 PRIVACY_PAGES = ["privacy/index.html"]
@@ -160,8 +167,7 @@ def decode_alpha(path):
 
 
 def check_images():
-    for rel, expected in ((ICON, (512, 512)), (FEATURE, (1024, 500))):
-        path = PUB / rel
+    for path, expected in ((ICON, (512, 512)), (FEATURE, (1024, 500))):
         if not path.exists():
             problem(f"{path} is missing")
             continue
@@ -183,7 +189,7 @@ def check_images():
         elif lowest is not None:
             note(f"{path.name:34s} alpha channel fully opaque — store-safe")
 
-    shots = sorted(PUB.glob(SCREENSHOT_GLOB))
+    shots = sorted(Path(p) for p in glob.glob(SCREENSHOT_GLOB))
     if not 2 <= len(shots) <= 8:
         problem(f"{len(shots)} screenshots; the store takes 2 to 8 per locale")
     else:

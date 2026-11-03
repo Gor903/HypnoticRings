@@ -18,7 +18,7 @@ namespace HR.Tests.PlayMode
     /// </summary>
     public class UiScreenshotTests
     {
-        const string OutputDir = "docs/publishing/art/screenshots/screens";
+        static string OutputDir => ArtifactPaths.Ensure("screenshots", "screens");
 
         /// <summary>Portrait shapes from a tall phone to a tablet (CONTRACT.md phase 6 gate).</summary>
         static readonly (string Name, int Width, int Height)[] Shapes =
@@ -211,7 +211,7 @@ namespace HR.Tests.PlayMode
             Debug.Log($"[HR] skin screenshots: {written} frames in {SkinDir}");
         }
 
-        const string SkinDir = "docs/publishing/art/screenshots/skins";
+        static string SkinDir => ArtifactPaths.Ensure("screenshots", "skins");
 
         void Press(GameState screen, string button)
         {
@@ -262,7 +262,7 @@ namespace HR.Tests.PlayMode
         }
 
         IEnumerator Capture(string screen, (string Name, int Width, int Height) shape,
-                            string directory = OutputDir)
+                            string directory = null)
         {
             // The layout is told its size outright. Sizing only the texture would capture the
             // batch window's shape five times over and label the files as five devices.
@@ -295,7 +295,7 @@ namespace HR.Tests.PlayMode
 
             // Written only once it is a picture. The file is a tracked store asset, and writing
             // first meant every failed run replaced one with a grey rectangle.
-            string path = Path.Combine(directory, $"{screen}-{shape.Name}.png");
+            string path = Path.Combine(directory ?? OutputDir, $"{screen}-{shape.Name}.png");
             Assert.IsTrue(varied, $"{path} is a single flat colour — nothing rendered");
             File.WriteAllBytes(path, readback.EncodeToPNG());
 

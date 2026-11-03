@@ -15,7 +15,7 @@ case "$mode" in
     run_unity build-dev -nographics -executeMethod HR.Editor.CI.CIBuildAndroidDev
     status=$?
     assert_log_clean "$LOG_DIR/build-dev.log" || status=1
-    artifact="$PROJECT_ROOT/Build/hypnoticrings-dev.apk"
+    artifact="$BUILD_DIR/hypnoticrings-dev.apk"
     if [ "$status" -eq 0 ] && [ -f "$artifact" ]; then
       ok "built $(basename "$artifact") ($(du -h "$artifact" | cut -f1))"
       exit 0
@@ -48,7 +48,7 @@ case "$mode" in
     status=$?
     assert_log_clean "$LOG_DIR/build-release.log" || status=1
 
-    artifact="$PROJECT_ROOT/Build/hypnoticrings.aab"
+    artifact="$BUILD_DIR/hypnoticrings.aab"
     if [ "$status" -eq 0 ] && [ -f "$artifact" ]; then
       ok "built $(basename "$artifact") ($(du -h "$artifact" | cut -f1))"
       echo "  verify it with tools/verify_artifact.sh before trusting any of it" >&2

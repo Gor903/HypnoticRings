@@ -19,7 +19,11 @@ import os
 import sys
 from PIL import Image, ImageDraw
 
-ROOT = "docs/publishing/art/screenshots"
+# Outputs live outside the project — see HR.Core.ArtifactPaths for why, and for the one
+# answer the shell and the editor tooling share.
+ROOT = os.environ.get("HR_ARTIFACTS") or os.path.join(
+    os.path.expanduser("~"), "Desktop", "game-builds", "HypnoticRings")
+ROOT = os.path.join(ROOT, "screenshots")
 
 # Ordered as a player meets them; anything captured but not listed is appended, so a new
 # screen shows up on the sheet without anyone remembering to add it here.

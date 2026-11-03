@@ -81,11 +81,21 @@ systemd-run --user --scope -q -p MemoryHigh=8G -p MemoryMax=10G -p CPUQuota=600%
 - Комментарий — одна строка, без номеров задач и сборок.
 - Keystore и пароли никогда не попадают в репозиторий: ключ в `~/keystores/`,
   пароли в переменных окружения.
+- **В репозитории нет выходов.** Сборки, снятые кадры и арт для стора живут в
+  `~/Desktop/game-builds/HypnoticRings/{builds,screenshots,store-art}`. В
+  проекте — только то, из чего они делаются: код, тесты, конфиг, тексты.
+  Семьдесят шесть PNG, переписываемых каждой съёмкой, довели `.git` до
+  шестидесяти мегабайт ради файлов, восстановимых одной командой за две минуты,
+  и утопили диф слайса в двоичном шуме. Путь знает одно место —
+  `HR.Core.ArtifactPaths`, и его повторяют `tools/_common.sh` и
+  `check-listing.py`; `HR_ARTIFACTS` перекрывает.
 
 ## Раскладка
 
 ```
 CLAUDE.md
+~/Desktop/game-builds/HypnoticRings/   builds/ screenshots/ store-art/  (вне репозитория)
+
 docs/      HYPNOTIC_RINGS_GAMEPLAY_AND_VISUALS.md  HYPNOTIC_RINGS_HARDCORE_PLAN.md
            CONTRACT.md DECISIONS.md PROGRESS.md BACKLOG.md GAME_DESIGN_SPEC.md
            design/ (исходники, read-only)  publishing/ (стор, privacy, арт)

@@ -72,7 +72,14 @@ namespace HR.Editor
         public const string AdaptiveForegroundPath = "Assets/Art/Generated/icon_fg.png";
         public const string AdaptiveBackgroundPath = "Assets/Art/Generated/icon_bg.png";
 
-        public const string OutputDirectory = "Build";
+        /// <summary>
+        /// Where a signed artifact lands — outside the project, by house rule.
+        ///
+        /// A build is an output, not source. Inside the working copy it is nine hundred
+        /// megabytes of untracked files sitting where a reviewer looks for code, and the one
+        /// thing a stray `git clean` cannot be trusted around.
+        /// </summary>
+        public static string OutputDirectory => HR.Core.ArtifactPaths.Builds;
         public const string BundleName = "hypnoticrings.aab";
 
         // Signing comes from the environment; these are only the variable names.

@@ -14,7 +14,7 @@
 set -uo pipefail
 source "$(dirname "${BASH_SOURCE[0]}")/_common.sh"
 
-apk="${1:-$PROJECT_ROOT/Build/hypnoticrings.apk}"
+apk="${1:-$BUILD_DIR/hypnoticrings.apk}"
 problems=0
 
 note()  { printf '  %-44s %s\n' "$1" "$2"; }

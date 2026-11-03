@@ -24,7 +24,7 @@ namespace HR.Tests.PlayMode
     /// </summary>
     public class ThemeScreenshotTests
     {
-        const string OutputDir = "docs/publishing/art/screenshots/themes";
+        static string OutputDir => ArtifactPaths.Ensure("screenshots", "themes");
 
         static readonly (string Name, int Width, int Height)[] Shapes =
         {

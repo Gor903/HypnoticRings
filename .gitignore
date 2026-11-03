@@ -127,3 +127,8 @@ keystore.properties
 
 # Agent skills, symlinked outside the repository; a clone would get dead links
 /.claude/
+
+# Outputs live outside the project — ~/Desktop/game-builds/<game>/. Listed anyway, so that a
+# tool pointed at the old place by accident cannot quietly put nine hundred megabytes back.
+/Build/
+/docs/publishing/art/

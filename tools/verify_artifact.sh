@@ -13,7 +13,7 @@
 set -uo pipefail
 source "$(dirname "${BASH_SOURCE[0]}")/_common.sh"
 
-artifact="${1:-$PROJECT_ROOT/Build/hypnoticrings.aab}"
+artifact="${1:-$BUILD_DIR/hypnoticrings.aab}"
 problems=0
 
 note()  { printf '  %-44s %s\n' "$1" "$2"; }

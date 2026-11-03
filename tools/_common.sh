@@ -7,6 +7,16 @@ set -uo pipefail
 
 PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 LOG_DIR="$PROJECT_ROOT/.logs"
+
+# Everything the project produces for the outside world lives outside the project. Builds and
+# captured frames are outputs, not source: kept in the working copy they grow the repository
+# without bound and bury a slice's diff in binary noise. Mirrors HR.Core.ArtifactPaths, which
+# is the same answer for the editor tooling and the tests — one of the three disagreeing is
+# how a frame gets written where nobody looks for it.
+ARTIFACTS="${HR_ARTIFACTS:-$HOME/Desktop/game-builds/HypnoticRings}"
+BUILD_DIR="$ARTIFACTS/builds"
+SHOTS_DIR="$ARTIFACTS/screenshots"
+STORE_ART_DIR="$ARTIFACTS/store-art"
 mkdir -p "$LOG_DIR"
 
 UNITY_VERSION="${UNITY_VERSION:-6000.6.4f1}"
