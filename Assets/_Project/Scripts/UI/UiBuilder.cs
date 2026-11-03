@@ -213,8 +213,10 @@ namespace HR.UI
             var rect = (RectTransform)go.transform;
             rect.sizeDelta = new Vector2(0f, Mathf.Max(height, TouchTarget));
 
+            // Opaque. The theme paints it with a surface or accent colour afterwards, and a
+            // fill that keeps an alpha of its own is a fill the palette cannot make visible.
             var image = go.GetComponent<Image>();
-            image.color = new Color(1f, 1f, 1f, 0.08f);
+            image.color = Color.white;
 
             var label = CreateLabel("Label", go.transform, text, ButtonSize);
             Stretch((RectTransform)label.transform);

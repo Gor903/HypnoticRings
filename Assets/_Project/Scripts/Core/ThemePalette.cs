@@ -44,6 +44,85 @@ namespace HR.Core
         /// <summary>Slowest a palette may pulse, in seconds per cycle.</summary>
         public const double MinShimmerSeconds = 1.2;
 
+        // --- Interface roles -------------------------------------------------------------
+        //
+        // A theme used to know two colours: ink for text and paper for the background. Every
+        // interface element was painted with the ink and told to keep its own alpha, so a
+        // button's fill was the text colour at eight per cent — which is not a colour, it is a
+        // rumour. The buttons were invisible, and no amount of styling could have fixed it
+        // while the palette had nothing else to offer.
+        //
+        // These are derived rather than authored so that no theme has to be rewritten and a new
+        // one is usable the moment its ink and paper exist. A theme that wants to disagree can
+        // override them later; until then the arithmetic is the same for everybody.
+
+        /// <summary>Fill of a button, a card, a panel — the paper a control is cut from.</summary>
+        public Rgb Surface => MixUntilVisible(0.14, SurfaceVisible);
+
+        /// <summary>Text on that fill. The theme's ink, unchanged.</summary>
+        public Rgb SurfaceText => Ui;
+
+        /// <summary>
+        /// The edge of a control. Strong enough to say "this is a thing you press" on its own,
+        /// so a quiet fill is a choice rather than the only option.
+        /// </summary>
+        public Rgb Outline => MixUntilVisible(0.45, SurfaceVisible);
+
+        /// <summary>
+        /// The one action a screen is really for: Play, Retry.
+        ///
+        /// Taken from the theme's first ring colour rather than invented. It is the colour the
+        /// player already associates with this theme, it is guaranteed to clear the contrast
+        /// floor against the background (every ring colour is checked), and it means a new theme
+        /// gets a sensible accent without anybody choosing one.
+        /// </summary>
+        public Rgb Accent => RingColourAt(0);
+
+        /// <summary>
+        /// Text on the accent — whichever of ink and paper stands out more against it. Picked
+        /// rather than fixed, because an accent taken from the rings can land anywhere on the
+        /// scale and the right answer flips with it.
+        /// </summary>
+        public Rgb AccentText =>
+            Contrast.Ratio(Background, Accent) >= Contrast.Ratio(Ui, Accent) ? Background : Ui;
+
+        /// <summary>A switch that is off. Visible, which the old one was not at all.</summary>
+        public Rgb TrackOff => MixUntilVisible(0.22, SurfaceVisible);
+
+        /// <summary>A switch that is on.</summary>
+        public Rgb TrackOn => Accent;
+
+        /// <summary>
+        /// Walks a colour away from the background until it can actually be seen against it.
+        ///
+        /// A fixed share of ink is a number that happens to work for the themes in front of you.
+        /// Pastel proved it: 14% of a dark plum into a near-white paper came out at 1.23 against
+        /// a floor of 1.25 — close enough to look deliberate and still invisible. Stepping until
+        /// the floor is met makes the rule true for every palette, including ones nobody has
+        /// written yet.
+        /// </summary>
+        Rgb MixUntilVisible(double from, double floor)
+        {
+            // Never past halfway: a control that keeps walking toward the ink eventually becomes
+            // the text, and then the label on it disappears instead.
+            const double Ceiling = 0.5;
+            const double Step = 0.02;
+
+            for (double amount = from; amount <= Ceiling; amount += Step)
+            {
+                var candidate = Rgb.Mix(Background, Ui, amount);
+                if (Contrast.Ratio(candidate, Background) >= floor) return candidate;
+            }
+
+            return Rgb.Mix(Background, Ui, Ceiling);
+        }
+
+        /// <summary>Smallest contrast a control's fill needs against the screen behind it.</summary>
+        public const double SurfaceVisible = 1.25;
+
+        /// <summary>Button labels are large type, so the large-text floor applies.</summary>
+        public const double LargeTextRequired = 3.0;
+
         /// <summary>
         /// The super ring's own colour. A reward has to be recognisable before it is reached,
         /// and the depth fade alone cannot say "this one is different" — it only says "this one

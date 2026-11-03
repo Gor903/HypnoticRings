@@ -39,7 +39,14 @@ namespace HR.UI
 
         readonly Dictionary<GameState, RectTransform> _screens = new Dictionary<GameState, RectTransform>();
         readonly List<Action> _stringRefreshers = new List<Action>();
+        // One list per role rather than one list for everything. The old single list painted
+        // every element with the text colour and let it keep its own alpha, which is how a
+        // button's fill ended up being the text colour at eight per cent — invisible, and
+        // unfixable by styling while the palette knew only ink and paper.
         readonly List<Graphic> _tinted = new List<Graphic>();
+        readonly List<Graphic> _surfaces = new List<Graphic>();
+        readonly List<Graphic> _accents = new List<Graphic>();
+        readonly List<Graphic> _accentTexts = new List<Graphic>();
         readonly List<Image> _scrims = new List<Image>();
         readonly Dictionary<Theme, Text> _themeLocks = new Dictionary<Theme, Text>();
         readonly Dictionary<Theme, Button> _themeButtons = new Dictionary<Theme, Button>();
@@ -210,6 +217,22 @@ namespace HR.UI
                 faded.a = graphic.color.a;
                 graphic.color = faded;
             }
+
+            // Roles are painted at full strength. Keeping the element's own alpha is what made
+            // a fill invisible in the first place — alpha is how "quiet" was expressed when
+            // there was only one colour to be quiet with, and there is no longer only one.
+            Paint(_surfaces, ThemeApplier.ToColor(palette.Surface));
+            Paint(_accents, ThemeApplier.ToColor(palette.Accent));
+            Paint(_accentTexts, ThemeApplier.ToColor(palette.AccentText));
+        }
+
+        static void Paint(List<Graphic> graphics, Color colour)
+        {
+            foreach (var graphic in graphics)
+            {
+                if (graphic == null) continue;
+                graphic.color = colour;
+            }
         }
 
         void SetHudDetail(bool visible)
@@ -240,7 +263,8 @@ namespace HR.UI
             _menuBestLabel = UiBuilder.CreateLabel("Best", column.transform, string.Empty, UiBuilder.BodySize);
             Track(_menuBestLabel);
 
-            Button(column.transform, "menu.play", () => PlayPressed?.Invoke(), UiBuilder.TouchTarget * 1.4f);
+            Button(column.transform, "menu.play", () => PlayPressed?.Invoke(),
+                   UiBuilder.TouchTarget * 1.4f, primary: true);
 
             _hardcoreButton = Button(column.transform, "menu.hardcore",
                                      () => HardcorePressed?.Invoke());
@@ -319,7 +343,8 @@ namespace HR.UI
             Track(_overScoreLabel); Track(_overBestLabel); Track(_overUnlockLabel);
 
             // Retry is the big one and sits lowest, where the thumb already is.
-            Button(column.transform, "over.retry", () => RetryPressed?.Invoke(), UiBuilder.TouchTarget * 1.4f);
+            Button(column.transform, "over.retry", () => RetryPressed?.Invoke(),
+                   UiBuilder.TouchTarget * 1.4f, primary: true);
             Button(column.transform, "over.home", () => HomePressed?.Invoke());
             Button(column.transform, "over.themes", () => ThemesPressed?.Invoke());
         }
@@ -622,16 +647,26 @@ namespace HR.UI
             return label;
         }
 
-        Button Button(Transform parent, string key, Action onClick, float height = UiBuilder.TouchTarget)
+        /// <summary>
+        /// A button. <paramref name="primary"/> marks the one action the screen exists for —
+        /// Play, Retry — which takes the accent instead of the surface.
+        /// </summary>
+        Button Button(Transform parent, string key, Action onClick,
+                      float height = UiBuilder.TouchTarget, bool primary = false)
         {
             var button = UiBuilder.CreateButton(key, parent, Strings.Get(key),
                 () => { Clicked?.Invoke(); onClick?.Invoke(); }, height);
             var label = button.GetComponentInChildren<Text>();
             _stringRefreshers.Add(() => label.text = Strings.Get(key));
+
+            if (primary)
+            {
+                TrackAccent(button.targetGraphic, label);
+                return button;
+            }
+
+            TrackSurface(button.targetGraphic);
             Track(label);
-            // The fill is tinted as well, not just the text. Left white it is invisible against
-            // a light theme, and the buttons read as loose words floating on the background.
-            Track(button.targetGraphic);
             return button;
         }
 
@@ -656,7 +691,18 @@ namespace HR.UI
             return toggle;
         }
 
+        /// <summary>Text and anything else that should be the theme's ink.</summary>
         void Track(Graphic graphic) { if (graphic != null) _tinted.Add(graphic); }
+
+        /// <summary>The fill of a control: opaque, and distinct from the screen behind it.</summary>
+        void TrackSurface(Graphic graphic) { if (graphic != null) _surfaces.Add(graphic); }
+
+        /// <summary>The one action a screen is for. Fill and label move together.</summary>
+        void TrackAccent(Graphic fill, Graphic label)
+        {
+            if (fill != null) _accents.Add(fill);
+            if (label != null) _accentTexts.Add(label);
+        }
 
         void Scrim(RectTransform panel)
         {
