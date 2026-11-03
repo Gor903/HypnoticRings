@@ -517,6 +517,91 @@ namespace HR.UI
         }
 
         /// <summary>
+        /// Two or three controls side by side, sharing the width evenly.
+        ///
+        /// What a row buys is rank: four buttons stacked all claim the same importance, and the
+        /// eye has to read every one to find the one it wants. Demoting the two that are not
+        /// the point of the screen into a single row says which is which without a word.
+        /// </summary>
+        public static HorizontalLayoutGroup CreateRow(string name, Transform parent,
+                                                      float height = TouchTarget,
+                                                      float spacing = 24f)
+        {
+            var go = new GameObject(name, typeof(RectTransform), typeof(HorizontalLayoutGroup));
+            go.transform.SetParent(parent, false);
+            ((RectTransform)go.transform).sizeDelta = new Vector2(0f, height);
+
+            var layout = go.GetComponent<HorizontalLayoutGroup>();
+            layout.spacing = spacing;
+            layout.childAlignment = TextAnchor.MiddleCenter;
+            layout.childControlWidth = true;
+            layout.childControlHeight = true;
+            layout.childForceExpandWidth = true;
+            layout.childForceExpandHeight = true;
+
+            return layout;
+        }
+
+        /// <summary>
+        /// A plate that hugs what is put on it, with a margin at the sides so the screen behind
+        /// it is still a screen.
+        ///
+        /// The band it replaces ran edge to edge and had square corners against round ones
+        /// everywhere else — it read as the interface having broken rather than as a panel.
+        ///
+        /// <paramref name="anchorY"/> is where on the screen it sits, 0 at the bottom and 0.5 in
+        /// the middle; the pivot follows it, so a bottom-anchored card grows upward and the last
+        /// control on it stays exactly <paramref name="inset"/> above the edge — which is how
+        /// the one action the screen is for ends up under the thumb rather than above it.
+        /// </summary>
+        public static VerticalLayoutGroup CreateCard(string name, Transform parent,
+                                                     float sideMargin, float anchorY = 0.5f,
+                                                     float inset = 0f, float spacing = 24f)
+        {
+            var go = new GameObject(name, typeof(RectTransform), typeof(Image),
+                                    typeof(VerticalLayoutGroup), typeof(ContentSizeFitter));
+            go.transform.SetParent(parent, false);
+
+            var rect = (RectTransform)go.transform;
+            rect.anchorMin = new Vector2(0f, anchorY);
+            rect.anchorMax = new Vector2(1f, anchorY);
+            rect.pivot = new Vector2(0.5f, anchorY);
+            rect.offsetMin = new Vector2(sideMargin, 0f);
+            rect.offsetMax = new Vector2(-sideMargin, 0f);
+            rect.anchoredPosition = new Vector2(0f, inset);
+
+            var layout = go.GetComponent<VerticalLayoutGroup>();
+            layout.spacing = spacing;
+            layout.padding = new RectOffset(40, 40, 48, 48);
+            layout.childAlignment = TextAnchor.UpperCenter;
+            layout.childControlHeight = false;
+            layout.childControlWidth = true;
+            layout.childForceExpandHeight = false;
+            layout.childForceExpandWidth = true;
+
+            go.GetComponent<ContentSizeFitter>().verticalFit = ContentSizeFitter.FitMode.PreferredSize;
+            go.GetComponent<Image>().color = Color.white;
+
+            return layout;
+        }
+
+        /// <summary>
+        /// Empty space with a height, for separating groups of rows.
+        ///
+        /// Proximity is the whole grouping mechanism here: no headings, because three more
+        /// words on a settings screen is three more things to read, and no icons, because the
+        /// project draws no image files at all.
+        /// </summary>
+        public static RectTransform CreateSpacer(Transform parent, float height)
+        {
+            var go = new GameObject("Spacer", typeof(RectTransform));
+            go.transform.SetParent(parent, false);
+            var rect = (RectTransform)go.transform;
+            rect.sizeDelta = new Vector2(0f, height);
+            return rect;
+        }
+
+        /// <summary>
         /// A row of cards that scrolls sideways — spec 10.4 asks for a carousel, not a list.
         /// </summary>
         public static ScrollRect CreateCarousel(string name, Transform parent, float height,

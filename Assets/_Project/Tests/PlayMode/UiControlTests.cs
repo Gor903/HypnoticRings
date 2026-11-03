@@ -268,6 +268,45 @@ namespace HR.Tests.PlayMode
             }
         }
 
+        [UnityTest]
+        public IEnumerator The_language_row_shows_which_language_is_on()
+        {
+            // It showed the word "Language" and nothing else — the only control in the game
+            // that stated its question and not its answer, on the one screen a player opens
+            // precisely because the answer is currently wrong.
+            var settings = Settings();
+            yield return null;
+
+            var row = FindByName(settings.transform, "set.language");
+            Assert.IsNotNull(row, "no language row on the settings screen");
+
+            var chip = row.GetComponentInChildren<Button>(includeInactive: true);
+            Assert.IsNotNull(chip, "the language row has nothing to press");
+
+            var value = chip.GetComponentInChildren<Text>(includeInactive: true);
+            Assert.AreEqual(Strings.Get("set.lang.auto"), value.text, "a fresh save is on Auto");
+
+            var seen = new System.Collections.Generic.HashSet<string> { value.text };
+            for (int press = 0; press < 2; press++)
+            {
+                chip.onClick.Invoke();
+                yield return null;
+                Assert.IsTrue(seen.Add(value.text),
+                    $"pressing it again showed '{value.text}', which it had already shown");
+            }
+
+            chip.onClick.Invoke();
+            yield return null;
+            Assert.AreEqual(Strings.Get("set.lang.auto"), value.text, "the cycle does not close");
+        }
+
+        static RectTransform FindByName(Transform parent, string name)
+        {
+            foreach (var child in parent.GetComponentsInChildren<RectTransform>(includeInactive: true))
+                if (child.name == name) return child;
+            return null;
+        }
+
         static Rgb ToRgb(Color colour) => new Rgb((byte)Mathf.RoundToInt(colour.r * 255f),
                                                   (byte)Mathf.RoundToInt(colour.g * 255f),
                                                   (byte)Mathf.RoundToInt(colour.b * 255f));

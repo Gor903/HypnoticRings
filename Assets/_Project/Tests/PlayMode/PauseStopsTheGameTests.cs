@@ -164,5 +164,34 @@ namespace HR.Tests.PlayMode
             Assert.AreEqual(flying.x, ball.Body.linearVelocity.x, 1e-3, "lost its heading in x");
             Assert.AreEqual(flying.y, ball.Body.linearVelocity.y, 1e-3, "lost its heading in y");
         }
+
+        [UnityTest]
+        public IEnumerator Pause_takes_the_playfield_off_the_screen()
+        {
+            // Not a visual nicety. A pause that leaves the tunnel showing is an untimed look at
+            // where every gap sits, which is the one thing the game asks the player to read
+            // under pressure — pressing pause would be a move.
+            yield return null;
+            PressPlay();
+            yield return null;
+
+            Assert.IsTrue(_boot.Tunnel.gameObject.activeInHierarchy, "the tunnel is not even up");
+
+            _boot.Game.Pause();
+            _boot.Ui.Show(_boot.Game.State);
+            yield return null;
+
+            Assert.IsFalse(_boot.Tunnel.gameObject.activeInHierarchy,
+                "the tunnel is still on screen behind the pause card");
+            Assert.IsFalse(_boot.Tunnel.BallAt(0).gameObject.activeInHierarchy,
+                "the ball is left hanging on an otherwise empty screen");
+
+            _boot.Game.Resume();
+            _boot.Ui.Show(_boot.Game.State);
+            yield return null;
+
+            Assert.IsTrue(_boot.Tunnel.gameObject.activeInHierarchy, "the tunnel never came back");
+            Assert.IsTrue(_boot.Tunnel.BallAt(0).gameObject.activeInHierarchy, "the ball never came back");
+        }
     }
 }
