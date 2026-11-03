@@ -29,9 +29,11 @@ Unity 6000.6.4f1, Android, портрет, оффлайн, бесплатно, �
 
 ```sh
 tools/preflight.sh          # окружение: Unity, Android-модуль, память, диск
-tools/run_tests.sh          # EditMode + PlayMode из командной строки
+tools/run_tests.sh cheap    # только EditMode, ~1 мин — после каждой пачки правок
+tools/run_tests.sh full     # оба набора с выносливостью — граница слайса, merge, сборка
+tools/screenshots.sh        # все кадры: темы, экраны, скины, контактные листы
 tools/build_android.sh      # подписанный .aab (нужны переменные окружения)
-tools/screenshots.sh        # скриншоты всех тем и экранов
+tools/verify_artifact.sh    # что в артефакте на самом деле; .aab и .apk
 tools/audit.sh              # TODO / FIXME / Debug.Log / секреты
 python3 docs/publishing/check-listing.py   # пакет для стора против лимитов
 ```
@@ -87,6 +89,7 @@ CLAUDE.md
 docs/      HYPNOTIC_RINGS_GAMEPLAY_AND_VISUALS.md  HYPNOTIC_RINGS_HARDCORE_PLAN.md
            CONTRACT.md DECISIONS.md PROGRESS.md BACKLOG.md GAME_DESIGN_SPEC.md
            design/ (исходники, read-only)  publishing/ (стор, privacy, арт)
-tools/     preflight.sh run_tests.sh build_android.sh screenshots.sh gen_*.py
+tools/     preflight.sh run_tests.sh build_android.sh screenshots.sh
+           verify_artifact.sh verify_apk.sh contact_sheet.py gen_*.py
 Assets/_Project/{Scripts,Config,Scenes,Editor,Tests}
 ```

@@ -1,22 +1,32 @@
 #!/usr/bin/env bash
-# Reads the bundle and says what is actually in it.
+# Reads the artifact and says what is actually in it.
 #
 # Nothing here looks at a build log. Build tools report on themselves and get it
 # wrong; the only thing that knows what shipped is the file that shipped. Every
-# number this prints comes out of the .aab.
+# number this prints comes out of the .aab or the .apk.
 #
-#   tools/verify_artifact.sh [path-to-aab]
+#   tools/verify_artifact.sh [path]     .aab (store) or .apk (phone)
+#
+# Both formats get the same questions asked of them. The bundle is what reaches the
+# store; the APK is what reaches a hand, and an unverified APK is how a throwaway
+# key or a stray permission travels to a phone without anybody noticing.
 set -uo pipefail
 source "$(dirname "${BASH_SOURCE[0]}")/_common.sh"
 
-aab="${1:-$PROJECT_ROOT/Build/hypnoticrings.aab}"
+artifact="${1:-$PROJECT_ROOT/Build/hypnoticrings.aab}"
 problems=0
 
 note()  { printf '  %-44s %s\n' "$1" "$2"; }
 good()  { printf '  \033[32mok\033[0m    %-38s %s\n' "$1" "$2"; }
 bad()   { printf '  \033[31mFAIL\033[0m  %-38s %s\n' "$1" "$2"; problems=$((problems+1)); }
 
-[ -f "$aab" ] || { fail "no bundle at $aab"; exit 1; }
+[ -f "$artifact" ] || { fail "no artifact at $artifact"; exit 1; }
+
+case "$artifact" in
+  *.apk) exec "$(dirname "${BASH_SOURCE[0]}")/verify_apk.sh" "$artifact" ;;
+esac
+
+aab="$artifact"
 
 AP="$UNITY_ROOT/Data/PlaybackEngines/AndroidPlayer"
 JAVA="$AP/OpenJDK/bin/java"

@@ -2,9 +2,16 @@
 # EditMode and PlayMode from the command line. Green tests are a precondition of the release
 # build, not a separate ritual.
 #
-#   tools/run_tests.sh            both suites
+#   tools/run_tests.sh cheap      EditMode only, about a minute — after each batch of edits
+#   tools/run_tests.sh full       both suites with the endurance tests — slice boundary, merge, build
+#
+#   tools/run_tests.sh            both suites, endurance left to HR_ENDURANCE
 #   tools/run_tests.sh edit       EditMode only
 #   tools/run_tests.sh play       PlayMode only
+#
+# Two named gates rather than one, because a suite that takes forty minutes after every edit
+# is a suite people stop running. The cheap one is a verdict on whether the code still makes
+# sense; the full one is a verdict on whether the game still works.
 set -uo pipefail
 source "$(dirname "${BASH_SOURCE[0]}")/_common.sh"
 
@@ -60,10 +67,12 @@ run_suite() {
 }
 
 case "$which" in
-  edit) run_suite EditMode ;;
-  play) run_suite PlayMode ;;
-  both) run_suite EditMode; run_suite PlayMode ;;
-  *) echo "usage: $0 [edit|play|both]" >&2; exit 2 ;;
+  cheap) run_suite EditMode ;;
+  full)  export HR_ENDURANCE=1; run_suite EditMode; run_suite PlayMode ;;
+  edit)  run_suite EditMode ;;
+  play)  run_suite PlayMode ;;
+  both)  run_suite EditMode; run_suite PlayMode ;;
+  *) echo "usage: $0 [cheap|full|edit|play|both]" >&2; exit 2 ;;
 esac
 
 echo
