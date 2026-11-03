@@ -52,6 +52,10 @@ namespace HR.UI
         // Shape is tracked separately from colour because it needs a number colour does not:
         // the control's height, which is what a corner radius is a share of.
         readonly List<(Image Image, float Height)> _shaped = new List<(Image, float)>();
+        readonly List<ToggleVisual> _switches = new List<ToggleVisual>();
+        readonly List<PressFeedback> _presses = new List<PressFeedback>();
+        readonly List<Image> _knobs = new List<Image>();
+        readonly List<Image> _tracks = new List<Image>();
         readonly Dictionary<Theme, Text> _themeLocks = new Dictionary<Theme, Text>();
         readonly Dictionary<Theme, Button> _themeButtons = new Dictionary<Theme, Button>();
         readonly Dictionary<Theme, Text> _themeLabels = new Dictionary<Theme, Text>();
@@ -234,6 +238,51 @@ namespace HR.UI
             // that they feel like six places.
             var skin = UiSkin.For(palette.Theme);
             foreach (var (image, height) in _shaped) UiPainter.Shape(image, height, skin);
+
+            var trackOff = ThemeApplier.ToColor(palette.TrackOff);
+            var trackOn = ThemeApplier.ToColor(palette.TrackOn);
+            var knobInk = ThemeApplier.ToColor(palette.Background);
+
+            foreach (var visual in _switches)
+            {
+                if (visual == null) continue;
+                UiPainter.Shape(visual.Track, UiBuilder.TrackHeight, skin);
+                UiPainter.ShapeKnob(visual.Knob, skin);
+                visual.SetColours(trackOff, trackOn, knobInk);
+            }
+
+            foreach (var track in _tracks)
+            {
+                if (track == null) continue;
+                track.color = trackOff;
+                UiPainter.Shape(track, UiBuilder.SliderTrackHeight, skin);
+            }
+
+            foreach (var knob in _knobs)
+            {
+                if (knob == null) continue;
+                knob.color = ThemeApplier.ToColor(palette.Accent);
+                UiPainter.ShapeKnob(knob, skin);
+            }
+
+            // Pressing has to be re-taught after a repaint: a flash returns to the colour it
+            // remembered, and a colour remembered before a theme change is the old theme's.
+            foreach (var press in _presses)
+            {
+                if (press == null) continue;
+                press.Configure(skin, press.Fill);
+            }
+
+            // The pause button is round in every skin: it is the only control on the screen
+            // that has to be found by the thumb without the eye leaving the tunnel.
+            if (_pauseFill != null)
+            {
+                _pauseFill.sprite = UiBuilder.Disc;
+                _pauseFill.type = Image.Type.Simple;
+            }
+
+            if (_scoreOutline != null) _scoreOutline.effectColor = paper;
+            if (_bestOutline != null) _bestOutline.effectColor = paper;
         }
 
         static void Paint(List<Graphic> graphics, Color colour)
@@ -304,16 +353,35 @@ namespace HR.UI
             _hudBestLabel.color = new Color(1f, 1f, 1f, 0.6f);
             Track(_hudBestLabel);
 
+            // Both sit directly on the tunnel with nothing behind them, and a ring crossing a
+            // glyph takes it apart. An outline in the background's own colour is what the rings
+            // already use for the ball, costs four extra quads, and needs no panel that would
+            // cover the thing the player is watching.
+            _scoreOutline = Outline(_scoreLabel, ScoreOutlineWidth);
+            _bestOutline = Outline(_hudBestLabel, BestOutlineWidth);
+
             var pause = UiBuilder.CreateButton("Pause", screen, "II", () => PausePressed?.Invoke());
             _pauseButton = pause;
-            Track(pause.targetGraphic);
+
+            // Fill as a surface, glyph as ink. Tracked as ink it was the one button in the game
+            // painted the same colour as its own label: a solid black disc with nothing on it.
+            TrackSurface(pause.targetGraphic);
             Track(pause.GetComponentInChildren<Text>());
+            _presses.Add(Press(pause));
             var pauseRect = (RectTransform)pause.transform;
             pauseRect.anchorMin = new Vector2(1f, 1f);
             pauseRect.anchorMax = new Vector2(1f, 1f);
-            pauseRect.pivot = new Vector2(1f, 1f);
-            pauseRect.anchoredPosition = new Vector2(-32f, -32f);
-            pauseRect.sizeDelta = new Vector2(UiBuilder.TouchTarget, UiBuilder.TouchTarget);
+
+            // Pivoted on its own centre and pulled a full radius clear of the corner. Pinned by
+            // its top-right corner at an inset of 32 it sat half off the screen on 9x16 — the
+            // glyph was sliced down the middle on every captured frame.
+            pauseRect.pivot = new Vector2(0.5f, 0.5f);
+            pauseRect.sizeDelta = new Vector2(PauseButtonSize, PauseButtonSize);
+            pauseRect.anchoredPosition =
+                new Vector2(-(PauseButtonSize * 0.5f + PauseInset),
+                            -(PauseButtonSize * 0.5f + PauseInset));
+
+            _pauseFill = pause.targetGraphic as Image;
 
             _hintLabel = UiBuilder.CreateLabel("Hint", screen, Strings.Get("hint.swipe"), UiBuilder.BodySize);
             var hintRect = (RectTransform)_hintLabel.transform;
@@ -384,6 +452,7 @@ namespace HR.UI
                 var cardRect = (RectTransform)card.transform;
                 cardRect.sizeDelta = new Vector2(540f, 700f);
                 Track(card.targetGraphic);
+                _presses.Add(Press(card));
 
                 var palette = ThemePalette.For(theme);
                 var rings = new Color[palette.RingColours.Length];
@@ -538,6 +607,34 @@ namespace HR.UI
 
         // ---------------------------------------------------------------- refresh
 
+        /// <summary>
+        /// Round, and no smaller than anything else you are asked to hit. The project's floor
+        /// is 150 units and a round button has less area than a square one of the same box, so
+        /// shaving it was the wrong place to save room.
+        /// </summary>
+        public const float PauseButtonSize = UiBuilder.TouchTarget;
+
+        /// <summary>Distance from the safe area's edge to the button's edge.</summary>
+        public const float PauseInset = 28f;
+
+        Image _pauseFill;
+        UnityEngine.UI.Outline _scoreOutline;
+        UnityEngine.UI.Outline _bestOutline;
+
+        /// <summary>Thick enough to survive a ring crossing a stroke of the digit.</summary>
+        public const float ScoreOutlineWidth = 6f;
+        public const float BestOutlineWidth = 4f;
+
+        static UnityEngine.UI.Outline Outline(Graphic graphic, float width)
+        {
+            if (graphic == null) return null;
+
+            var outline = graphic.gameObject.AddComponent<UnityEngine.UI.Outline>();
+            outline.effectDistance = new Vector2(width, width);
+            outline.useGraphicAlpha = false;
+            return outline;
+        }
+
         Button _hardcoreButton;
         Text _hardcoreLockLabel;
 
@@ -671,6 +768,8 @@ namespace HR.UI
 
             TrackShape(button.targetGraphic as Image, Mathf.Max(height, UiBuilder.TouchTarget));
 
+            _presses.Add(Press(button));
+
             if (primary)
             {
                 TrackAccent(button.targetGraphic, label);
@@ -688,7 +787,7 @@ namespace HR.UI
             Track(Label(parent, key, UiBuilder.BodySize));
 
             var slider = UiBuilder.CreateSlider(key, parent, 0f, 1f, value, onChanged);
-            foreach (var part in slider.GetComponentsInChildren<Image>(true)) Track(part);
+            RegisterSlider(slider);
             return slider;
         }
 
@@ -698,9 +797,45 @@ namespace HR.UI
             var label = toggle.GetComponentInChildren<Text>();
             _stringRefreshers.Add(() => label.text = Strings.Get(key));
             Track(label);
-            Track(toggle.targetGraphic);
-            Track(toggle.graphic);
+
+            // The row's own backing stays faint — it is a hit area, not a control. What the eye
+            // is meant to find is the switch at the end of it.
+            var visual = toggle.GetComponent<ToggleVisual>();
+            if (visual != null) _switches.Add(visual);
             return toggle;
+        }
+
+        /// <summary>
+        /// Takes a slider apart into the roles its pieces play: a quiet track, a filled part
+        /// in the accent, and a knob the finger is aiming for. Painted as one colour before,
+        /// which is how the handle ended up a black slab taller than the line it rode on.
+        /// </summary>
+        void RegisterSlider(Slider slider)
+        {
+            if (slider == null) return;
+
+            foreach (var part in slider.GetComponentsInChildren<Image>(true))
+            {
+                if (part.name == "Handle") { _knobs.Add(part); continue; }
+
+                // Shaped like the track it sits in, or a rounded bar ends in a square stub.
+                if (part.name == "Fill")
+                {
+                    _accents.Add(part);
+                    TrackShape(part, UiBuilder.SliderTrackHeight);
+                    continue;
+                }
+
+                _tracks.Add(part);
+            }
+        }
+
+        /// <summary>Gives a button something to do under a finger.</summary>
+        static PressFeedback Press(Button button)
+        {
+            var press = button.gameObject.AddComponent<PressFeedback>();
+            press.Fill = button.targetGraphic;
+            return press;
         }
 
         /// <summary>Text and anything else that should be the theme's ink.</summary>

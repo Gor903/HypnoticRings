@@ -27,6 +27,26 @@ namespace HR.UI
         public const int BodySize = 44;
         public const int ButtonSize = 52;
 
+        /// <summary>A switch is wider than it is tall, or it reads as a checkbox.</summary>
+        public const float TrackWidth = 132f;
+        public const float TrackHeight = 72f;
+
+        /// <summary>Breathing room between the knob and the track it rides in.</summary>
+        public const float KnobInset = 8f;
+
+        /// <summary>Margin at each end of a slider, so the bar does not run into the screen.</summary>
+        public const float SliderEndInset = 32f;
+
+        /// <summary>
+        /// A slider's bar, and the knob that rides it.
+        ///
+        /// Kept close together on purpose: a 72-unit knob on a 24-unit line read as a slab
+        /// dropped on a wire rather than as one control.
+        /// </summary>
+        public const float SliderTrackHeight = 36f;
+
+        public const float SliderKnobSize = 60f;
+
         static Font _font;
         static Sprite _disc;
 
@@ -312,20 +332,38 @@ namespace HR.UI
             labelRect.offsetMin = new Vector2(32f, 0f);
             labelRect.offsetMax = new Vector2(-180f, 0f);
 
-            var markGo = new GameObject("Mark", typeof(RectTransform), typeof(Image));
-            markGo.transform.SetParent(go.transform, false);
-            var markRect = (RectTransform)markGo.transform;
-            markRect.anchorMin = new Vector2(1f, 0.5f);
-            markRect.anchorMax = new Vector2(1f, 0.5f);
-            markRect.pivot = new Vector2(1f, 0.5f);
-            markRect.anchoredPosition = new Vector2(-32f, 0f);
-            markRect.sizeDelta = new Vector2(72f, 72f);
+            // A track that never disappears, with a knob that slides along it. uGUI's own
+            // answer is to hide the tick when off, which leaves a row of text with nothing
+            // beside it — a setting the player cannot tell is a setting.
+            var trackGo = new GameObject("Track", typeof(RectTransform), typeof(Image));
+            trackGo.transform.SetParent(go.transform, false);
+            var trackRect = (RectTransform)trackGo.transform;
+            trackRect.anchorMin = new Vector2(1f, 0.5f);
+            trackRect.anchorMax = new Vector2(1f, 0.5f);
+            trackRect.pivot = new Vector2(1f, 0.5f);
+            trackRect.anchoredPosition = new Vector2(-32f, 0f);
+            trackRect.sizeDelta = new Vector2(TrackWidth, TrackHeight);
+
+            var knobGo = new GameObject("Knob", typeof(RectTransform), typeof(Image));
+            knobGo.transform.SetParent(trackGo.transform, false);
+            var knobRect = (RectTransform)knobGo.transform;
+            knobRect.sizeDelta = new Vector2(TrackHeight - KnobInset * 2f,
+                                             TrackHeight - KnobInset * 2f);
+
+            var visual = go.AddComponent<ToggleVisual>();
+            visual.Track = trackGo.GetComponent<Image>();
+            visual.Knob = knobGo.GetComponent<Image>();
 
             var toggle = go.GetComponent<Toggle>();
             toggle.targetGraphic = background;
-            toggle.graphic = markGo.GetComponent<Image>();
+
+            // Deliberately not uGUI's graphic slot: that slot exists to be hidden, and hiding
+            // is the behaviour being replaced.
+            toggle.graphic = null;
             toggle.isOn = value;
+            toggle.onValueChanged.AddListener(visual.Apply);
             if (onChanged != null) toggle.onValueChanged.AddListener(v => onChanged(v));
+            visual.Apply(value);
 
             return toggle;
         }
@@ -343,25 +381,43 @@ namespace HR.UI
             trackGo.transform.SetParent(go.transform, false);
             var track = (RectTransform)trackGo.transform;
             Stretch(track);
-            track.offsetMin = new Vector2(32f, TouchTarget * 0.42f);
-            track.offsetMax = new Vector2(-32f, -TouchTarget * 0.42f);
+            track.offsetMin = new Vector2(SliderEndInset, (TouchTarget - SliderTrackHeight) * 0.5f);
+            track.offsetMax = new Vector2(-SliderEndInset, -(TouchTarget - SliderTrackHeight) * 0.5f);
             trackGo.GetComponent<Image>().color = new Color(1f, 1f, 1f, 0.2f);
+            trackGo.name = "Track";
 
+            // The part behind the handle, so the slider says how far along it is without the
+            // player having to judge a handle's position against a bare line.
+            var fillArea = new GameObject("FillArea", typeof(RectTransform));
+            fillArea.transform.SetParent(go.transform, false);
+            var fillAreaRect = (RectTransform)fillArea.transform;
+            Stretch(fillAreaRect);
+            fillAreaRect.offsetMin = new Vector2(SliderEndInset, (TouchTarget - SliderTrackHeight) * 0.5f);
+            fillAreaRect.offsetMax = new Vector2(-SliderEndInset, -(TouchTarget - SliderTrackHeight) * 0.5f);
+
+            var fillGo = new GameObject("Fill", typeof(RectTransform), typeof(Image));
+            fillGo.transform.SetParent(fillArea.transform, false);
+            var fillRect = (RectTransform)fillGo.transform;
+            Stretch(fillRect);
+
+            // Pulled in by half a knob at each end. uGUI centres the knob on the value, so an
+            // area that reached the track's ends hung half a knob off the slider at nought and
+            // at full — which is exactly how the captured frames showed it, sliced by the margin.
             var handleArea = new GameObject("HandleArea", typeof(RectTransform));
             handleArea.transform.SetParent(go.transform, false);
             var handleAreaRect = (RectTransform)handleArea.transform;
             Stretch(handleAreaRect);
-            float inset = (TouchTarget - 72f) * 0.5f;
-            handleAreaRect.offsetMin = new Vector2(32f, inset);
-            handleAreaRect.offsetMax = new Vector2(-32f, -inset);
+            float inset = (TouchTarget - SliderKnobSize) * 0.5f;
+            handleAreaRect.offsetMin = new Vector2(SliderEndInset + SliderKnobSize * 0.5f, inset);
+            handleAreaRect.offsetMax = new Vector2(-(SliderEndInset + SliderKnobSize * 0.5f), -inset);
 
             var handleGo = new GameObject("Handle", typeof(RectTransform), typeof(Image));
             handleGo.transform.SetParent(handleArea.transform, false);
             var handle = (RectTransform)handleGo.transform;
-            handle.sizeDelta = new Vector2(72f, 72f);
+            handle.sizeDelta = new Vector2(SliderKnobSize, SliderKnobSize);
 
             var slider = go.GetComponent<Slider>();
-            slider.fillRect = null;
+            slider.fillRect = fillRect;
             slider.handleRect = handle;
             slider.targetGraphic = handleGo.GetComponent<Image>();
             slider.direction = Slider.Direction.LeftToRight;
