@@ -216,7 +216,8 @@ namespace HR.Core
             MultiGapChanceAt(rings),
             TripleShareAt(rings),
             _settings.Thickness,
-            _settings.TargetRadius);
+            _settings.TargetRadius,
+            _settings.BallRadius);
 
         /// <summary>
         /// Smooth step between anchors. Linear would satisfy the letter of "no large jumps" but

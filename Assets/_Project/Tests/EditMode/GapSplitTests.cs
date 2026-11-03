@@ -11,10 +11,19 @@ namespace HR.Tests.EditMode
     {
         readonly double[] _buffer = new double[RingGaps.MaxGaps];
 
+        /// <summary>
+        /// The floor these cases are written against, pinned rather than read.
+        ///
+        /// It is no longer a constant in degrees — it is derived per ring from the ball — so a
+        /// test that wants to check the splitting rule has to say which floor it means, or it
+        /// would quietly re-measure itself every time the ball changed size.
+        /// </summary>
+        const double Floor = 20.0;
+
         [Test]
         public void One_opening_gets_the_whole_angle()
         {
-            GapSplit.Split(86.0, 1, _buffer);
+            GapSplit.Split(86.0, 1, _buffer, Floor);
             Assert.AreEqual(86.0, _buffer[0], 1e-9);
         }
 
@@ -30,9 +39,9 @@ namespace HR.Tests.EditMode
                 {
                     // Only counts the ring could afford: asking for three ways out of a 57° gap
                     // is refused upstream rather than cut and then floored back up.
-                    int count = GapSplit.LargestAffordableCount(single, wanted);
+                    int count = GapSplit.LargestAffordableCount(single, wanted, Floor);
                     if (count < 2) continue;
-                    GapSplit.Split(single, count, _buffer);
+                    GapSplit.Split(single, count, _buffer, Floor);
 
                     double total = 0.0;
                     for (int i = 0; i < count; i++) total += _buffer[i];
@@ -46,10 +55,10 @@ namespace HR.Tests.EditMode
         [Test]
         public void Three_openings_give_up_more_than_two()
         {
-            GapSplit.Split(86.0, 2, _buffer);
+            GapSplit.Split(86.0, 2, _buffer, Floor);
             double two = _buffer[0] + _buffer[1];
 
-            GapSplit.Split(86.0, 3, _buffer);
+            GapSplit.Split(86.0, 3, _buffer, Floor);
             double three = _buffer[0] + _buffer[1] + _buffer[2];
 
             Assert.Less(three, two, "three ways out should cost more total angle than two");
@@ -63,9 +72,9 @@ namespace HR.Tests.EditMode
             {
                 for (int count = 1; count <= RingGaps.MaxGaps; count++)
                 {
-                    GapSplit.Split(single, count, _buffer);
+                    GapSplit.Split(single, count, _buffer, Floor);
                     for (int i = 0; i < count; i++)
-                        Assert.GreaterOrEqual(_buffer[i], GapSplit.MinGapDeg - 1e-9,
+                        Assert.GreaterOrEqual(_buffer[i], Floor - 1e-9,
                             $"opening {i} of {count} came out at {_buffer[i]:F1}° from {single:F1}°");
                 }
             }
@@ -78,9 +87,9 @@ namespace HR.Tests.EditMode
             // under the floor, so the difference has to come off the widest and not off
             // everybody. Below about 67° all three are under it and the ring should never have
             // been cut three ways at all, which LargestAffordableCount is what prevents.
-            GapSplit.Split(85.0, 3, _buffer);
+            GapSplit.Split(85.0, 3, _buffer, Floor);
 
-            Assert.AreEqual(GapSplit.MinGapDeg, _buffer[2], 1e-9, "the narrowest was not lifted");
+            Assert.AreEqual(Floor, _buffer[2], 1e-9, "the narrowest was not lifted");
             Assert.Less(_buffer[0], 63.75 * 0.40, "the widest did not pay for it");
             Assert.GreaterOrEqual(_buffer[0], _buffer[1], "the shares changed order");
         }

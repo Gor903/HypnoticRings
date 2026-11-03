@@ -74,7 +74,6 @@ namespace HR.Gameplay
 
             _states.Changed += (from, to) => StateChanged?.Invoke(from, to);
             _tunnel.RingPassed += OnRingPassed;
-            _tunnel.RingsDissolved += OnRingsDissolved;
             _tunnel.BallTouchedRing += OnBallTouchedRing;
             _states.Fire(GameTrigger.Loaded);
         }
@@ -83,7 +82,6 @@ namespace HR.Gameplay
         {
             if (_tunnel == null) return;
             _tunnel.RingPassed -= OnRingPassed;
-            _tunnel.RingsDissolved -= OnRingsDissolved;
             _tunnel.BallTouchedRing -= OnBallTouchedRing;
         }
 
@@ -93,7 +91,6 @@ namespace HR.Gameplay
             _seed = seed;
             RunCount++;
             _grace = 0.0;
-            _reliefLeft = 0.0;
 
             // Picked once per run, from the mode set before it started. Swapping curves mid-run
             // would change what the score counts while it was being counted.
@@ -113,21 +110,6 @@ namespace HR.Gameplay
 
         /// <summary>CONTRACT.md G-02 and G-08: the grace a player gets back instead of a countdown.</summary>
         public const double ResumeGraceSeconds = 0.3;
-
-        /// <summary>
-        /// Seconds the tunnel is held after a ball is sacrificed — plan [G-29].
-        ///
-        /// Without it the reprieve is worth almost nothing: the surviving ball is in a ring that
-        /// is already most of the way to the centre, and the run ends again within a ring or
-        /// two. This is the same kind of mercy as the passability floor in [X-02], and it is
-        /// recorded as such rather than hidden.
-        /// </summary>
-        public const double ReliefSeconds = 0.6;
-
-        double _reliefLeft;
-
-        /// <summary>True while the tunnel is held still after a ball was lost.</summary>
-        public bool IsRecovering => _reliefLeft > 0.0;
 
         double _grace;
 
@@ -185,14 +167,6 @@ namespace HR.Gameplay
                 return;
             }
 
-            // The tunnel stands still while the player takes in that they lost a ball and not
-            // the run. Physics keeps running: the surviving ball is still flying.
-            if (_reliefLeft > 0.0)
-            {
-                _reliefLeft -= dt;
-                return;
-            }
-
             _tunnel.UserAngleDeg = userAngleDeg;
             _tunnel.Step(dt);
 
@@ -200,17 +174,11 @@ namespace HR.Gameplay
 
             if (_tunnel.IsBallOutOfBounds()) { _states.Fire(GameTrigger.Crushed); return; }
 
-            var closing = _tunnel.RingClosedOnCentre();
-            if (closing == null) return;
-
-            // A ring reaching the red circle is not automatically the end any more: with a
-            // second ball in play it may burst and take only the ball inside it. The rule is in
-            // HR.Core so it can be checked without crushing anything.
-            var outcome = SpareLife.Resolve(_tunnel.BallCount, _tunnel.BallsInside(closing));
-            if (outcome == CrushOutcome.Lost) { _states.Fire(GameTrigger.Crushed); return; }
-
-            _tunnel.SacrificeBallIn(closing);
-            _reliefLeft = ReliefSeconds;
+            // A ring reaching the red circle is the end of the run. It used to be a question —
+            // a second ball could be in play, and the ring might burst taking only the ball
+            // inside it — but the spare ball is gone and with it the only case where a crush
+            // was survivable (D-088).
+            if (_tunnel.RingClosedOnCentre() != null) _states.Fire(GameTrigger.Crushed);
         }
 
         void OnRingPassed(int ringIndex)
@@ -244,12 +212,6 @@ namespace HR.Gameplay
             var ring = _tunnel.ResolveBallRing();
             KilledByTouch?.Invoke(ring != null ? ring.SpawnIndex : -1);
             _states.Fire(GameTrigger.Crushed);
-        }
-
-        void OnRingsDissolved(int count)
-        {
-            _score.AddRings(count);
-            Scored?.Invoke(_score.Score);
         }
 
         /// <summary>

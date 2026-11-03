@@ -103,8 +103,17 @@ namespace HR.Tests.PlayMode
             Physics2D.Simulate(Dt);
         }
 
-        static int SceneObjectCount() =>
-            UnityEngine.Object.FindObjectsByType<Transform>(FindObjectsSortMode.None).Length;
+        /// <summary>
+        /// Transforms under this fixture's own root, not in the scene.
+        ///
+        /// It counted the whole scene, which made a leak test in the tunnel answerable by
+        /// whatever the previous fixture had not finished destroying yet: run alone it reported
+        /// 49 to 49, run after a hundred and twenty other tests it reported four unexplained
+        /// objects and failed. The tunnel is what is under test, so the tunnel is what is
+        /// counted.
+        /// </summary>
+        int SceneObjectCount() =>
+            _root == null ? 0 : _root.GetComponentsInChildren<Transform>(includeInactive: true).Length;
 
         [UnityTest]
         [Timeout(2_700_000)]

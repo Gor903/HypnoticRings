@@ -7,9 +7,6 @@ namespace HR.Core
     {
         Plain = 0,
         MultiGap = 1,
-
-        /// <summary>A rest, not a test: one wide opening, and clearing it dissolves the next three.</summary>
-        Super = 2,
     }
 
     /// <summary>Everything that distinguishes one ring from the next.</summary>
@@ -18,12 +15,6 @@ namespace HR.Core
         public RingGaps Gaps;
         public RingKind Kind;
 
-        /// <summary>
-        /// Which opening carries the bead, or -1. The generator marks it; whether a bead is
-        /// actually put there is the tunnel's call, because that depends on how many balls are
-        /// already in play and the generator has to stay a function of its seed.
-        /// </summary>
-        public int BeadGap;
         public double AutoSpinDeg;
         public int ColourIndex;
 
@@ -70,6 +61,15 @@ namespace HR.Core
         public readonly double Clearance;
 
         /// <summary>
+        /// The ball, because an opening is only wide enough relative to what goes through it.
+        ///
+        /// Every measurement of a gap used to be in degrees or in shares of a single gap's
+        /// angle, and neither says whether a ball fits. Carrying the radius here is what lets
+        /// the floor be stated in the one unit the player experiences.
+        /// </summary>
+        public readonly double BallRadius;
+
+        /// <summary>
         /// Distance between neighbouring rings right now.
         ///
         /// It lives here rather than in TunnelSettings because it is no longer a property of the
@@ -84,8 +84,10 @@ namespace HR.Core
                                   double timeBudget, double comfortSpinDeg,
                                   double clearance, double step,
                                   double multiGapChance = 0.0, double tripleShare = 0.0,
-                                  double thickness = 0.18, double referenceRadius = 3.0)
+                                  double thickness = 0.18, double referenceRadius = 3.0,
+                                  double ballRadius = 0.27)
         {
+            BallRadius = ballRadius;
             MultiGapChance = multiGapChance;
             TripleShare = tripleShare;
             Thickness = thickness;
@@ -152,46 +154,14 @@ namespace HR.Core
         /// <summary>Most multi-gap rings allowed in a row, from plan [G-27].</summary>
         public const int MaxMultiGapRun = 2;
 
-        /// <summary>Every this many rings, one is a super ring. Plan [G-32].</summary>
-        public const int SuperRingEvery = 12;
-
-        /// <summary>One in this many multi-gap rings carries a bead. Plan [G-27].</summary>
-        public const int BeadEveryMultiGap = 3;
-
-        /// <summary>How much narrower the bead's own opening is. The prize has a price.</summary>
-        public const double BeadGapNarrowing = 0.7;
-
-        /// <summary>Plain rings guaranteed after a super one, so the reward lands cleanly.</summary>
-        public const int PlainRingsAfterSuper = 2;
-
-        /// <summary>A super ring's opening, as a share of what the curve asks for.</summary>
-        public const double SuperGapBonus = 1.3;
-
-        /// <summary>Whether the ring at this ordinal is the rest the curve owes the player.</summary>
-        public static bool IsSuperOrdinal(int ordinal) =>
-            ordinal > 0 && ordinal % SuperRingEvery == 0;
-
         public RingSpec Next(in DifficultySnapshot difficulty, double previousAutoSpinDeg)
         {
-            if (IsSuperOrdinal(_produced)) return NextSuper(difficulty);
-
             int gapCount = ChooseGapCount(difficulty);
-
-            int beadGap = -1;
-            if (gapCount > 1)
-            {
-                _multiGapSeen++;
-                // The first multi-gap ring of a run always carries one, so the mechanic is seen
-                // rather than waited for; after that, every third.
-                if (_multiGapSeen == 1 || _multiGapSeen % BeadEveryMultiGap == 0)
-                    beadGap = gapCount - 1;   // the narrowest, which is what makes it a choice
-            }
 
             var spec = new RingSpec
             {
-                Gaps = BuildGaps(difficulty, gapCount, beadGap),
+                Gaps = BuildGaps(difficulty, gapCount),
                 Kind = gapCount > 1 ? RingKind.MultiGap : RingKind.Plain,
-                BeadGap = beadGap,
                 AutoSpinDeg = SpinFor(difficulty, previousAutoSpinDeg),
                 ColourIndex = _produced,
             };
@@ -202,41 +172,12 @@ namespace HR.Core
         }
 
         /// <summary>
-        /// The rest ring: one opening, wider than the curve asks, and never spinning.
-        ///
-        /// Its ordinal decides it rather than a die roll, so a player can learn the rhythm — a
-        /// reward that arrives at random is indistinguishable from luck, and a run that happens
-        /// to get none feels unfair without the player ever knowing why.
-        /// </summary>
-        RingSpec NextSuper(in DifficultySnapshot difficulty)
-        {
-            var spec = new RingSpec
-            {
-                Gaps = RingGaps.One(_random.NextDouble() * 360.0,
-                                    difficulty.GapArcWidth * SuperGapBonus),
-                Kind = RingKind.Super,
-                BeadGap = -1,
-                AutoSpinDeg = 0.0,
-                ColourIndex = _produced,
-            };
-
-            _multiGapRun = 0;
-            _plainRingsOwed = PlainRingsAfterSuper;
-            _produced++;
-            return spec;
-        }
-
-        /// <summary>Plain rings still owed after the last super ring.</summary>
-        int _plainRingsOwed;
-
-        /// <summary>
         /// One, two or three openings. The run-length rule is drawn before the dice rather than
         /// after, so a streak is refused outright instead of being rerolled into a different
         /// streak — rerolling would bias the chances the table asks for.
         /// </summary>
         int ChooseGapCount(in DifficultySnapshot difficulty)
         {
-            if (_plainRingsOwed > 0) { _plainRingsOwed--; return 1; }
             if (_multiGapRun >= MaxMultiGapRun) return 1;
             if (difficulty.MultiGapChance <= 0.0) return 1;
             if (_random.NextDouble() >= difficulty.MultiGapChance) return 1;
@@ -246,7 +187,7 @@ namespace HR.Core
             // A narrow ring cannot afford what it was asked for: see LargestAffordableCount.
             double single = GapSplit.AngleFor(difficulty.GapArcWidth,
                                               difficulty.Thickness, difficulty.ReferenceRadius);
-            return GapSplit.LargestAffordableCount(single, wanted);
+            return GapSplit.LargestAffordableCount(single, wanted, MinGapDegFor(difficulty));
         }
 
         /// <summary>
@@ -256,29 +197,23 @@ namespace HR.Core
         /// ball is never more than a quarter turn from a way out wherever it is, which hands the
         /// player the thing the ring was supposed to ask of them.
         /// </summary>
-        /// <summary>Multi-gap rings produced so far, for spacing the beads out.</summary>
-        int _multiGapSeen;
+        /// <summary>The narrowest opening this difficulty allows, in degrees.</summary>
+        static double MinGapDegFor(in DifficultySnapshot difficulty) =>
+            GapSplit.MinGapDegFor(difficulty.BallRadius, difficulty.Thickness,
+                                  difficulty.ReferenceRadius);
 
-        RingGaps BuildGaps(in DifficultySnapshot difficulty, int count, int beadGap = -1)
+        RingGaps BuildGaps(in DifficultySnapshot difficulty, int count)
         {
             double single = GapSplit.AngleFor(difficulty.GapArcWidth,
                                               difficulty.Thickness, difficulty.ReferenceRadius);
-            GapSplit.Split(single, count, _angles);
+            GapSplit.Split(single, count, _angles, MinGapDegFor(difficulty));
 
             var gaps = new RingGaps { Count = count };
             double cursor = _random.NextDouble() * 360.0;
 
             for (int i = 0; i < count; i++)
             {
-                double angle = _angles[i];
-
-                // The bead sits in the tightest way out there is. Taking the easy opening and
-                // taking the prize have to be different decisions, or the bead is just a bonus
-                // for doing what you were going to do anyway.
-                if (i == beadGap)
-                    angle = System.Math.Max(GapSplit.MinGapDeg, angle * BeadGapNarrowing);
-
-                double opening = GapSplit.OpeningFor(angle, difficulty.Thickness,
+                double opening = GapSplit.OpeningFor(_angles[i], difficulty.Thickness,
                                                      difficulty.ReferenceRadius);
                 gaps.Set(i, new GapSpec(Wrap360(cursor), opening));
 
@@ -296,8 +231,6 @@ namespace HR.Core
             _produced = 0;
             Clamped = 0;
             _multiGapRun = 0;
-            _plainRingsOwed = 0;
-            _multiGapSeen = 0;
         }
 
         /// <summary>

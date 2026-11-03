@@ -56,7 +56,6 @@ namespace HR.Themes
             {
                 _ringColours.Clear();
                 foreach (var colour in palette.RingColours) _ringColours.Add(ToColor(colour));
-                _tunnel.SetSuperColour(ToColor(palette.Super));
                 _tunnel.SetFadeColour(background);
                 _tunnel.SetDepthAndGlow(palette.DepthFade, palette.Glow);
                 _tunnel.SetRingColours(_ringColours);
