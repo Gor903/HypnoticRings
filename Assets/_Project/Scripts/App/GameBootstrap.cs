@@ -245,15 +245,7 @@ namespace HR.App
 
             _ui.Clicked += () => _audio.PlayClick();
 
-            _ui.ThemeChosen += theme =>
-            {
-                if (!_game.ScoreKeeper.IsUnlocked(theme)) return;
-                _settings.Theme = theme;
-                _themes.Apply(theme);
-                _ui.ApplyTheme(_themes.Palette);
-                ApplyThemeToEffects();
-                Persist();
-            };
+            _ui.ThemeChosen += ChooseTheme;
 
             _ui.SettingsChanged += () =>
             {
@@ -382,12 +374,37 @@ namespace HR.App
             _juice.Enabled = wanted;
             _haptics.Enabled = _settings.vibrationEnabled;
 
+            // The interface reads the flag only while it is being painted, so switching the
+            // setting has to repaint it. Left out, "reduce effects" took hold everywhere except
+            // on the screen the player was looking at when they pressed it.
+            if (_ui != null && _themes != null) _ui.ApplyTheme(_themes.Palette);
+
             if (!wanted)
             {
                 _effects.Clear();
                 _juice.Clear();
                 _tunnel.transform.localRotation = Quaternion.identity;
             }
+        }
+
+        /// <summary>
+        /// Switches theme the way the menu does: palette, tunnel, interface, effects and save,
+        /// in that order and in one place.
+        ///
+        /// Public because the screenshot rig needs the same path, and reaching past it is how a
+        /// picture of something the game never shows gets taken. Applying the palette alone left
+        /// the transition curtain in the previous theme's colour — a flat pale wash over the
+        /// whole frame, which cost an hour of looking for a glow that was not there.
+        /// </summary>
+        public void ChooseTheme(Theme theme)
+        {
+            if (_game == null || !_game.ScoreKeeper.IsUnlocked(theme)) return;
+
+            _settings.Theme = theme;
+            _themes.Apply(theme);
+            _ui.ApplyTheme(_themes.Palette);
+            ApplyThemeToEffects();
+            Persist();
         }
 
         void ApplyThemeToEffects()

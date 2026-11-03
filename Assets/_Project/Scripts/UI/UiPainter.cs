@@ -47,6 +47,36 @@ namespace HR.UI
         }
 
         /// <summary>
+        /// Draws the skin's edge around a control, and the theme's halo outside that.
+        ///
+        /// Both are the same uGUI trick — copies of the control's own mesh, offset and drawn
+        /// behind it — because the alternative is a texture per corner radius per edge width,
+        /// and the project ships no image files at all. The edge is opaque and tight; the halo
+        /// is wide and translucent, and only themes whose palette asks for glow get one.
+        ///
+        /// Order matters and is not obvious: each effect wraps whatever the one before it
+        /// produced, so the halo is added second and ends up outside the edge rather than under
+        /// it.
+        /// </summary>
+        public static void Edge(Graphic graphic, in UiSkin skin, Color edge, double glow,
+                                Color halo, bool effectsWanted)
+        {
+            if (graphic == null) return;
+
+            var chrome = graphic.GetComponent<UiChrome>();
+            if (chrome == null) chrome = graphic.gameObject.AddComponent<UiChrome>();
+
+            chrome.SetEdge(skin.OutlineWidth, edge);
+            chrome.SetHalo(effectsWanted ? glow : 0.0, halo);
+        }
+
+        /// <summary>How far a halo reaches at full glow, in layout units.</summary>
+        public const float HaloReach = 9f;
+
+        /// <summary>Strongest a halo may be drawn. Past this it stops reading as light.</summary>
+        public const float HaloAlpha = 0.38f;
+
+        /// <summary>
         /// Rounds a square control — a knob, a pause button — to the skin's shape.
         ///
         /// Separate from <see cref="Shape"/> because a knob is not a short button: the skin

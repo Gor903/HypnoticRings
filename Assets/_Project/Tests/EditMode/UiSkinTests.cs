@@ -70,13 +70,17 @@ namespace HR.Tests.EditMode
         }
 
         [Test]
-        public void Dark_themes_flash_and_light_ones_sink()
+        public void Dark_themes_do_not_sink_and_light_ones_do()
         {
             // A flash needs somewhere dark to read against; on a near-white screen it is a
-            // control that briefly disappears.
+            // control that briefly disappears. A sink works anywhere and says nothing about the
+            // palette, which is why the light themes get it.
             Assert.AreEqual(PressKind.Flash, UiSkin.For(Theme.Neon).Press);
             Assert.AreEqual(PressKind.Flash, UiSkin.For(Theme.Midnight).Press);
-            Assert.AreEqual(PressKind.Flash, UiSkin.For(Theme.Aurora).Press);
+
+            // Aurora is the exception, and deliberately: the slowest, quietest palette in the
+            // set can afford a response that spreads from the finger instead of blinking.
+            Assert.AreEqual(PressKind.Ripple, UiSkin.For(Theme.Aurora).Press);
 
             Assert.AreEqual(PressKind.Sink, UiSkin.For(Theme.Monochrome).Press);
             Assert.AreEqual(PressKind.Sink, UiSkin.For(Theme.Pastel).Press);

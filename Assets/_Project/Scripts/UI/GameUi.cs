@@ -73,6 +73,10 @@ namespace HR.UI
         Button _pauseButton;
         Button _languageChip;
         CarouselSnapping _carousel;
+        UiShimmer _shimmer;
+
+        /// <summary>The theme's breath, so a test can ask whether anything is moving.</summary>
+        public UiShimmer Shimmer => _shimmer;
 
         /// <summary>The palette in force, for the few things painted outside the role lists.</summary>
         ThemePalette _palette;
@@ -158,6 +162,7 @@ namespace HR.UI
             UiBuilder.EnsureEventSystem(transform);
 
             _canvas = UiBuilder.CreateCanvas("UI", transform, camera);
+            _shimmer = gameObject.AddComponent<UiShimmer>();
             var canvas = _canvas;
             var safe = UiBuilder.CreateSafeArea(canvas.transform);
             _safeArea = safe.GetComponent<SafeAreaFitter>();
@@ -210,6 +215,11 @@ namespace HR.UI
         {
             if (palette == null) return;
             _palette = palette;
+
+            // Before anything is painted. The breath moves colours away from where it found
+            // them, and painting over a mid-exhale control would make that drifted value the
+            // new resting colour — a theme change that quietly dims itself a little each time.
+            if (_shimmer != null) _shimmer.Rest();
             var ink = new Color(palette.Ui.R / 255f, palette.Ui.G / 255f, palette.Ui.B / 255f, 1f);
             var paper = new Color(palette.Background.R / 255f, palette.Background.G / 255f,
                                   palette.Background.B / 255f, 1f);
@@ -243,7 +253,19 @@ namespace HR.UI
             // control the same grey rectangle would be a recolour; the point of six themes is
             // that they feel like six places.
             var skin = UiSkin.For(palette.Theme);
-            foreach (var (image, height) in _shaped) UiPainter.Shape(image, height, skin);
+
+            // Glow and breath are the player's call, not the theme's. "Reduce effects" is one
+            // decision in this game rather than a setting each effect consults on its own, and
+            // the interface is the last place that was still ignoring it.
+            bool effects = _settings == null || !_settings.reduceEffects;
+            var edge = ThemeApplier.ToColor(palette.Outline);
+            var halo = ThemeApplier.ToColor(palette.Accent);
+
+            foreach (var (image, height) in _shaped)
+            {
+                UiPainter.Shape(image, height, skin);
+                UiPainter.Edge(image, skin, edge, palette.Glow, halo, effects);
+            }
 
             var trackOff = ThemeApplier.ToColor(palette.TrackOff);
             var trackOn = ThemeApplier.ToColor(palette.TrackOn);
@@ -273,10 +295,11 @@ namespace HR.UI
 
             // Pressing has to be re-taught after a repaint: a flash returns to the colour it
             // remembered, and a colour remembered before a theme change is the old theme's.
+            var rippleInk = ThemeApplier.ToColor(palette.Ui);
             foreach (var press in _presses)
             {
                 if (press == null) continue;
-                press.Configure(skin, press.Fill);
+                press.Configure(skin, press.Fill, rippleInk);
             }
 
             // The pause button is round in every skin: it is the only control on the screen
@@ -293,6 +316,13 @@ namespace HR.UI
             // Last, and after the roles: the theme cards are painted by which one is chosen,
             // and that answer is not in any of the lists above.
             RefreshThemes();
+
+            // After everything else has been painted, because what it animates is whatever the
+            // accents ended up being. Breathing toward the paper rather than toward white: on a
+            // light theme white is the background, and a control would exhale into invisibility.
+            if (_shimmer != null)
+                _shimmer.Configure(effects ? palette.ShimmerSeconds : 0.0, palette.ShimmerDepth,
+                                   paper, _accents);
         }
 
         static void Paint(List<Graphic> graphics, Color colour)

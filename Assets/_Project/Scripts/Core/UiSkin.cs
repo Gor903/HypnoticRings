@@ -8,6 +8,9 @@ namespace HR.Core
 
         /// <summary>Brightens for a moment. Reads better on dark themes.</summary>
         Flash = 1,
+
+        /// <summary>A circle spreading from where the finger landed, clipped to the control.</summary>
+        Ripple = 2,
     }
 
     /// <summary>Shape of the thing you drag on a slider or a switch.</summary>
@@ -89,7 +92,10 @@ namespace HR.Core
                     return new UiSkin(0.20, 2.0, PressKind.Sink, KnobShape.Round);
 
                 case Theme.Aurora:
-                    return new UiSkin(0.35, 3.0, PressKind.Flash, KnobShape.Round);
+                    // The one theme that answers a finger where the finger actually is. It can
+                    // afford it: the palette is the slowest and the quietest in the set, so a
+                    // spreading circle reads as the surface responding rather than as a flicker.
+                    return new UiSkin(0.35, 3.0, PressKind.Ripple, KnobShape.Round);
 
                 default:
                     return Default;

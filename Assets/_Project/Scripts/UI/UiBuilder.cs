@@ -323,8 +323,12 @@ namespace HR.UI
             var rect = (RectTransform)go.transform;
             rect.sizeDelta = new Vector2(0f, TouchTarget);
 
+            // Present for the finger, absent to the eye. At five per cent white it was invisible
+            // on the three light themes and a grubby grey band on the three dark ones — and the
+            // settings rows that are not switches have no backing at all, so half the screen had
+            // bands and half did not.
             var background = go.GetComponent<Image>();
-            background.color = new Color(1f, 1f, 1f, 0.05f);
+            background.color = new Color(1f, 1f, 1f, 0f);
 
             var label = CreateLabel("Label", go.transform, text, BodySize, TextAnchor.MiddleLeft);
             var labelRect = (RectTransform)label.transform;

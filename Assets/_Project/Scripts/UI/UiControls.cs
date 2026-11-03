@@ -52,6 +52,64 @@ namespace HR.UI
     }
 
     /// <summary>
+    /// The edge and the halo a control wears, kept together so neither is looked up by type.
+    ///
+    /// Both are <see cref="Outline"/> components on the same object, and two of those cannot be
+    /// told apart by <c>GetComponent</c>. Holding the references is the whole job.
+    /// </summary>
+    public sealed class UiChrome : MonoBehaviour
+    {
+        Outline _edge;
+        Outline _halo;
+
+        /// <summary>True while a halo is actually being drawn, for the effects test.</summary>
+        public bool Glowing => _halo != null && _halo.enabled;
+
+        public void SetEdge(double width, Color colour)
+        {
+            if (width <= 0.0)
+            {
+                if (_edge != null) _edge.enabled = false;
+                return;
+            }
+
+            if (_edge == null) _edge = Add();
+            _edge.enabled = true;
+            _edge.effectColor = colour;
+            _edge.effectDistance = new Vector2((float)width, (float)width);
+        }
+
+        public void SetHalo(double glow, Color colour)
+        {
+            if (glow <= 0.0)
+            {
+                if (_halo != null) _halo.enabled = false;
+                return;
+            }
+
+            if (_halo == null) _halo = Add();
+            _halo.enabled = true;
+
+            colour.a = (float)glow * UiPainter.HaloAlpha;
+            _halo.effectColor = colour;
+
+            float reach = (float)glow * UiPainter.HaloReach;
+            _halo.effectDistance = new Vector2(reach, reach);
+        }
+
+        Outline Add()
+        {
+            var outline = gameObject.AddComponent<Outline>();
+
+            // The copies keep their own colour outright. Multiplied by the graphic's alpha they
+            // would inherit whatever transparency the control had, and a halo on a label at
+            // sixty per cent is a halo nobody specified.
+            outline.useGraphicAlpha = false;
+            return outline;
+        }
+    }
+
+    /// <summary>
     /// What a button does under a finger.
     ///
     /// Without it a press is silent: the sound plays, the screen changes, and nothing about the
@@ -84,11 +142,64 @@ namespace HR.UI
         // nobody made, on every control at once.
         float _age = Recovery;
 
-        /// <summary>Takes the skin's kind of press. Colour and position are read when pressed.</summary>
-        public void Configure(in UiSkin skin, Graphic fill)
+        Image _ripple;
+        float _rippleReach;
+
+        /// <summary>The ripple's colour, so the test can see it is the one the theme asked for.</summary>
+        public Image Ripple => _ripple;
+
+        /// <summary>Strongest the ripple is drawn, at the instant of the touch.</summary>
+        public const float RippleAlpha = 0.30f;
+
+        /// <summary>
+        /// Takes the skin's kind of press. Colour and position are read when pressed.
+        ///
+        /// A ripple needs a disc and a mask to clip it, and both are built the first time a
+        /// theme actually asks for one — five of the six never do, and a disc per button on
+        /// every screen is five screens of objects drawing nothing.
+        /// </summary>
+        public void Configure(in UiSkin skin, Graphic fill, Color ripple)
         {
             _kind = skin.Press;
             Fill = fill;
+
+            if (_kind != PressKind.Ripple)
+            {
+                if (_ripple != null) _ripple.gameObject.SetActive(false);
+                return;
+            }
+
+            if (_ripple == null) _ripple = BuildRipple();
+            ripple.a = 0f;
+            _ripple.color = ripple;
+            _rippleInk = ripple;
+            _ripple.gameObject.SetActive(true);
+        }
+
+        Color _rippleInk = Color.white;
+
+        Image BuildRipple()
+        {
+            // The mask goes on a container of its own, never on the button. A RectMask2D clips
+            // everything under its rect, and the button's own halo is drawn as part of the
+            // button's mesh — masked there, the one theme with both a ripple and a glow would
+            // lose the glow to the ripple.
+            var area = new GameObject("RippleArea", typeof(RectTransform), typeof(RectMask2D));
+            area.transform.SetParent(transform, false);
+            UiBuilder.Stretch((RectTransform)area.transform);
+
+            var go = new GameObject("Ripple", typeof(RectTransform), typeof(Image));
+            go.transform.SetParent(area.transform, false);
+
+            var rect = (RectTransform)go.transform;
+            rect.anchorMin = new Vector2(0.5f, 0.5f);
+            rect.anchorMax = new Vector2(0.5f, 0.5f);
+            rect.pivot = new Vector2(0.5f, 0.5f);
+
+            var image = go.GetComponent<Image>();
+            image.sprite = UiBuilder.Disc;
+            image.raycastTarget = false;
+            return image;
         }
 
         public void OnPointerDown(PointerEventData eventData)
@@ -104,16 +215,51 @@ namespace HR.UI
                 if (Fill != null) _resting = Fill.color;
             }
 
+            if (_kind == PressKind.Ripple) StartRipple(eventData);
+
             _held = true;
             _age = 0f;
             ApplyPressed(1f);
+        }
+
+        /// <summary>
+        /// Puts the ripple where the finger landed.
+        ///
+        /// A ripple that always starts at the middle is an animation; one that starts under the
+        /// thumb is an answer. The point arrives in screen space and has to be brought into the
+        /// control's own, which is the only reason this needs the event at all.
+        /// </summary>
+        void StartRipple(PointerEventData eventData)
+        {
+            if (_ripple == null) return;
+
+            var rect = (RectTransform)transform;
+            Vector2 local = Vector2.zero;
+            if (eventData != null)
+                RectTransformUtility.ScreenPointToLocalPointInRectangle(
+                    rect, eventData.position, eventData.pressEventCamera, out local);
+
+            _ripple.rectTransform.anchoredPosition = local;
+
+            // Big enough to cover the control from wherever it started: the far corner is the
+            // worst case, and anything smaller stops spreading while the eye is still following.
+            var size = rect.rect.size;
+            float reach = Mathf.Max(
+                new Vector2(size.x * 0.5f + Mathf.Abs(local.x), size.y * 0.5f + Mathf.Abs(local.y))
+                    .magnitude, 1f) * 2f;
+            _rippleReach = reach;
         }
 
         public void OnPointerUp(PointerEventData eventData) => _held = false;
 
         void Update()
         {
-            if (_held || _age >= Recovery) return;
+            if (_age >= Recovery) return;
+
+            // A sink and a flash hold while the finger is down — that is what "pressed" looks
+            // like. A ripple does not: it is the record of the touch landing, and one frozen
+            // mid-spread under a held thumb reads as a stuck animation.
+            if (_held && _kind != PressKind.Ripple) return;
 
             _age += Time.unscaledDeltaTime;
             ApplyPressed(Mathf.Clamp01(1f - _age / Recovery));
@@ -125,6 +271,22 @@ namespace HR.UI
             {
                 ((RectTransform)transform).anchoredPosition =
                     _home + new Vector2(0f, -SinkDistance * amount);
+                return;
+            }
+
+            if (_kind == PressKind.Ripple)
+            {
+                if (_ripple == null) return;
+
+                // Spreads as it fades: the circle is largest exactly when it is faintest, which
+                // is what makes it read as a surface absorbing the touch rather than as a disc
+                // being drawn on top of the button.
+                float spread = 1f - amount;
+                _ripple.rectTransform.sizeDelta = new Vector2(_rippleReach * spread, _rippleReach * spread);
+
+                var ink = _rippleInk;
+                ink.a = RippleAlpha * amount;
+                _ripple.color = ink;
                 return;
             }
 
