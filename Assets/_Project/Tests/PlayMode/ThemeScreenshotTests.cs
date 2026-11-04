@@ -87,7 +87,7 @@ namespace HR.Tests.PlayMode
             yield return null;
 
             int written = 0;
-            foreach (var theme in ThemePalette.All)
+            foreach (var theme in ThemePalette.Every)
             {
                 _tunnel.BeginRun(seed: 20261027);
                 foreach (var ring in _tunnel.Rings)
@@ -105,7 +105,7 @@ namespace HR.Tests.PlayMode
                 }
             }
 
-            Assert.AreEqual(ThemePalette.All.Length * Shapes.Length, written);
+            Assert.AreEqual(ThemePalette.Every.Length * Shapes.Length, written);
             Debug.Log($"[HR] screenshots: {written} frames in {OutputDir}");
         }
 
