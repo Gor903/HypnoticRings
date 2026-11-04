@@ -152,7 +152,12 @@ namespace HR.Gameplay
             _ballCount = _balls[0] != null ? 1 : 0;
 
             _ledgerClock = 0.0;
-            for (int i = 0; i < MaxBalls; i++) { _ledgers[i].Reset(); _struck[i] = false; }
+            for (int i = 0; i < MaxBalls; i++)
+            {
+                _ledgers[i].Reset();
+                _struck[i] = false;
+                _stepsOutside[i] = 0;
+            }
 
             for (double radius = _settings.TargetRadius; radius <= OuterLimit; radius += StepNow)
             {
@@ -189,7 +194,7 @@ namespace HR.Gameplay
             StepLedgers(dt);
             if (CompressionEnabled) Compress(dt, ballRing);
             if (RotationEnabled) Rotate(dt);
-            ApplySolidity(ballRing);
+            ApplySolidity(ballRing, dt);
 
             if (_pool != null)
             {
@@ -223,7 +228,7 @@ namespace HR.Gameplay
             }
         }
 
-        void ApplySolidity(RingController ballRing)
+        void ApplySolidity(RingController ballRing, double dt)
         {
             double step = StepNow;
 
@@ -242,7 +247,10 @@ namespace HR.Gameplay
                         continue;
                     }
 
-                    solid = ring.Radius >= own.Radius - step - 1e-6
+                    double reach = ReachOf(_balls[b], dt);
+                    double inner = Math.Min(own.Radius - step, _balls[b].DistanceToCentre - reach);
+
+                    solid = ring.Radius >= inner - 1e-6
                             && ring.Radius <= own.Radius + step * SolidRingsOutside;
                 }
 
@@ -375,6 +383,20 @@ namespace HR.Gameplay
         }
 
         public const double ContactSlack = 0.02;
+
+        public const int ReachSteps = 4;
+
+        public const double ReachMargin = 2.0;
+
+        double ReachOf(BallController ball, double dt)
+        {
+            double skin = _settings.BallRadius + _settings.Thickness;
+            if (ball == null) return skin;
+
+            double thisStep = ball.Body.linearVelocity.magnitude * dt * ReachMargin;
+            double floor = ball.MaxTravelPerStep * ReachSteps;
+            return (thisStep > floor ? thisStep : floor) + skin;
+        }
 
         void SpawnAt(double radius)
         {
@@ -524,6 +546,10 @@ namespace HR.Gameplay
 
         public bool HasRingClosedOnCentre() => RingClosedOnCentre() != null;
 
+        public const int StepsOutsideBeforeLost = 2;
+
+        readonly int[] _stepsOutside = new int[MaxBalls];
+
         public bool IsBallOutOfBounds()
         {
             for (int b = 0; b < _ballCount; b++)
@@ -532,8 +558,15 @@ namespace HR.Gameplay
                 if (ball == null) continue;
 
                 var ring = ResolveRingFor(ball);
-                double reference = ring != null ? ring.Radius : OutermostRadius();
-                if (TunnelMath.IsOutOfBounds(ball.DistanceToCentre, reference, StepNow)) return true;
+                if (ring == null)
+                {
+                    _stepsOutside[b]++;
+                    if (_stepsOutside[b] >= StepsOutsideBeforeLost) return true;
+                    continue;
+                }
+
+                _stepsOutside[b] = 0;
+                if (TunnelMath.IsOutOfBounds(ball.DistanceToCentre, ring.Radius, StepNow)) return true;
             }
             return false;
         }

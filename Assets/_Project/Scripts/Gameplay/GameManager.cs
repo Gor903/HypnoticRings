@@ -133,9 +133,14 @@ namespace HR.Gameplay
             Scored?.Invoke(_score.Score);
         }
 
+        public const int FreeRingIndex = 0;
+
         void OnBallTouchedRing(int touches)
         {
             if (Mode != GameMode.Hardcore) return;
+
+            var startRing = _tunnel.ResolveBallRing();
+            if (startRing != null && startRing.SpawnIndex == FreeRingIndex) return;
 
             if (touches == HardcoreTouchAllowance) { _tunnel.SetHotRing(0, true); return; }
             if (touches < HardcoreTouchAllowance) return;

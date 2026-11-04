@@ -70,6 +70,39 @@ namespace HR.Tests.PlayMode
                 ring.SegmentAt(i).Collider.sharedMaterial = _ringPhysics;
         }
 
+        RingController SealFirstJudgedRing(int budget = 2000)
+        {
+            for (int i = 0; i < budget && _game.State == GameState.Playing; i++)
+            {
+                var ring = _tunnel.ResolveBallRing();
+                if (ring != null && ring.SpawnIndex > GameManager.FreeRingIndex)
+                {
+                    Seal(ring);
+                    return ring;
+                }
+
+                _game.Tick(Dt, 0.0);
+                _ball.ClampSpeed();
+                Physics2D.Simulate(Dt);
+            }
+            return null;
+        }
+
+        RingController StartOnAJudgedRing(GameMode mode)
+        {
+            for (int attempt = 0; attempt < 12; attempt++)
+            {
+                if (_root != null) { Object.DestroyImmediate(_root); _root = null; }
+                Build();
+                _game.Mode = mode;
+                _game.StartRun(12345 + attempt * 877);
+
+                var ring = SealFirstJudgedRing();
+                if (ring != null) return ring;
+            }
+            return null;
+        }
+
         int StepUntilTouches(int wanted, int budget)
         {
             int touches = 0;
@@ -89,10 +122,8 @@ namespace HR.Tests.PlayMode
         [UnityTest]
         public IEnumerator A_second_touch_of_the_same_ring_ends_a_hardcore_run()
         {
-            Build();
-            _game.Mode = GameMode.Hardcore;
-            _game.StartRun(12345);
-            Seal(_tunnel.ResolveBallRing());
+            Assert.NotNull(StartOnAJudgedRing(GameMode.Hardcore),
+                           "no seed got the ball onto a ring the rule judges");
 
             int touches = StepUntilTouches(2, 4000);
 
@@ -105,10 +136,8 @@ namespace HR.Tests.PlayMode
         [UnityTest]
         public IEnumerator The_first_touch_only_warns_and_does_not_kill()
         {
-            Build();
-            _game.Mode = GameMode.Hardcore;
-            _game.StartRun(12345);
-            Seal(_tunnel.ResolveBallRing());
+            Assert.NotNull(StartOnAJudgedRing(GameMode.Hardcore),
+                           "no seed got the ball onto a ring the rule judges");
 
             int touches = StepUntilTouches(1, 4000);
 
@@ -121,10 +150,8 @@ namespace HR.Tests.PlayMode
         [UnityTest]
         public IEnumerator The_same_two_touches_are_harmless_in_the_normal_game()
         {
-            Build();
-            _game.Mode = GameMode.Normal;
-            _game.StartRun(12345);
-            Seal(_tunnel.ResolveBallRing());
+            Assert.NotNull(StartOnAJudgedRing(GameMode.Normal),
+                           "no seed got the ball onto a ring the rule judges");
 
             int touches = StepUntilTouches(2, 4000);
 
@@ -148,7 +175,7 @@ namespace HR.Tests.PlayMode
                 Build();
                 _game.Mode = GameMode.Hardcore;
                 _game.StartRun(seed);
-                Seal(_tunnel.ResolveBallRing());
+                if (SealFirstJudgedRing() == null) { Object.DestroyImmediate(_root); _root = null; yield return null; continue; }
 
                 int contacts = 0;
                 _ball.Struck += _ => contacts++;
@@ -175,6 +202,88 @@ namespace HR.Tests.PlayMode
             Assert.LessOrEqual(worst, KnocksAllowedBeforeDeath,
                                $"seed {worstSeed}: the ball knocked one ring {worst} times before the "
                                + "rule caught it; a player can sit in a ring and hit it for free");
+        }
+
+        [UnityTest]
+        public IEnumerator The_first_ring_of_a_run_is_a_run_up_and_does_not_kill()
+        {
+            Build();
+            _game.Mode = GameMode.Hardcore;
+            _game.StartRun(12345);
+
+            var first = _tunnel.ResolveBallRing();
+            Assert.AreEqual(GameManager.FreeRingIndex, first.SpawnIndex,
+                            "the run did not start on the ring this test is about");
+            Seal(first);
+
+            int knocks = 0;
+            int killedOn = int.MinValue;
+            _ball.Struck += _ => knocks++;
+            _game.KilledByTouch += ring => killedOn = ring;
+
+            for (int i = 0; i < 900 && _game.State == GameState.Playing; i++)
+            {
+                var here = _tunnel.ResolveBallRing();
+                if (here == null || here.SpawnIndex != GameManager.FreeRingIndex) break;
+
+                _game.Tick(Dt, 0.0);
+                _ball.ClampSpeed();
+                Physics2D.Simulate(Dt);
+            }
+
+            Assert.Greater(knocks, 2, "the ball never knocked the starting ring, so nothing was proven");
+            Assert.AreEqual(int.MinValue, killedOn,
+                            $"the touch rule killed the run on the starting ring after {knocks} knocks; "
+                            + "that ring is meant to be a run-up where the player finds the ball");
+            yield return null;
+        }
+
+        [UnityTest]
+        public IEnumerator A_ball_never_crosses_a_ring_anywhere_but_a_gap(
+            [Values(0f, 0.033f, 0.05f)] float stutter)
+        {
+            int throughGap = 0, throughWall = 0;
+
+            for (int run = 0; run < 5; run++)
+            {
+                Build();
+                _game.Mode = GameMode.Normal;
+
+                _tunnel.RingPassed += index =>
+                {
+                    RingController ring = null;
+                    for (int i = 0; i < _tunnel.Rings.Count; i++)
+                        if (_tunnel.Rings[i].SpawnIndex == index) ring = _tunnel.Rings[i];
+                    if (ring == null) return;
+
+                    if (Mathf.Abs((float)ring.TurnToNearestGapDeg(_ball.AngleDeg)) <= 0.001f) throughGap++;
+                    else throughWall++;
+                };
+
+                _game.StartRun(700 + run * 97);
+                foreach (var r in _tunnel.Rings)
+                    for (int i = 0; i < r.ActiveSegmentCount; i++)
+                        r.SegmentAt(i).Collider.sharedMaterial = _ringPhysics;
+
+                for (int i = 0; i < 2000 && _game.State == GameState.Playing; i++)
+                {
+                    float dt = stutter > 0f && i % 7 == 0 ? stutter : Dt;
+                    _game.Tick(dt, 0.0);
+                    _ball.ClampSpeed();
+                    Physics2D.Simulate(dt);
+                }
+
+                Object.DestroyImmediate(_root);
+                _root = null;
+                yield return null;
+            }
+
+            Debug.Log($"[HR] stutter {stutter:F3}s: {throughGap} passes through gaps, {throughWall} through wall");
+
+            Assert.Greater(throughGap, 10, "too few passes to judge anything");
+            Assert.AreEqual(0, throughWall,
+                            $"the ball crossed {throughWall} rings somewhere other than a gap; "
+                            + "a ring the player must aim through is not solid");
         }
 
         [Test]
