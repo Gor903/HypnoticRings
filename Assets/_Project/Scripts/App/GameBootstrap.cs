@@ -329,9 +329,15 @@ namespace HR.App
 
         void ApplyModeLook(GameState state)
         {
+            if (!GameStateMachine.IsInRun(state) && _game.ScoreKeeper.Best != _settings.bestScore)
+                _game.ScoreKeeper.RestoreBest(_settings.bestScore);
+
             var wanted = LookFor(_game.Mode, state, _settings.Theme);
             if (_themes.Current != wanted) ApplyLook(wanted);
         }
+
+        int RecordForMode() =>
+            _game.Mode == GameMode.Hardcore ? _settings.hardcoreBest : _settings.bestScore;
 
         void ApplyThemeToEffects()
         {
@@ -344,6 +350,9 @@ namespace HR.App
 
         void StartRun()
         {
+            _game.ScoreKeeper.RestoreBest(RecordForMode());
+            _ui.AwardsThemes = _game.Mode != GameMode.Hardcore;
+
             _game.StartRun(seed == 0 ? UnityEngine.Random.Range(1, int.MaxValue) : seed);
             _input.ResetAngle();
 
@@ -429,7 +438,7 @@ namespace HR.App
         void Persist()
         {
             if (_saves == null || _settings == null) return;
-            _settings.bestScore = _game != null ? _game.Best : _settings.bestScore;
+            if (_game != null && _game.Mode != GameMode.Hardcore) _settings.bestScore = _game.Best;
             _saves.Save(_settings);
         }
 

@@ -52,15 +52,26 @@ namespace HR.Gameplay
         public RingGenerator Generator => _generator;
         public int ActiveRingCount => _rings.Count;
 
+        readonly bool[] _struck = new bool[MaxBalls];
+
         public void Initialise(GameConfig config, BallController ball, RingPool pool = null)
         {
             _config = config;
             _settings = config.ToSettings();
+            if (_balls[0] != null) _balls[0].Struck -= NoteStrike;
             _balls[0] = ball;
             _ballCount = ball != null ? 1 : 0;
+            if (ball != null) ball.Struck += NoteStrike;
             _pool = pool;
             BaseCompressionSpeed = config.baseCompressionSpeed;
             _difficulty = DifficultySnapshot.Opening;
+        }
+
+        void NoteStrike(float speed) => _struck[0] = true;
+
+        void OnDestroy()
+        {
+            if (_balls[0] != null) _balls[0].Struck -= NoteStrike;
         }
 
         public void SetRingColours(IReadOnlyList<Color> colours)
@@ -141,7 +152,7 @@ namespace HR.Gameplay
             _ballCount = _balls[0] != null ? 1 : 0;
 
             _ledgerClock = 0.0;
-            for (int i = 0; i < MaxBalls; i++) _ledgers[i].Reset();
+            for (int i = 0; i < MaxBalls; i++) { _ledgers[i].Reset(); _struck[i] = false; }
 
             for (double radius = _settings.TargetRadius; radius <= OuterLimit; radius += StepNow)
             {
@@ -339,6 +350,9 @@ namespace HR.Gameplay
             {
                 var ball = _balls[b];
                 var ring = ResolveRingFor(ball);
+                bool knocked = _struck[b];
+                _struck[b] = false;
+
                 if (ball == null || ring == null) { _ledgers[b].Reset(); continue; }
 
                 _ledgers[b].Watch(ring.SpawnIndex);
@@ -351,9 +365,11 @@ namespace HR.Gameplay
                 double radial = Vector2.Dot(ball.Body.linearVelocity, outward);
 
                 double innerSurface = ring.Radius - _settings.Thickness * 0.5;
-                bool touching = distance + _settings.BallRadius >= innerSurface - ContactSlack;
+                double reach = Math.Abs(radial) * dt;
+                bool touching = knocked
+                                || distance + _settings.BallRadius >= innerSurface - ContactSlack - reach;
 
-                if (_ledgers[b].Step(_ledgerClock, radial, touching))
+                if (_ledgers[b].Step(_ledgerClock, radial, touching, knocked))
                     BallTouchedRing?.Invoke(_ledgers[b].Touches);
             }
         }

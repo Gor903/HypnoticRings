@@ -172,6 +172,26 @@ namespace HR.Tests.EditMode
         }
 
         [Test]
+        public void A_hardcore_record_is_kept_apart_from_the_normal_one()
+        {
+            var save = SaveData.Defaults();
+            save.bestScore = 40;
+            save.hardcoreBest = 7;
+
+            var score = new ScoreKeeper(save.bestScore);
+            Assert.AreEqual(40, score.Best);
+
+            score.RestoreBest(save.hardcoreBest);
+            score.BeginRun();
+            score.AddRings(12);
+            Assert.AreEqual(12, score.Best, "a hardcore run did not beat its own record of 7");
+            Assert.AreEqual(40, save.bestScore, "a hardcore run reached into the normal record");
+
+            score.RestoreBest(save.bestScore);
+            Assert.AreEqual(40, score.Best, "the normal record did not come back on leaving hardcore");
+        }
+
+        [Test]
         public void The_hardcore_look_is_never_offered_in_the_carousel()
         {
             Assert.That(ThemePalette.All, Has.No.Member(Theme.Ember),

@@ -37,7 +37,7 @@ namespace HR.Core
             _previousRadialVelocity = 0.0;
         }
 
-        public bool Step(double time, double radialVelocity, bool inContact)
+        public bool Step(double time, double radialVelocity, bool inContact, bool knocked = false)
         {
             double previous = _previousRadialVelocity;
             _previousRadialVelocity = radialVelocity;
@@ -45,16 +45,18 @@ namespace HR.Core
             if (!_seenAnything)
             {
                 _seenAnything = true;
-                return false;
+                if (!knocked) return false;
             }
 
             if (!inContact) return false;
             if (_ringId < 0) return false;
 
-            bool reversed = previous > 0.0 && radialVelocity < 0.0;
+            bool reversed = radialVelocity < 0.0 && (knocked || previous > 0.0);
             if (!reversed) return false;
 
-            double strength = Math.Abs(previous) + Math.Abs(radialVelocity);
+            double strength = knocked
+                ? Math.Abs(radialVelocity)
+                : Math.Abs(previous) + Math.Abs(radialVelocity);
             if (strength < MinReversal) return false;
 
             if (time - _lastTouchTime < DebounceSeconds) return false;

@@ -134,6 +134,49 @@ namespace HR.Tests.PlayMode
             yield return null;
         }
 
+        public const int KnocksAllowedBeforeDeath = 2;
+
+        [UnityTest]
+        public IEnumerator A_ball_trapped_in_a_ring_cannot_knock_it_for_free()
+        {
+            int worst = 0;
+            int worstSeed = 0;
+
+            for (int run = 0; run < 8; run++)
+            {
+                int seed = 4000 + run * 131;
+                Build();
+                _game.Mode = GameMode.Hardcore;
+                _game.StartRun(seed);
+                Seal(_tunnel.ResolveBallRing());
+
+                int contacts = 0;
+                _ball.Struck += _ => contacts++;
+
+                for (int i = 0; i < 1200 && _game.State == GameState.Playing; i++)
+                {
+                    _game.Tick(Dt, 0.0);
+                    _ball.ClampSpeed();
+                    Physics2D.Simulate(Dt);
+                }
+
+                Assert.AreEqual(GameState.GameOver, _game.State,
+                                $"seed {seed}: the ball sat in a sealed ring and the run never ended");
+
+                if (contacts > worst) { worst = contacts; worstSeed = seed; }
+
+                Object.DestroyImmediate(_root);
+                _root = null;
+                yield return null;
+            }
+
+            Debug.Log($"[HR] trapped ball: worst run knocked its ring {worst} times before dying");
+
+            Assert.LessOrEqual(worst, KnocksAllowedBeforeDeath,
+                               $"seed {worstSeed}: the ball knocked one ring {worst} times before the "
+                               + "rule caught it; a player can sit in a ring and hit it for free");
+        }
+
         [Test]
         public void Hardcore_is_played_on_the_very_same_curve_as_the_normal_game()
         {
