@@ -39,20 +39,6 @@ namespace HR.Gameplay
             new DifficultyAnchor { rings = 80, clearance = 0.72f, ringInterval = 1.59f, maxCompressionSpeed = 5.0f, gapArcWidth = 2.80f, autoSpinDeg = 70f, multiGapChance = 0.40f, tripleShare = 0.25f },
         };
 
-        public static List<CurveAnchor> HardcoreAnchors()
-        {
-            const float Still = 600f;
-
-            return new List<CurveAnchor>
-            {
-                new CurveAnchor(0,  1.10, Still, 1.5, 6.60, 0.0, 0.00, 0.00),
-                new CurveAnchor(4,  1.10, Still, 1.5, 6.00, 0.0, 0.00, 0.00),
-                new CurveAnchor(10, 1.10, Still, 1.5, 5.10, 0.0, 0.30, 0.00),
-                new CurveAnchor(30, 1.10, Still, 1.5, 4.20, 20.0, 0.35, 0.25),
-                new CurveAnchor(80, 1.10, Still, 1.5, 3.30, 40.0, 0.35, 0.25),
-            };
-        }
-
         public List<CurveAnchor> ToAnchors()
         {
             var rows = new List<CurveAnchor>(anchors.Length);

@@ -58,6 +58,10 @@ namespace HR.Core
 
                     return new UiSkin(0.35, 3.0, PressKind.Ripple, KnobShape.Round);
 
+                case Theme.Ember:
+
+                    return new UiSkin(0.15, 3.0, PressKind.Flash, KnobShape.Round);
+
                 default:
                     return Default;
             }

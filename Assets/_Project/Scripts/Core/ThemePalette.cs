@@ -57,9 +57,14 @@ namespace HR.Core
 
         public readonly double Glow;
 
+        public readonly Rgb TrailHot;
+
+        public readonly Rgb TrailCool;
+
         public ThemePalette(Theme theme, string background, string[] ringColours, string ball,
                             string ballOutline, string ui, double depthFade, double glow,
-                            double shimmerSeconds = 0.0, double shimmerDepth = 0.0)
+                            double shimmerSeconds = 0.0, double shimmerDepth = 0.0,
+                            string trailHot = null, string trailCool = null)
         {
             ShimmerSeconds = shimmerSeconds;
             ShimmerDepth = shimmerDepth;
@@ -74,6 +79,8 @@ namespace HR.Core
             Ui = Rgb.Parse(ui);
             DepthFade = depthFade;
             Glow = glow;
+            TrailHot = trailHot != null ? Rgb.Parse(trailHot) : RingColours[0];
+            TrailCool = trailCool != null ? Rgb.Parse(trailCool) : RingColours[0];
         }
 
         public Rgb RingColourAt(int index) =>
@@ -144,6 +151,13 @@ namespace HR.Core
                         "#06121A", "#DFF5EC", 0.55, 0.45,
                         shimmerSeconds: 3.6, shimmerDepth: 0.14);
 
+                case Theme.Ember:
+
+                    return new ThemePalette(theme, "#140604",
+                        new[] { "#FF7A1A", "#FFB02E", "#E8431F" }, "#FFF4D9",
+                        "#140604", "#FFE4CC", 0.50, 0.70,
+                        trailHot: "#FFF4D9", trailCool: "#8A1403");
+
                 default:
                     throw new ArgumentOutOfRangeException(nameof(theme));
             }
@@ -152,6 +166,12 @@ namespace HR.Core
         public static Theme[] All => new[]
         {
             Theme.Monochrome, Theme.Midnight, Theme.Neon, Theme.Pastel, Theme.Earth, Theme.Aurora,
+        };
+
+        public static Theme[] Every => new[]
+        {
+            Theme.Monochrome, Theme.Midnight, Theme.Neon, Theme.Pastel, Theme.Earth, Theme.Aurora,
+            Theme.Ember,
         };
     }
 }

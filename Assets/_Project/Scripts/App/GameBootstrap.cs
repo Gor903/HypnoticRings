@@ -208,8 +208,7 @@ namespace HR.App
                 _game.ScoreKeeper.ResetProgress();
                 _settings = SaveData.Defaults();
                 _saves.Save(_settings);
-                _themes.Apply(_settings.Theme);
-                _ui.ApplyTheme(_themes.Palette);
+                ApplyLook(_settings.Theme);
                 _ui.RefreshStrings();
             };
 
@@ -222,7 +221,21 @@ namespace HR.App
                 _juice.Pulse();
                 _haptics.Pass();
                 _ui.SetScore(score);
-                if (!_settings.hintSeen) { _settings.hintSeen = true; _ui.ShowHint(false); Persist(); }
+                if (_game.Mode == GameMode.Hardcore)
+                {
+                    if (!_settings.hardcoreHintSeen)
+                    {
+                        _settings.hardcoreHintSeen = true;
+                        _ui.ShowHint(false, GameUi.HardcoreHintKey);
+                        Persist();
+                    }
+                }
+                else if (!_settings.hintSeen)
+                {
+                    _settings.hintSeen = true;
+                    _ui.ShowHint(false);
+                    Persist();
+                }
             };
 
             _game.KilledByTouch += ring =>
@@ -239,6 +252,7 @@ namespace HR.App
 
             _game.StateChanged += (_, to) =>
             {
+                ApplyModeLook(to);
                 _ui.Show(to);
                 ShowWorld(to);
                 if (to == GameState.Paused) _audio.ResetStreak();
@@ -299,22 +313,46 @@ namespace HR.App
             if (_game == null || !_game.ScoreKeeper.IsUnlocked(theme)) return;
 
             _settings.Theme = theme;
+            ApplyLook(theme);
+            Persist();
+        }
+
+        void ApplyLook(Theme theme)
+        {
             _themes.Apply(theme);
             _ui.ApplyTheme(_themes.Palette);
             ApplyThemeToEffects();
-            Persist();
         }
+
+        public static Theme LookFor(GameMode mode, GameState state, Theme chosen) =>
+            mode == GameMode.Hardcore && GameStateMachine.IsInRun(state) ? Theme.Ember : chosen;
+
+        void ApplyModeLook(GameState state)
+        {
+            if (!GameStateMachine.IsInRun(state) && _game.ScoreKeeper.Best != _settings.bestScore)
+                _game.ScoreKeeper.RestoreBest(_settings.bestScore);
+
+            var wanted = LookFor(_game.Mode, state, _settings.Theme);
+            if (_themes.Current != wanted) ApplyLook(wanted);
+        }
+
+        int RecordForMode() =>
+            _game.Mode == GameMode.Hardcore ? _settings.hardcoreBest : _settings.bestScore;
 
         void ApplyThemeToEffects()
         {
             var palette = _themes.Palette;
-            _effects.TrailColour = ThemeApplier.ToColor(palette.RingColourAt(0));
+            _effects.TrailColour = ThemeApplier.ToColor(palette.TrailHot);
+            _effects.TrailColourCool = ThemeApplier.ToColor(palette.TrailCool);
             _juice.CurtainColour = ThemeApplier.ToColor(palette.Background);
             _centre.Apply(ThemeApplier.ToColor(palette.Background));
         }
 
         void StartRun()
         {
+            _game.ScoreKeeper.RestoreBest(RecordForMode());
+            _ui.AwardsThemes = _game.Mode != GameMode.Hardcore;
+
             _game.StartRun(seed == 0 ? UnityEngine.Random.Range(1, int.MaxValue) : seed);
             _input.ResetAngle();
 
@@ -327,7 +365,11 @@ namespace HR.App
 
             _ui.SetScore(0);
             _ui.RefreshHud();
-            _ui.ShowHint(!_settings.hintSeen);
+
+            bool hardcore = _game.Mode == GameMode.Hardcore;
+            _ui.ShowHint(hardcore ? !_settings.hardcoreHintSeen : !_settings.hintSeen,
+                         hardcore ? GameUi.HardcoreHintKey : GameUi.SwipeHintKey);
+
             _ui.Show(_game.State);
         }
 
@@ -396,7 +438,7 @@ namespace HR.App
         void Persist()
         {
             if (_saves == null || _settings == null) return;
-            _settings.bestScore = _game != null ? _game.Best : _settings.bestScore;
+            if (_game != null && _game.Mode != GameMode.Hardcore) _settings.bestScore = _game.Best;
             _saves.Save(_settings);
         }
 

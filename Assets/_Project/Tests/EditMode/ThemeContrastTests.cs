@@ -53,7 +53,7 @@ namespace HR.Tests.EditMode
         [Test]
         public void Every_theme_is_readable()
         {
-            foreach (var theme in ThemePalette.All)
+            foreach (var theme in ThemePalette.Every)
             {
                 var problems = ThemePalette.For(theme).Validate();
                 Assert.IsEmpty(problems, $"{theme}: {string.Join("; ", problems)}");
@@ -83,7 +83,7 @@ namespace HR.Tests.EditMode
         [Test]
         public void No_palette_pulses_faster_than_a_player_can_be_asked_to_look_at()
         {
-            foreach (var theme in ThemePalette.All)
+            foreach (var theme in ThemePalette.Every)
             {
                 var palette = ThemePalette.For(theme);
                 if (palette.ShimmerSeconds <= 0.0) continue;
@@ -98,7 +98,7 @@ namespace HR.Tests.EditMode
         [Test]
         public void A_shimmer_only_ever_makes_a_ring_easier_to_see()
         {
-            foreach (var theme in ThemePalette.All)
+            foreach (var theme in ThemePalette.Every)
             {
                 var palette = ThemePalette.For(theme);
                 if (palette.ShimmerDepth <= 0.0) continue;
@@ -146,14 +146,14 @@ namespace HR.Tests.EditMode
         public void Every_theme_is_defined_and_distinct()
         {
             var seen = new System.Collections.Generic.HashSet<string>();
-            foreach (var theme in ThemePalette.All)
+            foreach (var theme in ThemePalette.Every)
             {
                 var palette = ThemePalette.For(theme);
                 Assert.AreEqual(theme, palette.Theme);
                 Assert.IsTrue(seen.Add(palette.Background.ToString() + palette.Ball),
                     $"{theme} looks identical to another theme");
             }
-            Assert.AreEqual(6, seen.Count);
+            Assert.AreEqual(ThemePalette.Every.Length, seen.Count);
         }
 
         [Test]
@@ -167,8 +167,40 @@ namespace HR.Tests.EditMode
         {
             var score = new ScoreKeeper();
             int free = 0;
-            foreach (var theme in ThemePalette.All) if (score.IsUnlocked(theme)) free++;
+            foreach (var theme in ThemePalette.Every) if (score.IsUnlocked(theme)) free++;
             Assert.AreEqual(3, free);
+        }
+
+        [Test]
+        public void A_hardcore_record_is_kept_apart_from_the_normal_one()
+        {
+            var save = SaveData.Defaults();
+            save.bestScore = 40;
+            save.hardcoreBest = 7;
+
+            var score = new ScoreKeeper(save.bestScore);
+            Assert.AreEqual(40, score.Best);
+
+            score.RestoreBest(save.hardcoreBest);
+            score.BeginRun();
+            score.AddRings(12);
+            Assert.AreEqual(12, score.Best, "a hardcore run did not beat its own record of 7");
+            Assert.AreEqual(40, save.bestScore, "a hardcore run reached into the normal record");
+
+            score.RestoreBest(save.bestScore);
+            Assert.AreEqual(40, score.Best, "the normal record did not come back on leaving hardcore");
+        }
+
+        [Test]
+        public void The_hardcore_look_is_never_offered_in_the_carousel()
+        {
+            Assert.That(ThemePalette.All, Has.No.Member(Theme.Ember),
+                        "Ember belongs to hardcore and would overwrite a chosen theme if picked");
+            Assert.That(ThemePalette.Every, Has.Member(Theme.Ember));
+
+            var rich = new ScoreKeeper(int.MaxValue - 1);
+            Assert.IsFalse(rich.IsUnlocked(Theme.Ember),
+                           "no score should ever unlock the hardcore look");
         }
     }
 }
