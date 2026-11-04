@@ -14,8 +14,6 @@ namespace HR.Gameplay
         BallController _ball;
         ScoreKeeper _score;
         DifficultyCurve _curve;
-        DifficultyCurve _normalCurve;
-        DifficultyCurve _hardcoreCurve;
 
         int _seed;
         int _appliedDifficultyForScore = -1;
@@ -47,10 +45,8 @@ namespace HR.Gameplay
             _tunnel = tunnel;
             _ball = ball;
             _score = new ScoreKeeper(best);
-            _normalCurve = new DifficultyCurve(
+            _curve = new DifficultyCurve(
                 _settings, config.difficulty != null ? config.difficulty.ToAnchors() : null);
-            _hardcoreCurve = new DifficultyCurve(_settings, DifficultyTable.HardcoreAnchors());
-            _curve = _normalCurve;
 
             _states.Changed += (from, to) => StateChanged?.Invoke(from, to);
             _tunnel.RingPassed += OnRingPassed;
@@ -70,8 +66,6 @@ namespace HR.Gameplay
             _seed = seed;
             RunCount++;
             _grace = 0.0;
-
-            _curve = Mode == GameMode.Hardcore ? _hardcoreCurve : _normalCurve;
 
             _score.BeginRun();
             _appliedDifficultyForScore = -1;

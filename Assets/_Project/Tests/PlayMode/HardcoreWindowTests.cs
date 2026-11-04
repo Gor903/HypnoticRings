@@ -39,7 +39,6 @@ namespace HR.Tests.PlayMode
             _simulationMode = Physics2D.simulationMode;
             Physics2D.simulationMode = SimulationMode2D.Script;
             Physics2D.gravity = new Vector2(0f, -14f);
-            _hardcore = false;
         }
 
         [TearDown]
@@ -49,8 +48,6 @@ namespace HR.Tests.PlayMode
             if (_root != null) UnityEngine.Object.DestroyImmediate(_root);
             if (_config != null) UnityEngine.Object.DestroyImmediate(_config);
         }
-
-        bool _hardcore;
 
         void Build(int seed)
         {
@@ -70,14 +67,6 @@ namespace HR.Tests.PlayMode
             _pool = new RingPool(_config, tunnelGo.transform, material);
             _tunnel.Initialise(_config, _ball, _pool);
             _tunnel.AutoStep = false;
-
-            if (_hardcore)
-            {
-                var curve = new DifficultyCurve(settings, DifficultyTable.HardcoreAnchors());
-                _tunnel.SetDifficulty(curve.SnapshotAt(0));
-                _tunnel.BaseCompressionSpeed = curve.CompressionSpeedAt(0);
-            }
-
             _tunnel.BeginRun(seed);
 
             foreach (var ring in _tunnel.Rings)
@@ -103,11 +92,9 @@ namespace HR.Tests.PlayMode
                 double leftRingAt = 0.0;
                 double firstTouchAt = -1.0;
                 double angleAtFirstTouch = -1.0;
-                int touchesHere = 0;
 
                 _tunnel.BallTouchedRing += count =>
                 {
-                    touchesHere = count;
                     if (count == 1)
                     {
                         firstTouchAt = clock;
@@ -141,7 +128,6 @@ namespace HR.Tests.PlayMode
                         leftRingAt = clock;
                         firstTouchAt = -1.0;
                         angleAtFirstTouch = -1.0;
-                        touchesHere = 0;
                     }
 
                     _tunnel.Step(Dt);
@@ -163,29 +149,6 @@ namespace HR.Tests.PlayMode
             Assert.Greater(Median(_betweenTouches), 0.0, "the window between touches is not positive");
         }
 
-        [UnityTest]
-        [Timeout(1_800_000)]
-        public IEnumerator Hardcore_openings_buy_back_most_of_the_impossible_rings()
-        {
-            _hardcore = true;
-            yield return The_window_a_hardcore_player_gets_is_measured_before_it_is_tuned();
-
-            int impossible = 0;
-            for (int i = 0; i < _demandedSpin.Count; i++)
-                if (_demandedSpin[i] > _config.comfortSpinDeg) impossible++;
-
-            double share = impossible * 100.0 / Math.Max(1, _demandedSpin.Count);
-            double median = Median(_demandedSpin);
-            Debug.Log($"[HR] hardcore: median demand {median:F1} deg/s, unreachable {share:F1}% "
-                      + $"({impossible}/{_demandedSpin.Count})");
-
-            Assert.Less(median, _config.comfortSpinDeg * 0.5,
-                $"a typical hardcore ring demands {median:F1} deg/s of a 300 deg/s thumb");
-
-            Assert.Less(share, 15.0,
-                $"{share:F1}% of hardcore rings demand more than a thumb can give");
-        }
-
         static double Median(List<double> values)
         {
             if (values.Count == 0) return 0.0;
@@ -204,9 +167,7 @@ namespace HR.Tests.PlayMode
         void Report()
         {
             var text = new StringBuilder();
-            text.AppendLine(_hardcore
-                ? "# Окно игрока в хардкоре — замер на числах режима"
-                : "# Окно игрока в хардкоре — замер на обычных числах");
+            text.AppendLine("# Окно игрока в хардкоре — замер на числах игры");
             text.AppendLine();
             text.AppendLine($"Снято {Runs} прогонами по {StepsPerRun} шагов на настоящей физике, ");
             text.AppendLine("с геометрией v2 и без каких-либо правок под хардкор. Плана [H-17].");
@@ -244,7 +205,7 @@ namespace HR.Tests.PlayMode
             text.AppendLine("как узкое, — так инструмент сообщил, что расширение отверстий сделало ");
             text.AppendLine("режим тяжелее.");
 
-            string name = _hardcore ? "hardcore-window-tuned.md" : "hardcore-window.md";
+            const string name = "hardcore-window.md";
             var path = Path.Combine(Application.dataPath, "..", "docs", "benchmarks", name);
             File.WriteAllText(Path.GetFullPath(path), text.ToString());
             Debug.Log($"[HR] hardcore window: between touches median {Median(_betweenTouches):F3}s, "
