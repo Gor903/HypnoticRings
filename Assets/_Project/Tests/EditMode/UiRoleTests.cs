@@ -8,7 +8,7 @@ namespace HR.Tests.EditMode
         [Test]
         public void A_control_is_visible_against_the_screen_behind_it()
         {
-            foreach (var theme in ThemePalette.All)
+            foreach (var theme in ThemePalette.Every)
             {
                 var palette = ThemePalette.For(theme);
                 double ratio = Contrast.Ratio(palette.Surface, palette.Background);
@@ -21,7 +21,7 @@ namespace HR.Tests.EditMode
         [Test]
         public void Text_on_a_control_is_readable()
         {
-            foreach (var theme in ThemePalette.All)
+            foreach (var theme in ThemePalette.Every)
             {
                 var palette = ThemePalette.For(theme);
                 double ratio = Contrast.Ratio(palette.SurfaceText, palette.Surface);
@@ -34,7 +34,7 @@ namespace HR.Tests.EditMode
         [Test]
         public void The_accent_stands_out_and_carries_its_own_label()
         {
-            foreach (var theme in ThemePalette.All)
+            foreach (var theme in ThemePalette.Every)
             {
                 var palette = ThemePalette.For(theme);
 
@@ -51,7 +51,7 @@ namespace HR.Tests.EditMode
         [Test]
         public void The_accent_is_not_the_same_colour_as_an_ordinary_button()
         {
-            foreach (var theme in ThemePalette.All)
+            foreach (var theme in ThemePalette.Every)
             {
                 var palette = ThemePalette.For(theme);
                 double ratio = Contrast.Ratio(palette.Accent, palette.Surface);
@@ -64,7 +64,7 @@ namespace HR.Tests.EditMode
         [Test]
         public void A_switch_that_is_off_is_still_something_you_can_see()
         {
-            foreach (var theme in ThemePalette.All)
+            foreach (var theme in ThemePalette.Every)
             {
                 var palette = ThemePalette.For(theme);
                 double off = Contrast.Ratio(palette.TrackOff, palette.Background);
@@ -77,7 +77,7 @@ namespace HR.Tests.EditMode
         [Test]
         public void On_and_off_do_not_look_alike()
         {
-            foreach (var theme in ThemePalette.All)
+            foreach (var theme in ThemePalette.Every)
             {
                 var palette = ThemePalette.For(theme);
                 double between = Contrast.Ratio(palette.TrackOn, palette.TrackOff);
@@ -90,7 +90,7 @@ namespace HR.Tests.EditMode
         [Test]
         public void The_outline_is_visible_without_shouting()
         {
-            foreach (var theme in ThemePalette.All)
+            foreach (var theme in ThemePalette.Every)
             {
                 var palette = ThemePalette.For(theme);
                 double edge = Contrast.Ratio(palette.Outline, palette.Background);
@@ -105,7 +105,7 @@ namespace HR.Tests.EditMode
         [Test]
         public void Every_role_is_a_real_colour_on_every_theme()
         {
-            foreach (var theme in ThemePalette.All)
+            foreach (var theme in ThemePalette.Every)
             {
                 var palette = ThemePalette.For(theme);
 

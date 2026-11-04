@@ -391,9 +391,19 @@ namespace HR.UI
             if (has) _hudBestLabel.text = Strings.Format("hud.best", _score.DisplayedBest);
         }
 
-        public void ShowHint(bool visible)
+        public const string SwipeHintKey = "hint.swipe";
+
+        public const string HardcoreHintKey = "hardcore.hint";
+
+        string _hintKey = SwipeHintKey;
+
+        public void ShowHint(bool visible, string key = SwipeHintKey)
         {
-            if (_hintLabel != null) _hintLabel.gameObject.SetActive(visible);
+            if (_hintLabel == null) return;
+
+            _hintKey = key;
+            _hintLabel.text = Strings.Get(_hintKey);
+            _hintLabel.gameObject.SetActive(visible);
         }
 
         void FocusChosenTheme()

@@ -46,6 +46,9 @@ namespace HR.Core
 
         public bool TunnelRuns => State == GameState.Playing;
 
+        public static bool IsInRun(GameState state) =>
+            state == GameState.Playing || state == GameState.Paused || state == GameState.GameOver;
+
         public bool Fire(GameTrigger trigger)
         {
             GameState next;

@@ -179,7 +179,8 @@ namespace HR.Gameplay
                     continue;
                 }
 
-                Tint(_trailRenderers[i], TrailColour, (float)Easing.Fade(life) * 0.5f);
+                Tint(_trailRenderers[i], Color.Lerp(TrailColour, TrailColourCool, life),
+                     (float)Easing.Fade(life) * 0.5f);
             }
         }
 
@@ -241,6 +242,8 @@ namespace HR.Gameplay
         }
 
         public Color TrailColour { get; set; } = Color.white;
+
+        public Color TrailColourCool { get; set; } = Color.white;
 
         void Tint(Renderer renderer, Color colour, float alpha)
         {

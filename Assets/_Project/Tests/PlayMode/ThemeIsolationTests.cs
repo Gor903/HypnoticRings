@@ -106,14 +106,14 @@ namespace HR.Tests.PlayMode
             yield return null;
             string before = PhysicsFingerprint();
 
-            foreach (var theme in ThemePalette.All)
+            foreach (var theme in ThemePalette.Every)
             {
                 _applier.Apply(theme);
                 Assert.AreEqual(before, PhysicsFingerprint(),
                     $"applying {theme} changed something physics reads");
             }
 
-            foreach (var theme in ThemePalette.All) _applier.Apply(theme);
+            foreach (var theme in ThemePalette.Every) _applier.Apply(theme);
             Assert.AreEqual(before, PhysicsFingerprint(), "a second pass through the themes drifted");
         }
 

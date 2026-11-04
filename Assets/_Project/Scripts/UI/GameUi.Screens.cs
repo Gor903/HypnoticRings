@@ -72,14 +72,14 @@ namespace HR.UI
 
             _pauseFill = pause.targetGraphic as Image;
 
-            _hintLabel = UiBuilder.CreateLabel("Hint", screen, Strings.Get("hint.swipe"), UiBuilder.BodySize);
+            _hintLabel = UiBuilder.CreateLabel("Hint", screen, Strings.Get(SwipeHintKey), UiBuilder.BodySize);
             var hintRect = (RectTransform)_hintLabel.transform;
             hintRect.anchorMin = new Vector2(0f, 0f);
             hintRect.anchorMax = new Vector2(1f, 0f);
             hintRect.pivot = new Vector2(0.5f, 0f);
             hintRect.offsetMin = new Vector2(0f, 180f);
             hintRect.offsetMax = new Vector2(0f, 260f);
-            _stringRefreshers.Add(() => _hintLabel.text = Strings.Get("hint.swipe"));
+            _stringRefreshers.Add(() => _hintLabel.text = Strings.Get(_hintKey));
             Track(_hintLabel);
         }
 

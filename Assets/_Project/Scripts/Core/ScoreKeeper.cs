@@ -10,10 +10,14 @@ namespace HR.Core
         Pastel = 3,
         Earth = 4,
         Aurora = 5,
+
+        Ember = 6,
     }
 
     public sealed class ScoreKeeper
     {
+        public const int NeverByScore = int.MaxValue;
+
         public static int RequiredBestFor(Theme theme)
         {
             switch (theme)
@@ -24,6 +28,7 @@ namespace HR.Core
                 case Theme.Pastel: return 25;
                 case Theme.Earth: return 50;
                 case Theme.Aurora: return 100;
+                case Theme.Ember: return NeverByScore;
                 default: throw new ArgumentOutOfRangeException(nameof(theme));
             }
         }
