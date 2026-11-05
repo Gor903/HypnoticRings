@@ -21,6 +21,12 @@ namespace HR.Themes
         public Theme Current { get; private set; } = Theme.MinimalLight;
         public ThemePalette Palette { get; private set; }
 
+        BackdropRenderer _backdrop;
+
+        public BackdropRenderer Backdrop => _backdrop;
+
+        bool _effectsWanted = true;
+
         public void Initialise(Camera camera, TunnelController tunnel,
                                Renderer ballRenderer, Renderer ballOutlineRenderer = null)
         {
@@ -28,6 +34,17 @@ namespace HR.Themes
             _tunnel = tunnel;
             _ballRenderer = ballRenderer;
             _ballOutlineRenderer = ballOutlineRenderer;
+
+            var go = new GameObject("Backdrop");
+            go.transform.SetParent(transform, false);
+            _backdrop = go.AddComponent<BackdropRenderer>();
+            _backdrop.Initialise(camera);
+        }
+
+        public void SetEffectsWanted(bool wanted)
+        {
+            _effectsWanted = wanted;
+            if (_backdrop != null) _backdrop.SetEffectsWanted(wanted);
         }
 
         public void Apply(Theme theme) => Apply(ThemePalette.For(theme));
@@ -53,6 +70,8 @@ namespace HR.Themes
 
             Paint(_ballRenderer, ToColor(palette.Ball));
             Paint(_ballOutlineRenderer, ToColor(palette.BallOutline));
+
+            if (_backdrop != null) _backdrop.Show(palette.Theme, _effectsWanted);
 
             _shimmerClock = 0.0;
             _shimmerTarget = ShimmerTargetFor(palette.Background);

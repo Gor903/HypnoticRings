@@ -296,6 +296,7 @@ namespace HR.App
 
             _effects.Enabled = wanted;
             _juice.Enabled = wanted;
+            _themes.SetEffectsWanted(wanted);
             _haptics.Enabled = _settings.vibrationEnabled;
 
             if (_ui != null && _themes != null) _ui.ApplyTheme(_themes.Palette);
