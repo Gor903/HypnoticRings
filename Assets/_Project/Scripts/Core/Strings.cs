@@ -35,12 +35,16 @@ namespace HR.Core
                 ["over.home"] = "В меню",
                 ["over.themes"] = "Темы",
                 ["over.unlocked"] = "Открыта тема «{0}»",
-                ["theme.monochrome"] = "Монохром",
-                ["theme.midnight"] = "Полночь",
-                ["theme.neon"] = "Неон",
-                ["theme.pastel"] = "Пастель",
-                ["theme.earth"] = "Земля",
-                ["theme.aurora"] = "Сияние",
+                ["theme.minimal"] = "Минимал",
+                ["theme.light"] = "Светлая",
+                ["theme.dark"] = "Тёмная",
+                ["theme.neon"] = "Неон-космос",
+                ["theme.deco"] = "Арт-деко",
+                ["theme.sumie"] = "Суми-э",
+                ["theme.ocean"] = "Глубина",
+                ["theme.bauhaus"] = "Баухаус",
+                ["theme.crt"] = "Ретро ЭЛТ",
+                ["theme.ember"] = "Жар",
                 ["menu.hardcore"] = "ХАРДКОР",
                 ["hardcore.locked"] = "Рекорд в обычной игре {0}",
                 ["hardcore.hint"] = "Каждого кольца можно коснуться только раз",
@@ -67,6 +71,7 @@ namespace HR.Core
                 ["about.body"] = "Игра не собирает данные, не содержит рекламы и покупок "
                                  + "и работает без интернета.",
                 ["about.privacy"] = "Политика конфиденциальности",
+                ["about.fonts"] = "Шрифты: Unbounded и Manrope (SIL OFL 1.1)",
             };
 
             English = new Dictionary<string, string>(StringComparer.Ordinal)
@@ -88,12 +93,16 @@ namespace HR.Core
                 ["over.home"] = "Home",
                 ["over.themes"] = "Themes",
                 ["over.unlocked"] = "Theme “{0}” unlocked",
-                ["theme.monochrome"] = "Monochrome",
-                ["theme.midnight"] = "Midnight",
-                ["theme.neon"] = "Neon",
-                ["theme.pastel"] = "Pastel",
-                ["theme.earth"] = "Earth",
-                ["theme.aurora"] = "Aurora",
+                ["theme.minimal"] = "Minimal",
+                ["theme.light"] = "Light",
+                ["theme.dark"] = "Dark",
+                ["theme.neon"] = "Neon cosmos",
+                ["theme.deco"] = "Art deco",
+                ["theme.sumie"] = "Sumi-e",
+                ["theme.ocean"] = "Deep ocean",
+                ["theme.bauhaus"] = "Bauhaus",
+                ["theme.crt"] = "Retro CRT",
+                ["theme.ember"] = "Ember",
                 ["menu.hardcore"] = "HARDCORE",
                 ["hardcore.locked"] = "Best {0} in the normal game",
                 ["hardcore.hint"] = "Each ring may be touched only once",
@@ -119,6 +128,7 @@ namespace HR.Core
                 ["about.body"] = "This game collects no data, has no ads or purchases, "
                                  + "and works offline.",
                 ["about.privacy"] = "Privacy policy",
+                ["about.fonts"] = "Fonts: Unbounded and Manrope (SIL OFL 1.1)",
             };
 
             Current = Language.English;
@@ -192,6 +202,14 @@ namespace HR.Core
             return count;
         }
 
-        public static string ThemeName(Theme theme) => Get("theme." + theme.ToString().ToLowerInvariant());
+        public static string ThemeName(Theme theme) => Get(ThemeKey(theme));
+
+        public static string ThemeKey(Theme theme) =>
+            theme == Theme.MinimalLight || theme == Theme.MinimalDark
+                ? "theme.minimal"
+                : "theme." + theme.ToString().ToLowerInvariant();
+
+        public static string VariantKey(Theme theme) =>
+            theme == Theme.MinimalDark ? "theme.dark" : "theme.light";
     }
 }

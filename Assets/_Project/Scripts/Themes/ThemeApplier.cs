@@ -18,7 +18,7 @@ namespace HR.Themes
         Renderer _ballRenderer;
         Renderer _ballOutlineRenderer;
 
-        public Theme Current { get; private set; } = Theme.Monochrome;
+        public Theme Current { get; private set; } = Theme.MinimalLight;
         public ThemePalette Palette { get; private set; }
 
         public void Initialise(Camera camera, TunnelController tunnel,

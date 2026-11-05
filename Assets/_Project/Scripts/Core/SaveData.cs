@@ -42,7 +42,7 @@ namespace HR.Core
         {
             version = CurrentVersion,
             bestScore = 0,
-            selectedTheme = (int)Theme.Monochrome,
+            selectedTheme = (int)Theme.MinimalLight,
             soundEnabled = true,
             soundVolume = 1.0f,
             musicEnabled = true,
@@ -57,7 +57,7 @@ namespace HR.Core
 
         public Theme Theme
         {
-            get => Enum.IsDefined(typeof(Theme), selectedTheme) ? (Theme)selectedTheme : Theme.Monochrome;
+            get => ThemeMigration.TryMap(selectedTheme, out var theme) ? theme : Theme.MinimalLight;
             set => selectedTheme = (int)value;
         }
 
@@ -93,10 +93,18 @@ namespace HR.Core
 
             if (bestScore < 0) { repairs.Add($"negative best score {bestScore}"); bestScore = 0; }
 
-            if (!Enum.IsDefined(typeof(Theme), selectedTheme))
+            if (!ThemeMigration.IsCurrent(selectedTheme))
             {
-                repairs.Add($"unknown theme {selectedTheme}");
-                selectedTheme = (int)Core.Theme.Monochrome;
+                if (ThemeMigration.TryMap(selectedTheme, out var carried))
+                {
+                    repairs.Add($"theme {selectedTheme} carried over to {carried}");
+                    selectedTheme = (int)carried;
+                }
+                else
+                {
+                    repairs.Add($"unknown theme {selectedTheme}");
+                    selectedTheme = (int)Core.Theme.MinimalLight;
+                }
             }
 
             if (!Enum.IsDefined(typeof(LanguageSetting), language))
@@ -108,7 +116,7 @@ namespace HR.Core
             if (bestScore < ScoreKeeper.RequiredBestFor(Theme))
             {
                 repairs.Add($"theme {Theme} is not unlocked at best {bestScore}");
-                selectedTheme = (int)Core.Theme.Monochrome;
+                selectedTheme = (int)Core.Theme.MinimalLight;
             }
 
             soundVolume = Clamp01(soundVolume, nameof(soundVolume), repairs);
