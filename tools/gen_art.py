@@ -6,9 +6,9 @@ on the bottom of one. Drawing it from the same description the game draws from
 means it cannot drift away from what the player sees, and it means a change to
 the palette is a change to one tuple rather than a trip through an image editor.
 
-Midnight rather than the default Monochrome: on a launcher full of bright
-squares, a dark navy tile with one amber dot is the thing that gets noticed,
-and the icon is the only art that competes for attention before install.
+Deep ocean rather than the default Minimal: on a launcher full of bright
+squares, a dark tile with one warm dot is the thing that gets noticed, and the
+icon is the only art that competes for attention before install.
 
 Everything is drawn at four times size and reduced, which is the cheapest
 anti-aliasing there is and the reason the arcs do not come out with stepped
@@ -27,10 +27,10 @@ STORE_DIR = os.path.join(ROOT, "docs", "publishing", "art")
 
 SUPERSAMPLE = 4
 
-# ThemePalette.Midnight, kept in step with Assets/_Project/Scripts/Core/ThemePalette.cs.
-BACKGROUND = (0x0B, 0x10, 0x20)
-RING = (0xE8, 0xEC, 0xF4)
-BALL = (0xFF, 0xB7, 0x03)
+# ThemePalette.Ocean, kept in step with Assets/_Project/Scripts/Core/ThemePalette.cs.
+BACKGROUND = (0x03, 0x16, 0x1F)
+RING = (0x3D, 0xE8, 0xD0)
+BALL = (0xFF, 0xD6, 0xA5)
 
 # Radius as a fraction of the half-size, the gap's centre in degrees, and its width.
 RINGS = [
