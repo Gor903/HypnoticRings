@@ -376,7 +376,7 @@ namespace HR.UI
             var handleGo = new GameObject("Handle", typeof(RectTransform), typeof(Image));
             handleGo.transform.SetParent(handleArea.transform, false);
             var handle = (RectTransform)handleGo.transform;
-            handle.sizeDelta = new Vector2(SliderKnobSize, SliderKnobSize);
+            handle.sizeDelta = new Vector2(SliderKnobSize, 0f);
 
             var slider = go.GetComponent<Slider>();
             slider.fillRect = fillRect;

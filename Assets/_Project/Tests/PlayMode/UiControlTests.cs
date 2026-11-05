@@ -216,6 +216,22 @@ namespace HR.Tests.PlayMode
         }
 
         [UnityTest]
+        public IEnumerator A_round_knob_is_round_and_not_an_egg()
+        {
+            var settings = Settings();
+            yield return null;
+
+            foreach (var slider in settings.GetComponentsInChildren<Slider>(includeInactive: true))
+            {
+                var knob = slider.handleRect.rect;
+                Assert.AreEqual(knob.width, knob.height, 1f,
+                    $"{slider.name} draws a {knob.width:F0} x {knob.height:F0} knob; "
+                    + "the Slider stretches the handle vertically, so sizeDelta.y must stay 0");
+                Assert.AreEqual(UiBuilder.SliderKnobSize, knob.width, 1f);
+            }
+        }
+
+        [UnityTest]
         public IEnumerator The_minimal_card_offers_both_halves_and_keeps_its_press()
         {
             _boot.Ui.Show(GameState.ThemeSelect);
