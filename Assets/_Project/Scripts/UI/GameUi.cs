@@ -176,6 +176,13 @@ namespace HR.UI
             bool showing = digit > 0;
             _countdownLabel.gameObject.SetActive(showing);
             if (showing) _countdownLabel.text = digit.ToString();
+            if (!showing) SetCountdownScale(1f);
+        }
+
+        public void SetCountdownScale(float scale)
+        {
+            if (_countdownLabel == null) return;
+            _countdownLabel.transform.localScale = new Vector3(scale, scale, 1f);
         }
 
         public void ApplyTheme(ThemePalette palette)

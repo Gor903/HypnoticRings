@@ -113,6 +113,59 @@ namespace HR.Tests.EditMode
         }
 
         [Test]
+        public void A_digit_lands_hard_and_then_sits_still()
+        {
+            Assert.AreEqual(CountdownClock.BeatPeak, CountdownClock.ScaleAt(0.0), 1e-9,
+                "a digit arrives at its peak");
+
+            Assert.AreEqual(1.0, CountdownClock.ScaleAt(CountdownClock.BeatSeconds), 1e-9,
+                "and has settled by the end of the beat");
+
+            Assert.AreEqual(1.0, CountdownClock.ScaleAt(0.9), 1e-9,
+                "and stays settled for the rest of the second");
+        }
+
+        [Test]
+        public void The_beat_only_ever_shrinks()
+        {
+            double previous = CountdownClock.ScaleAt(0.0);
+            for (double t = 0.0; t <= CountdownClock.BeatSeconds; t += 0.01)
+            {
+                double now = CountdownClock.ScaleAt(t);
+                Assert.LessOrEqual(now, previous + 1e-9, $"the digit grew again at {t:F2}s");
+                Assert.GreaterOrEqual(now, 1.0 - 1e-9, "the digit shrank past its resting size");
+                previous = now;
+            }
+        }
+
+        [Test]
+        public void Every_digit_gets_its_own_beat()
+        {
+            var clock = new CountdownClock();
+
+            for (int digit = 0; digit < CountdownClock.FirstDigit; digit++)
+            {
+                Assert.AreEqual(0.0, clock.DigitAge, 1e-9, $"digit {digit} did not start fresh");
+                Assert.AreEqual(CountdownClock.BeatPeak, clock.BeatScale, 1e-9);
+
+                clock.Advance(CountdownClock.BeatSeconds);
+                Assert.AreEqual(1.0, clock.BeatScale, 1e-9, "the beat outlasted its own length");
+
+                clock.Advance(CountdownClock.DigitSeconds - CountdownClock.BeatSeconds);
+            }
+        }
+
+        [Test]
+        public void Nothing_beats_once_the_digits_are_gone()
+        {
+            var clock = new CountdownClock();
+            clock.Advance(CountdownClock.FirstDigit * CountdownClock.DigitSeconds);
+
+            Assert.AreEqual(CountdownPhase.Dissolving, clock.Phase);
+            Assert.AreEqual(0.0, clock.DigitAge, 1e-9);
+        }
+
+        [Test]
         public void A_run_allows_exactly_one_continue()
         {
             var snapshot = new RunSnapshot(47, GameMode.Hardcore, 5.0, 0.45, 0);

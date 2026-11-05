@@ -37,6 +37,7 @@ namespace HR.App
         public GameManager Game => _game;
         public GameUi Ui => _ui;
         public TunnelController Tunnel => _tunnel;
+        public BallController Ball => _ball;
         public InputController Input => _input;
         public ThemeApplier Themes => _themes;
         public SaveData Settings => _settings;
@@ -277,8 +278,8 @@ namespace HR.App
 
         void ShowWorld(GameState state)
         {
-            bool playing = state == GameState.Playing;
-            if (!playing)
+            bool flying = state == GameState.Playing || state == GameState.Countdown;
+            if (!flying)
             {
                 if (_ball != null) _ball.SetFrozen(true);
             }
@@ -291,7 +292,7 @@ namespace HR.App
 
             if (state == GameState.Paused && _effects != null) _effects.Clear();
 
-            if (!playing) return;
+            if (!flying) return;
             if (_ball != null) _ball.SetFrozen(false);
         }
 
@@ -406,6 +407,9 @@ namespace HR.App
             {
                 _ui.SetCountdown(_countdown.Digit);
             }
+
+            bool effects = _settings == null || !_settings.reduceEffects;
+            _ui.SetCountdownScale(effects ? (float)_countdown.BeatScale : 1f);
 
             if (_countdown.Finished) _game.StartPlaying();
         }

@@ -110,6 +110,51 @@ namespace HR.Tests.PlayMode
         }
 
         [UnityTest]
+        public IEnumerator The_ball_flies_inside_the_solid_ring_while_the_digits_run()
+        {
+            _boot.Game.StartRun(20261027);
+            yield return null;
+
+            Assert.AreEqual(GameState.Countdown, _boot.Game.State);
+            Assert.IsFalse(_boot.Ball.Frozen, "the ball stands still through the whole countdown");
+
+            var ring = _boot.Tunnel.SolidRing;
+            Assert.IsNotNull(ring, "there is no solid ring to be safe inside");
+            Assert.AreEqual(0, ring.GapCount, "the countdown ring must have no way out");
+
+            var start = _boot.Ball.transform.position;
+            float travelled = 0f;
+            for (int frame = 0; frame < 120; frame++)
+            {
+                yield return null;
+                if (_boot.Game.State != GameState.Countdown) break;
+                travelled = Mathf.Max(travelled,
+                    Vector2.Distance(start, _boot.Ball.transform.position));
+            }
+
+            Assert.Greater(travelled, _boot.Ball.Radius,
+                "the ball never moved further than its own radius");
+
+            Assert.LessOrEqual(_boot.Ball.DistanceToCentre,
+                _boot.Tunnel.SolidRingRadius + _boot.Ball.Radius,
+                "the ball got out of a ring that has no gaps");
+        }
+
+        [UnityTest]
+        public IEnumerator The_ball_is_still_once_the_run_is_over()
+        {
+            _boot.Game.StartRun(20261027);
+            _boot.Game.StartPlaying();
+            yield return null;
+            Assert.IsFalse(_boot.Ball.Frozen);
+
+            _boot.Game.States.Fire(GameTrigger.Crushed);
+            yield return null;
+
+            Assert.IsTrue(_boot.Ball.Frozen, "the ball kept flying after the run ended");
+        }
+
+        [UnityTest]
         public IEnumerator Leaving_hardcore_puts_the_chosen_backdrop_back()
         {
             _boot.Themes.Apply(Theme.Ocean);

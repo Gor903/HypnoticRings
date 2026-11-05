@@ -54,6 +54,23 @@ namespace HR.Core
 
         public bool JustCrossedDissolve(double dt) =>
             Phase == CountdownPhase.Dissolving && _elapsed - dt < FirstDigit * DigitSeconds;
+
+        public const double BeatPeak = 1.5;
+
+        public const double BeatSeconds = 0.35;
+
+        public double DigitAge =>
+            Phase == CountdownPhase.Counting ? _elapsed % DigitSeconds : 0.0;
+
+        public double BeatScale => ScaleAt(DigitAge);
+
+        public static double ScaleAt(double digitAge)
+        {
+            if (digitAge <= 0.0) return BeatPeak;
+            if (digitAge >= BeatSeconds) return 1.0;
+
+            return 1.0 + (BeatPeak - 1.0) * Easing.Fade(digitAge / BeatSeconds);
+        }
     }
 
     public readonly struct RunSnapshot
