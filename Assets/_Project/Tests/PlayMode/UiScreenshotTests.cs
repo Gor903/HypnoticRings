@@ -28,6 +28,7 @@ namespace HR.Tests.PlayMode
         static readonly (string Name, GameState State)[] Screens =
         {
             ("menu", GameState.Menu),
+            ("countdown", GameState.Countdown),
             ("hud", GameState.Playing),
             ("pause", GameState.Paused),
             ("gameover", GameState.GameOver),
@@ -202,6 +203,12 @@ namespace HR.Tests.PlayMode
                     _boot.Ui.SetScore(12);
                     _boot.Ui.RefreshHud();
                     if (state == GameState.Paused) _boot.Game.Pause();
+                    break;
+
+                case GameState.Countdown:
+                    _boot.Game.StartRun(20261027);
+                    _boot.Ui.SetCountdown(CountdownClock.FirstDigit);
+                    _boot.Ui.RefreshHud();
                     break;
 
                 case GameState.GameOver:
