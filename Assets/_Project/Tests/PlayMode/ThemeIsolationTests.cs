@@ -122,7 +122,7 @@ namespace HR.Tests.PlayMode
         {
             yield return null;
 
-            _applier.Apply(Theme.Monochrome);
+            _applier.Apply(Theme.MinimalLight);
             Color monochrome = _camera.backgroundColor;
 
             _applier.Apply(Theme.Neon);
@@ -144,7 +144,7 @@ namespace HR.Tests.PlayMode
             int ringsBefore = _tunnel.ActiveRingCount;
             double radiusBefore = _tunnel.Rings[0].Radius;
 
-            _applier.Apply(Theme.Earth);
+            _applier.Apply(Theme.Sumie);
 
             Assert.AreEqual(ringsBefore, _tunnel.ActiveRingCount, "a theme change disturbed the tunnel");
             Assert.AreEqual(radiusBefore, _tunnel.Rings[0].Radius, 1e-9);

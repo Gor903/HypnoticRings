@@ -216,6 +216,72 @@ namespace HR.Tests.PlayMode
         }
 
         [UnityTest]
+        public IEnumerator The_minimal_card_offers_both_halves_and_keeps_its_press()
+        {
+            _boot.Ui.Show(GameState.ThemeSelect);
+            Canvas.ForceUpdateCanvases();
+            yield return null;
+
+            var pickers = _boot.Ui.VariantPickers;
+            Assert.AreEqual(2, pickers.Count, "the Minimal card should offer exactly two halves");
+
+            Button card = null;
+            foreach (var button in _boot.Ui.ScreenFor(GameState.ThemeSelect)
+                         .GetComponentsInChildren<Button>(includeInactive: true))
+                if (button.name == $"Theme{Theme.MinimalLight}") card = button;
+
+            Assert.IsNotNull(card, "the carousel has no Minimal card");
+            Assert.IsNotNull(card.GetComponent<PressFeedback>(),
+                "the Minimal card lost its press feedback");
+
+            foreach (var picker in pickers)
+                Assert.IsNull(picker.GetComponent<Selectable>(),
+                    "a half that is selectable would swallow the card's pointer-down");
+
+            Theme? chosen = null;
+            _boot.Ui.ThemeChosen += theme => chosen = theme;
+
+            pickers[0].OnPointerClick(new PointerEventData(EventSystem.current));
+            Assert.AreEqual(Theme.MinimalLight, chosen, "the left half chose the wrong variant");
+
+            pickers[1].OnPointerClick(new PointerEventData(EventSystem.current));
+            Assert.AreEqual(Theme.MinimalDark, chosen, "the right half chose the wrong variant");
+        }
+
+        [UnityTest]
+        public IEnumerator The_minimal_card_names_the_variant_the_player_picked()
+        {
+            _boot.Settings.Theme = Theme.MinimalDark;
+            _boot.Ui.Show(GameState.ThemeSelect);
+            Canvas.ForceUpdateCanvases();
+            yield return null;
+
+            var caption = Caption();
+            Assert.AreEqual(Strings.Get("theme.dark"), caption.text);
+
+            _boot.Settings.Theme = Theme.MinimalLight;
+            _boot.Ui.Show(GameState.ThemeSelect);
+            Canvas.ForceUpdateCanvases();
+            yield return null;
+
+            Assert.AreEqual(Strings.Get("theme.light"), Caption().text);
+
+            Text Caption()
+            {
+                foreach (var button in _boot.Ui.ScreenFor(GameState.ThemeSelect)
+                             .GetComponentsInChildren<Button>(includeInactive: true))
+                {
+                    if (button.name != $"Theme{Theme.MinimalLight}") continue;
+
+                    foreach (var text in button.GetComponentsInChildren<Text>(includeInactive: true))
+                        if (text.name == "Lock") return text;
+                }
+
+                return null;
+            }
+        }
+
+        [UnityTest]
         public IEnumerator The_pause_button_is_never_painted_its_own_glyphs_colour()
         {
             _boot.Ui.Show(GameState.Playing);

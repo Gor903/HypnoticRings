@@ -246,7 +246,7 @@ namespace HR.Tests.PlayMode
             var report = new StringBuilder("[HR] canvas rebuild, microseconds per full rebuild\n");
             report.AppendLine("  theme        screen        graphics   with chrome   without   chrome costs");
 
-            foreach (var theme in new[] { Theme.Monochrome, Theme.Neon })
+            foreach (var theme in new[] { Theme.MinimalLight, Theme.Neon })
             {
                 _boot.ChooseTheme(theme);
                 yield return null;

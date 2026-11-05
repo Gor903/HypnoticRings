@@ -422,22 +422,34 @@ namespace HR.Tests.EditMode
         public void Three_themes_are_free_so_three_can_always_be_switched()
         {
             var s = new ScoreKeeper();
-            Assert.IsTrue(s.IsUnlocked(Theme.Monochrome));
-            Assert.IsTrue(s.IsUnlocked(Theme.Midnight));
+            Assert.IsTrue(s.IsUnlocked(Theme.MinimalLight));
+            Assert.IsTrue(s.IsUnlocked(Theme.MinimalDark));
             Assert.IsTrue(s.IsUnlocked(Theme.Neon));
-            Assert.IsFalse(s.IsUnlocked(Theme.Pastel));
-            Assert.IsFalse(s.IsUnlocked(Theme.Earth));
+            Assert.IsFalse(s.IsUnlocked(Theme.Deco));
+            Assert.IsFalse(s.IsUnlocked(Theme.Sumie));
         }
 
         [Test]
         public void Themes_unlock_at_the_scores_the_contract_names()
         {
             var s = new ScoreKeeper(best: 25);
-            Assert.IsTrue(s.IsUnlocked(Theme.Pastel));
-            Assert.IsFalse(s.IsUnlocked(Theme.Earth));
+            Assert.IsTrue(s.IsUnlocked(Theme.Deco));
+            Assert.IsFalse(s.IsUnlocked(Theme.Sumie));
 
             s.RestoreBest(50);
-            Assert.IsTrue(s.IsUnlocked(Theme.Earth));
+            Assert.IsTrue(s.IsUnlocked(Theme.Sumie));
+            Assert.IsFalse(s.IsUnlocked(Theme.Ocean));
+
+            s.RestoreBest(75);
+            Assert.IsTrue(s.IsUnlocked(Theme.Ocean));
+            Assert.IsFalse(s.IsUnlocked(Theme.Bauhaus));
+
+            s.RestoreBest(100);
+            Assert.IsTrue(s.IsUnlocked(Theme.Bauhaus));
+            Assert.IsFalse(s.IsUnlocked(Theme.Crt));
+
+            s.RestoreBest(150);
+            Assert.IsTrue(s.IsUnlocked(Theme.Crt));
         }
 
         [Test]
@@ -447,11 +459,11 @@ namespace HR.Tests.EditMode
             s.BeginRun();
             for (int i = 0; i < 25; i++) s.AddRing();
 
-            Assert.IsTrue(s.UnlockedThisRun(Theme.Pastel));
-            Assert.IsFalse(s.UnlockedThisRun(Theme.Earth));
+            Assert.IsTrue(s.UnlockedThisRun(Theme.Deco));
+            Assert.IsFalse(s.UnlockedThisRun(Theme.Sumie));
 
             s.BeginRun();
-            Assert.IsFalse(s.UnlockedThisRun(Theme.Pastel), "the unlock was announced a second time");
+            Assert.IsFalse(s.UnlockedThisRun(Theme.Deco), "the unlock was announced a second time");
         }
 
         [Test]
@@ -468,11 +480,11 @@ namespace HR.Tests.EditMode
         public void Resetting_progress_relocks_what_it_should()
         {
             var s = new ScoreKeeper(best: 60);
-            Assert.IsTrue(s.IsUnlocked(Theme.Earth));
+            Assert.IsTrue(s.IsUnlocked(Theme.Sumie));
 
             s.ResetProgress();
             Assert.AreEqual(0, s.Best);
-            Assert.IsFalse(s.IsUnlocked(Theme.Earth));
+            Assert.IsFalse(s.IsUnlocked(Theme.Sumie));
             Assert.IsTrue(s.IsUnlocked(Theme.Neon), "the free themes must stay free");
         }
     }
