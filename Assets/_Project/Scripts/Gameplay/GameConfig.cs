@@ -63,6 +63,9 @@ namespace HR.Gameplay
         [Tooltip("Seconds a ring takes to dissolve once the ball has left it.")]
         public float dissolveSeconds = 0.25f;
 
+        [Tooltip("Radius of the countdown's solid ring, as a share of the first real ring.")]
+        [Range(0.4f, 0.9f)] public float countdownRingRatio = 0.666f;
+
         [Header("Balance table")]
         [Tooltip("The difficulty rows. Without one the curve falls back to its built-in defaults.")]
         public DifficultyTable difficulty;

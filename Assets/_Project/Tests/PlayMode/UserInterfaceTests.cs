@@ -57,6 +57,20 @@ namespace HR.Tests.PlayMode
             Assert.Fail($"no button named '{name}' on {screen.name}");
         }
 
+        IEnumerator WaitOutCountdown()
+        {
+            double waited = 0.0;
+            while (_boot.Game.State == GameState.Countdown
+                   && waited < CountdownClock.Total * 2.0)
+            {
+                waited += Time.deltaTime;
+                yield return null;
+            }
+
+            Assert.AreNotEqual(GameState.Countdown, _boot.Game.State,
+                "the countdown never ended on its own");
+        }
+
         [UnityTest]
         public IEnumerator The_whole_journey_works_end_to_end()
         {
@@ -64,13 +78,18 @@ namespace HR.Tests.PlayMode
             Assert.AreEqual(GameState.Menu, _boot.Game.State);
 
             Press(ui.ScreenFor(GameState.Menu).gameObject, "menu.play");
+            Assert.AreEqual(GameState.Countdown, _boot.Game.State,
+                "every run opens with the countdown");
+            yield return WaitOutCountdown();
             Assert.AreEqual(GameState.Playing, _boot.Game.State);
-            yield return null;
 
             _boot.Game.States.Fire(GameTrigger.Crushed);
             Assert.AreEqual(GameState.GameOver, _boot.Game.State);
 
             Press(ui.ScreenFor(GameState.GameOver).gameObject, "over.retry");
+            Assert.AreEqual(GameState.Countdown, _boot.Game.State,
+                "a retry opens with the countdown too");
+            yield return WaitOutCountdown();
             Assert.AreEqual(GameState.Playing, _boot.Game.State);
             Assert.AreEqual(0, _boot.Game.Score, "retry should start from nothing");
 
@@ -85,6 +104,7 @@ namespace HR.Tests.PlayMode
         {
             var ui = _boot.Ui;
             Press(ui.ScreenFor(GameState.Menu).gameObject, "menu.play");
+            _boot.Game.StartPlaying();
 
             Press(ui.ScreenFor(GameState.Playing).gameObject, "Pause");
             Assert.AreEqual(GameState.Paused, _boot.Game.State);

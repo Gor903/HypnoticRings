@@ -16,6 +16,7 @@ namespace HR.UI
 
         public const int TitleSize = 86;
         public const int ScoreSize = 160;
+        public const int CountdownSize = 240;
         public const int BodySize = 44;
         public const int ButtonSize = 52;
 

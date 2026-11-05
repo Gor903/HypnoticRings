@@ -171,6 +171,50 @@ namespace HR.Gameplay
             ApplyShading(InnermostOccupiedRing());
         }
 
+        RingController _solidRing;
+
+        public RingController SolidRing => _solidRing;
+
+        public double SolidRingRadius { get; private set; }
+
+        public void BeginCountdown(double ratio, int seed)
+        {
+            if (_pool == null)
+                throw new InvalidOperationException("BeginCountdown needs a pool");
+
+            EndCountdown(dissolve: false);
+
+            double radius = _settings.TargetRadius * ratio;
+            SolidRingRadius = radius;
+
+            _solidRing = _pool.Rent();
+            _solidRing.SpawnIndex = -1;
+            _solidRing.ConfigureSolid(radius, 0.0);
+            ApplyHaloTo(_solidRing);
+            _rings.Add(_solidRing);
+
+            double outer = radius - _settings.Thickness * 0.5 - _settings.BallRadius;
+            double inner = outer - _settings.BallRadius * 0.5;
+            _ball.Launch(BallLaunch.For(seed, inner, outer, _config.cruiseSpeed));
+
+            for (int i = 0; i < _ballCount; i++) _ballRings[i] = ResolveRingFor(_balls[i]);
+            ApplyShading(InnermostOccupiedRing());
+        }
+
+        public void EndCountdown(bool dissolve)
+        {
+            if (_solidRing == null) return;
+
+            if (dissolve) _solidRing.BeginDissolve(_config.dissolveSeconds);
+            else
+            {
+                _rings.Remove(_solidRing);
+                _pool.Return(_solidRing);
+            }
+
+            _solidRing = null;
+        }
+
         public bool AutoStep { get; set; } = true;
 
         void FixedUpdate()

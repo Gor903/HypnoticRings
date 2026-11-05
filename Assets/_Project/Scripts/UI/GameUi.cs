@@ -60,6 +60,7 @@ namespace HR.UI
         Text _overBestLabel;
         Text _overUnlockLabel;
         Text _hintLabel;
+        Text _countdownLabel;
         Button _pauseButton;
         Button _languageChip;
         CarouselSnapping _carousel;
@@ -148,9 +149,11 @@ namespace HR.UI
             foreach (var pair in _screens)
                 pair.Value.gameObject.SetActive(pair.Key == wanted);
 
-            if (state == GameState.Playing || state == GameState.Paused)
+            if (state == GameState.Playing || state == GameState.Paused
+                || state == GameState.Countdown)
                 _screens[GameState.Playing].gameObject.SetActive(true);
             SetHudDetail(state == GameState.Playing);
+            SetCountdown(state == GameState.Countdown ? CountdownClock.FirstDigit : 0);
 
             if (state == GameState.Menu) RefreshMenu();
             if (state == GameState.GameOver) RefreshGameOver();
@@ -162,6 +165,17 @@ namespace HR.UI
         public void SetScore(int score)
         {
             if (_scoreLabel != null) _scoreLabel.text = score.ToString();
+        }
+
+        public Text CountdownLabel => _countdownLabel;
+
+        public void SetCountdown(int digit)
+        {
+            if (_countdownLabel == null) return;
+
+            bool showing = digit > 0;
+            _countdownLabel.gameObject.SetActive(showing);
+            if (showing) _countdownLabel.text = digit.ToString();
         }
 
         public void ApplyTheme(ThemePalette palette)

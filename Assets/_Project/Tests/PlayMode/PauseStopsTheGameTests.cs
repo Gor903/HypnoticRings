@@ -52,6 +52,7 @@ namespace HR.Tests.PlayMode
             {
                 if (button.name != "menu.play") continue;
                 button.onClick.Invoke();
+                _boot.Game.StartPlaying();
                 return;
             }
 

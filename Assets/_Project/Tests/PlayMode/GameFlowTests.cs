@@ -45,6 +45,7 @@ namespace HR.Tests.PlayMode
         {
             Build();
             _game.StartRun(99);
+            _game.StartPlaying();
             for (int i = 0; i < 10; i++) _game.Tick(Dt, 0.0);
 
             _game.Pause();
@@ -74,12 +75,15 @@ namespace HR.Tests.PlayMode
         {
             Build();
             _game.StartRun(1);
+            _game.StartPlaying();
             for (int i = 0; i < 5; i++) _game.Tick(Dt, 0.0);
             _game.Pause();
             _game.Resume();
             Assert.IsTrue(_game.IsWarmingUp);
 
             _game.StartRun(2);
+
+            _game.StartPlaying();
             Assert.IsFalse(_game.IsWarmingUp, "a retry inherited the resume grace");
             yield return null;
         }
@@ -149,6 +153,8 @@ namespace HR.Tests.PlayMode
             Assert.AreEqual(GameState.Menu, _game.State, "Initialise should leave the game at the menu");
 
             _game.StartRun(seed: 1);
+
+            _game.StartPlaying();
             Assert.AreEqual(GameState.Playing, _game.State);
             Assert.AreEqual(0, _game.Score);
             yield return null;
@@ -159,6 +165,7 @@ namespace HR.Tests.PlayMode
         {
             Build();
             _game.StartRun(seed: 2);
+            _game.StartPlaying();
 
             int transitions = 0;
             _game.StateChanged += (_, to) => { if (to == GameState.GameOver) transitions++; };
@@ -175,6 +182,7 @@ namespace HR.Tests.PlayMode
         {
             Build();
             _game.StartRun(seed: 3);
+            _game.StartPlaying();
             StepLosing(Mathf.RoundToInt(40f / Dt));
             Assert.AreEqual(GameState.GameOver, _game.State);
 
@@ -191,6 +199,7 @@ namespace HR.Tests.PlayMode
         {
             Build();
             _game.StartRun(seed: 4);
+            _game.StartPlaying();
             StepLosing(60);
 
             Assert.IsTrue(_game.Pause());
@@ -212,6 +221,7 @@ namespace HR.Tests.PlayMode
         {
             Build();
             _game.StartRun(seed: 5);
+            _game.StartPlaying();
             Seal(_tunnel.ResolveBallRing());
 
             double losingRadius = _settings.CrushRadius;
@@ -238,10 +248,13 @@ namespace HR.Tests.PlayMode
         {
             Build();
             _game.StartRun(seed: 6);
+            _game.StartPlaying();
             StepLosing(Mathf.RoundToInt(40f / Dt));
             Assert.AreEqual(GameState.GameOver, _game.State);
 
             _game.StartRun(seed: 6);
+
+            _game.StartPlaying();
             Assert.AreEqual(GameState.Playing, _game.State);
             Assert.AreEqual(0, _game.Score);
             Assert.AreEqual(_settings.TargetRadius + _settings.Step * _settings.RingsAhead,
@@ -262,9 +275,12 @@ namespace HR.Tests.PlayMode
         {
             Build();
             _game.StartRun(seed: 0);
+            _game.StartPlaying();
             StepLosing(Mathf.RoundToInt(40f / Dt));
 
             _game.StartRun(seed: 1);
+
+            _game.StartPlaying();
             StepLosing(Mathf.RoundToInt(40f / Dt));
 
             int objectsAfterTwo = SceneObjectCount();
@@ -274,6 +290,7 @@ namespace HR.Tests.PlayMode
             for (int run = 2; run < 50; run++)
             {
                 _game.StartRun(seed: run);
+                _game.StartPlaying();
                 Assert.AreEqual(GameState.Playing, _game.State, $"run {run} did not start");
                 Assert.AreEqual(0, _game.Score, $"run {run} started with a score");
                 StepLosing(Mathf.RoundToInt(40f / Dt));
@@ -308,10 +325,13 @@ namespace HR.Tests.PlayMode
             Assert.AreEqual(5, _game.Best);
 
             _game.StartRun(seed: 7);
+
+            _game.StartPlaying();
             Assert.AreEqual(5, _game.DisplayedBest, "the run should show the best it started with");
 
             StepLosing(Mathf.RoundToInt(40f / Dt));
             _game.StartRun(seed: 8);
+            _game.StartPlaying();
             Assert.AreEqual(Math.Max(5, 0), _game.DisplayedBest);
             Assert.AreEqual(0, _game.Score);
             yield return null;

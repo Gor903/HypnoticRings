@@ -13,6 +13,7 @@ namespace HR.Core
     {
         Boot,
         Menu,
+        Countdown,
         Playing,
         Paused,
         GameOver,
@@ -24,6 +25,7 @@ namespace HR.Core
     {
         Loaded,
         Play,
+        Started,
         Pause,
         Resume,
         Home,
@@ -47,7 +49,8 @@ namespace HR.Core
         public bool TunnelRuns => State == GameState.Playing;
 
         public static bool IsInRun(GameState state) =>
-            state == GameState.Playing || state == GameState.Paused || state == GameState.GameOver;
+            state == GameState.Countdown || state == GameState.Playing
+            || state == GameState.Paused || state == GameState.GameOver;
 
         public bool Fire(GameTrigger trigger)
         {
@@ -63,11 +66,16 @@ namespace HR.Core
                 case GameState.Menu:
                     switch (trigger)
                     {
-                        case GameTrigger.Play: next = GameState.Playing; break;
+                        case GameTrigger.Play: next = GameState.Countdown; break;
                         case GameTrigger.OpenSettings: next = GameState.Settings; break;
                         case GameTrigger.OpenThemes: _themeReturn = GameState.Menu; next = GameState.ThemeSelect; break;
                         default: return false;
                     }
+                    break;
+
+                case GameState.Countdown:
+                    if (trigger != GameTrigger.Started) return false;
+                    next = GameState.Playing;
                     break;
 
                 case GameState.Playing:
@@ -93,7 +101,7 @@ namespace HR.Core
                 case GameState.GameOver:
                     switch (trigger)
                     {
-                        case GameTrigger.Retry: next = GameState.Playing; break;
+                        case GameTrigger.Retry: next = GameState.Countdown; break;
                         case GameTrigger.Home:
                         case GameTrigger.Back: next = GameState.Menu; break;
                         case GameTrigger.OpenThemes: _themeReturn = GameState.GameOver; next = GameState.ThemeSelect; break;

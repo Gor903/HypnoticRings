@@ -82,7 +82,24 @@ namespace HR.UI
             hintRect.offsetMax = new Vector2(0f, 260f);
             _stringRefreshers.Add(() => _hintLabel.text = Strings.Get(_hintKey));
             Track(_hintLabel);
+
+            _countdownLabel = UiBuilder.CreateLabel("Countdown", screen, string.Empty,
+                                                    UiBuilder.CountdownSize, role: FontRole.Display);
+            var digitRect = (RectTransform)_countdownLabel.transform;
+            digitRect.anchorMin = new Vector2(0.5f, 1f);
+            digitRect.anchorMax = new Vector2(0.5f, 1f);
+            digitRect.pivot = new Vector2(0.5f, 0.5f);
+            digitRect.sizeDelta = new Vector2(UiBuilder.ReferenceWidth, CountdownBand);
+            digitRect.anchoredPosition = new Vector2(0f, -TunnelCentreY);
+            Track(_countdownLabel);
+            Outline(_countdownLabel, 6f);
+            _countdownLabel.gameObject.SetActive(false);
         }
+
+        public const float TunnelCentreY = 538f;
+
+        public static readonly float CountdownBand =
+            Mathf.Ceil(UiBuilder.CountdownSize * 1.45f);
 
         void BuildPause(Transform parent)
         {

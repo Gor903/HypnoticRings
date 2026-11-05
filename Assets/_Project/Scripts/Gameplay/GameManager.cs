@@ -77,6 +77,10 @@ namespace HR.Gameplay
             else if (_states.State == GameState.Menu) _states.Fire(GameTrigger.Play);
         }
 
+        public int Seed => _seed;
+
+        public bool StartPlaying() => _states.Fire(GameTrigger.Started);
+
         public const double ResumeGraceSeconds = 0.3;
 
         double _grace;

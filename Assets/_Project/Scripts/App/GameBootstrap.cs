@@ -250,11 +250,15 @@ namespace HR.App
                     _haptics.Pass();
             };
 
-            _game.StateChanged += (_, to) =>
+            _game.StateChanged += (from, to) =>
             {
                 ApplyModeLook(to);
                 _ui.Show(to);
                 ShowWorld(to);
+
+                if (to == GameState.Countdown) BeginCountdown();
+                if (from == GameState.Countdown) _tunnel.EndCountdown(dissolve: false);
+
                 if (to == GameState.Paused) _audio.ResetStreak();
                 if (to == GameState.GameOver)
                 {
@@ -267,7 +271,7 @@ namespace HR.App
                     Persist();
                 }
 
-                if (to == GameState.Playing || to == GameState.Menu) _juice.Fade(toClear: true);
+                if (to == GameState.Countdown || to == GameState.Menu) _juice.Fade(toClear: true);
             };
         }
 
@@ -279,7 +283,8 @@ namespace HR.App
                 if (_ball != null) _ball.SetFrozen(true);
             }
 
-            bool inPlay = state == GameState.Playing || state == GameState.GameOver;
+            bool inPlay = state == GameState.Playing || state == GameState.GameOver
+                          || state == GameState.Countdown;
             if (_ball != null) _ball.gameObject.SetActive(inPlay);
             if (_centre != null) _centre.gameObject.SetActive(inPlay);
             if (_tunnel != null) _tunnel.gameObject.SetActive(state != GameState.Paused);
@@ -376,9 +381,44 @@ namespace HR.App
 
         const float MenuSpinDegPerSecond = 6f;
 
+        readonly CountdownClock _countdown = new CountdownClock();
+
+        public CountdownClock Countdown => _countdown;
+
+        void BeginCountdown()
+        {
+            _countdown.Restart();
+            _tunnel.BeginCountdown(config.countdownRingRatio, _game.Seed);
+            _ui.SetCountdown(CountdownClock.FirstDigit);
+        }
+
+        void TickCountdown(float dt)
+        {
+            double before = _countdown.Elapsed;
+            _countdown.Advance(dt);
+
+            if (_countdown.JustCrossedDissolve(_countdown.Elapsed - before))
+            {
+                _tunnel.EndCountdown(dissolve: true);
+                _ui.SetCountdown(0);
+            }
+            else if (_countdown.Phase == CountdownPhase.Counting)
+            {
+                _ui.SetCountdown(_countdown.Digit);
+            }
+
+            if (_countdown.Finished) _game.StartPlaying();
+        }
+
         void Update()
         {
             if (_game == null) return;
+
+            if (_game.State == GameState.Countdown)
+            {
+                TickCountdown(Time.deltaTime);
+                return;
+            }
 
             if (_game.State == GameState.Playing)
             {

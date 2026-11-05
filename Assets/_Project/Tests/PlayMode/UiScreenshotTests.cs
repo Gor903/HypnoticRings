@@ -198,6 +198,7 @@ namespace HR.Tests.PlayMode
                 case GameState.Playing:
                 case GameState.Paused:
                     _boot.Game.StartRun(20261027);
+                    _boot.Game.StartPlaying();
                     _boot.Ui.SetScore(12);
                     _boot.Ui.RefreshHud();
                     if (state == GameState.Paused) _boot.Game.Pause();
@@ -205,6 +206,7 @@ namespace HR.Tests.PlayMode
 
                 case GameState.GameOver:
                     _boot.Game.StartRun(20261027);
+                    _boot.Game.StartPlaying();
                     _boot.Game.States.Fire(GameTrigger.Crushed);
                     break;
 

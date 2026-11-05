@@ -148,6 +148,8 @@ namespace HR.Tests.PlayMode
             yield return null;
 
             _boot.Game.StartRun(7);
+
+            _boot.Game.StartPlaying();
             Assert.AreEqual(GameState.Playing, _boot.Game.State, "the run did not start");
 
             _boot.Back.Raise();
