@@ -229,9 +229,18 @@ namespace HR.UI
             return rect;
         }
 
+        public static void Resize(Text label, int size)
+        {
+            if (label == null) return;
+
+            label.fontSize = size;
+            label.resizeTextMaxSize = size;
+            label.resizeTextMinSize = UiFonts.MinSizeFor(size);
+        }
+
         public static Text CreateLabel(string name, Transform parent, string text, int size,
                                        TextAnchor anchor = TextAnchor.MiddleCenter,
-                                       FontRole role = FontRole.Text)
+                                       FontRole role = FontRole.Text, bool wrap = false)
         {
             var go = new GameObject(name, typeof(RectTransform), typeof(Text));
             go.transform.SetParent(parent, false);
@@ -242,7 +251,7 @@ namespace HR.UI
             label.text = text;
             label.alignment = anchor;
             label.color = Color.white;
-            label.horizontalOverflow = HorizontalWrapMode.Wrap;
+            label.horizontalOverflow = wrap ? HorizontalWrapMode.Wrap : HorizontalWrapMode.Overflow;
             label.verticalOverflow = VerticalWrapMode.Truncate;
             label.raycastTarget = false;
             label.resizeTextForBestFit = true;

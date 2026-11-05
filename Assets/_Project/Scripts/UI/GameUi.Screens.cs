@@ -336,7 +336,7 @@ namespace HR.UI
             Track(version);
             _stringRefreshers.Add(() => version.text = Application.version);
 
-            var body = Label(column.transform, "about.body", UiBuilder.BodySize);
+            var body = Label(column.transform, "about.body", UiBuilder.BodySize, wrap: true);
             ((RectTransform)body.transform).sizeDelta = new Vector2(0f, 340f);
             Track(body);
             Track(Label(column.transform, "about.privacy", UiBuilder.BodySize));

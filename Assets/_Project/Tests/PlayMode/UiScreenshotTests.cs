@@ -154,7 +154,7 @@ namespace HR.Tests.PlayMode
             _boot.Juice.Clear();
 
             int written = 0;
-            foreach (var theme in ThemePalette.All)
+            foreach (var theme in Choosable)
             {
                 _boot.ChooseTheme(theme);
                 yield return null;
@@ -173,9 +173,12 @@ namespace HR.Tests.PlayMode
                 }
             }
 
-            Assert.AreEqual(ThemePalette.All.Length * SkinScreens.Length, written);
+            Assert.AreEqual(Choosable.Length * SkinScreens.Length, written);
             Debug.Log($"[HR] skin screenshots: {written} frames in {SkinDir}");
         }
+
+        static Theme[] Choosable =>
+            System.Array.FindAll(ThemePalette.Every, theme => theme != Theme.Ember);
 
         static string SkinDir => ArtifactPaths.Ensure("screenshots", "skins");
 

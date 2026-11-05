@@ -492,9 +492,11 @@ namespace HR.UI
             }
         }
 
-        Text Label(Transform parent, string key, int size, FontRole role = FontRole.Text)
+        Text Label(Transform parent, string key, int size, FontRole role = FontRole.Text,
+                   bool wrap = false)
         {
-            var label = UiBuilder.CreateLabel(key, parent, Strings.Get(key), size, role: role);
+            var label = UiBuilder.CreateLabel(key, parent, Strings.Get(key), size, role: role,
+                                              wrap: wrap);
             _stringRefreshers.Add(() => label.text = Strings.Get(key));
             return label;
         }
@@ -588,7 +590,7 @@ namespace HR.UI
             if (button.targetGraphic is Image fill) fill.color = new Color(1f, 1f, 1f, 0f);
 
             var label = button.GetComponentInChildren<Text>();
-            label.fontSize = UiBuilder.BodySize;
+            UiBuilder.Resize(label, UiBuilder.BodySize);
             _stringRefreshers.Add(() => label.text = Strings.Get(key));
             Track(label);
             _presses.Add(Press(button));
