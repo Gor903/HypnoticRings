@@ -1,4 +1,5 @@
 using System;
+using HR.Core;
 using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.InputSystem.UI;
@@ -109,6 +110,48 @@ namespace HR.UI
 
         public const float RoundedBorder = 64f;
 
+        static Sprite _chamfer;
+
+        public static Sprite Chamfer
+        {
+            get
+            {
+                if (_chamfer != null) return _chamfer;
+
+                const int size = 128;
+                const float cut = size * 0.5f;
+                var texture = new Texture2D(size, size, TextureFormat.RGBA32, false)
+                {
+                    name = "HR.Chamfer",
+                    filterMode = FilterMode.Bilinear,
+                    wrapMode = TextureWrapMode.Clamp,
+                };
+
+                var pixels = new Color32[size * size];
+                for (int y = 0; y < size; y++)
+                for (int x = 0; x < size; x++)
+                {
+                    float px = x + 0.5f;
+                    float py = y + 0.5f;
+                    float dx = Mathf.Min(px, size - px);
+                    float dy = Mathf.Min(py, size - py);
+                    float edge = dx + dy - cut;
+                    byte alpha = (byte)(Mathf.Clamp01(edge + 0.5f) * 255f);
+                    pixels[y * size + x] = new Color32(255, 255, 255, alpha);
+                }
+
+                texture.SetPixels32(pixels);
+                texture.Apply();
+
+                _chamfer = Sprite.Create(texture, new Rect(0, 0, size, size),
+                                         new Vector2(0.5f, 0.5f), pixelsPerUnit: 100f, extrude: 0,
+                                         meshType: SpriteMeshType.FullRect,
+                                         border: new Vector4(cut, cut, cut, cut));
+                _chamfer.name = "HR.Chamfer";
+                return _chamfer;
+            }
+        }
+
         public static Font Font
         {
             get
@@ -187,20 +230,24 @@ namespace HR.UI
         }
 
         public static Text CreateLabel(string name, Transform parent, string text, int size,
-                                       TextAnchor anchor = TextAnchor.MiddleCenter)
+                                       TextAnchor anchor = TextAnchor.MiddleCenter,
+                                       FontRole role = FontRole.Text)
         {
             var go = new GameObject(name, typeof(RectTransform), typeof(Text));
             go.transform.SetParent(parent, false);
 
             var label = go.GetComponent<Text>();
-            label.font = Font;
+            label.font = UiFonts.For(role);
             label.fontSize = size;
             label.text = text;
             label.alignment = anchor;
             label.color = Color.white;
             label.horizontalOverflow = HorizontalWrapMode.Wrap;
-            label.verticalOverflow = VerticalWrapMode.Overflow;
+            label.verticalOverflow = VerticalWrapMode.Truncate;
             label.raycastTarget = false;
+            label.resizeTextForBestFit = true;
+            label.resizeTextMaxSize = size;
+            label.resizeTextMinSize = UiFonts.MinSizeFor(size);
 
             ((RectTransform)go.transform).sizeDelta = new Vector2(0f, Mathf.Ceil(size * 1.45f));
 
@@ -219,7 +266,8 @@ namespace HR.UI
             var image = go.GetComponent<Image>();
             image.color = Color.white;
 
-            var label = CreateLabel("Label", go.transform, text, ButtonSize);
+            var label = CreateLabel("Label", go.transform, text, ButtonSize,
+                                    role: FontRole.Display);
             Stretch((RectTransform)label.transform);
 
             var button = go.GetComponent<Button>();
@@ -536,6 +584,36 @@ namespace HR.UI
             ballImage.raycastTarget = false;
 
             return rect;
+        }
+
+        public static RectTransform CreateSplitRingPreview(string name, Transform parent, float size,
+                                                           Color leftBackground, Color[] leftRings,
+                                                           Color leftBall, Color rightBackground,
+                                                           Color[] rightRings, Color rightBall)
+        {
+            var go = new GameObject(name, typeof(RectTransform));
+            go.transform.SetParent(parent, false);
+            var rect = (RectTransform)go.transform;
+            rect.sizeDelta = new Vector2(size, size);
+
+            Half("Light", -1f, leftBackground, leftRings, leftBall);
+            Half("Dark", 1f, rightBackground, rightRings, rightBall);
+
+            return rect;
+
+            void Half(string side, float direction, Color background, Color[] rings, Color ball)
+            {
+                var maskGo = new GameObject(side, typeof(RectTransform), typeof(RectMask2D));
+                maskGo.transform.SetParent(go.transform, false);
+
+                var maskRect = (RectTransform)maskGo.transform;
+                maskRect.sizeDelta = new Vector2(size * 0.5f, size);
+                maskRect.anchoredPosition = new Vector2(direction * size * 0.25f, 0f);
+
+                var preview = CreateRingPreview("Preview", maskGo.transform, size,
+                                                background, rings, ball);
+                preview.anchoredPosition = new Vector2(-direction * size * 0.25f, 0f);
+            }
         }
 
         public static void Stretch(RectTransform rect)

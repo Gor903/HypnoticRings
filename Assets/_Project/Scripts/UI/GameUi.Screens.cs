@@ -16,7 +16,7 @@ namespace HR.UI
 
             var column = UiBuilder.CreateColumn("Column", screen);
 
-            var title = Label(column.transform, "app.title", UiBuilder.TitleSize);
+            var title = Label(column.transform, "app.title", UiBuilder.TitleSize, FontRole.Display);
             _menuBestLabel = UiBuilder.CreateLabel("Best", column.transform, string.Empty, UiBuilder.BodySize);
             Track(_menuBestLabel);
 
@@ -41,7 +41,8 @@ namespace HR.UI
             var screen = UiBuilder.CreatePanel("Hud", parent);
             _screens[GameState.Playing] = screen;
 
-            _scoreLabel = UiBuilder.CreateLabel("Score", screen, "0", UiBuilder.ScoreSize);
+            _scoreLabel = UiBuilder.CreateLabel("Score", screen, "0", UiBuilder.ScoreSize,
+                                                role: FontRole.Display);
             UiBuilder.PinTop((RectTransform)_scoreLabel.transform, 220f, 40f);
             Track(_scoreLabel);
 
@@ -89,7 +90,7 @@ namespace HR.UI
             _screens[GameState.Paused] = screen;
 
             var card = Card("Card", screen, anchorY: 0f, inset: CardInset);
-            Track(Label(card.transform, "pause.title", UiBuilder.TitleSize));
+            Track(Label(card.transform, "pause.title", UiBuilder.TitleSize, FontRole.Display));
             Button(card.transform, "pause.home", () => HomePressed?.Invoke());
             Button(card.transform, "pause.resume", () => ResumePressed?.Invoke(),
                    UiBuilder.TouchTarget * 1.4f, primary: true);
@@ -102,7 +103,8 @@ namespace HR.UI
 
             var card = Card("Card", screen, anchorY: 0f, inset: CardInset);
 
-            _overScoreLabel = UiBuilder.CreateLabel("Score", card.transform, "0", UiBuilder.ScoreSize);
+            _overScoreLabel = UiBuilder.CreateLabel("Score", card.transform, "0", UiBuilder.ScoreSize,
+                                                    role: FontRole.Display);
             _overBestLabel = UiBuilder.CreateLabel("Best", card.transform, string.Empty, UiBuilder.BodySize);
             _overUnlockLabel = UiBuilder.CreateLabel("Unlocked", card.transform, string.Empty, UiBuilder.BodySize);
             Track(_overScoreLabel); Track(_overBestLabel); Track(_overUnlockLabel);
@@ -134,7 +136,7 @@ namespace HR.UI
 
             var column = UiBuilder.CreateColumn("Column", screen, 24f);
 
-            var title = Label(column.transform, "themes.title", UiBuilder.TitleSize);
+            var title = Label(column.transform, "themes.title", UiBuilder.TitleSize, FontRole.Display);
             ((RectTransform)title.transform).sizeDelta = new Vector2(0f, 130f);
             Track(title);
 
@@ -154,16 +156,21 @@ namespace HR.UI
                 var cardRect = (RectTransform)card.transform;
                 cardRect.sizeDelta = new Vector2(CardWidth, CardHeight);
 
-                TrackShape(card.targetGraphic as Image, CardCornerHeight);
+                TrackShadow(card.targetGraphic as Image, CardCornerHeight);
                 _presses.Add(Press(card));
 
                 var palette = ThemePalette.For(theme);
-                var rings = new Color[palette.RingColours.Length];
-                for (int i = 0; i < rings.Length; i++)
-                    rings[i] = ThemeApplier.ToColor(palette.RingColours[i]);
+                var rings = RingColoursOf(palette);
 
-                var preview = UiBuilder.CreateRingPreview("Preview", card.transform, PreviewSize,
-                    ThemeApplier.ToColor(palette.Background), rings, ThemeApplier.ToColor(palette.Ball));
+                bool split = theme == Theme.MinimalLight;
+                var preview = split
+                    ? SplitPreview(card.transform, palette, rings)
+                    : UiBuilder.CreateRingPreview("Preview", card.transform, PreviewSize,
+                        ThemeApplier.ToColor(palette.Background), rings,
+                        ThemeApplier.ToColor(palette.Ball));
+
+                if (split) BuildVariantHalves(card);
+
                 preview.anchorMin = new Vector2(0.5f, 1f);
                 preview.anchorMax = new Vector2(0.5f, 1f);
                 preview.pivot = new Vector2(0.5f, 1f);
@@ -198,6 +205,57 @@ namespace HR.UI
             RefreshThemes();
         }
 
+        static Color[] RingColoursOf(ThemePalette palette)
+        {
+            var rings = new Color[palette.RingColours.Length];
+            for (int i = 0; i < rings.Length; i++)
+                rings[i] = ThemeApplier.ToColor(palette.RingColours[i]);
+
+            return rings;
+        }
+
+        static RectTransform SplitPreview(Transform parent, ThemePalette light, Color[] lightRings)
+        {
+            var dark = ThemePalette.For(Theme.MinimalDark);
+
+            return UiBuilder.CreateSplitRingPreview("Preview", parent, PreviewSize,
+                ThemeApplier.ToColor(light.Background), lightRings,
+                ThemeApplier.ToColor(light.Ball),
+                ThemeApplier.ToColor(dark.Background), RingColoursOf(dark),
+                ThemeApplier.ToColor(dark.Ball));
+        }
+
+        void BuildVariantHalves(Button card)
+        {
+            Half("PickLight", 0f, 0.5f, Theme.MinimalLight);
+            Half("PickDark", 0.5f, 1f, Theme.MinimalDark);
+
+            void Half(string name, float from, float to, Theme variant)
+            {
+                var go = new GameObject(name, typeof(RectTransform), typeof(Image),
+                                        typeof(VariantPicker));
+                go.transform.SetParent(card.transform, false);
+
+                var rect = (RectTransform)go.transform;
+                rect.anchorMin = new Vector2(from, 0f);
+                rect.anchorMax = new Vector2(to, 1f);
+                rect.offsetMin = Vector2.zero;
+                rect.offsetMax = Vector2.zero;
+
+                var image = go.GetComponent<Image>();
+                image.color = new Color(1f, 1f, 1f, 0f);
+
+                var picker = go.GetComponent<VariantPicker>();
+                picker.Picked += () =>
+                {
+                    Clicked?.Invoke();
+                    ThemeChosen?.Invoke(variant);
+                };
+
+                _variantPickers.Add(picker);
+            }
+        }
+
         void BuildSettings(Transform parent)
         {
             var screen = UiBuilder.CreatePanel("Settings", parent, new Color(1f, 1f, 1f, 0.95f));
@@ -206,7 +264,7 @@ namespace HR.UI
 
             var column = UiBuilder.CreateScrollColumn("Column", screen, 16f);
 
-            Track(Label(column.transform, "set.title", UiBuilder.TitleSize));
+            Track(Label(column.transform, "set.title", UiBuilder.TitleSize, FontRole.Display));
 
             Toggle(column.transform, "set.sound", _settings.soundEnabled,
                 v => { _settings.soundEnabled = v; SettingsChanged?.Invoke(); });
@@ -271,7 +329,7 @@ namespace HR.UI
             Scrim(_aboutPanel);
 
             var column = UiBuilder.CreateScrollColumn("Column", _aboutPanel);
-            Track(Label(column.transform, "app.title", UiBuilder.TitleSize));
+            Track(Label(column.transform, "app.title", UiBuilder.TitleSize, FontRole.Display));
 
             var version = UiBuilder.CreateLabel("Version", column.transform,
                 Application.version, UiBuilder.BodySize);
@@ -282,6 +340,7 @@ namespace HR.UI
             ((RectTransform)body.transform).sizeDelta = new Vector2(0f, 340f);
             Track(body);
             Track(Label(column.transform, "about.privacy", UiBuilder.BodySize));
+            Track(Label(column.transform, "about.fonts", UiBuilder.BodySize));
 
             Button(column.transform, "common.back", () => _aboutPanel.gameObject.SetActive(false));
 

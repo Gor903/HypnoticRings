@@ -10,7 +10,8 @@ namespace HR.UI
         {
             if (image == null) return;
 
-            double corner = skin.CornerRadius * heightUnits;
+            bool chamfered = skin.Chamfer > 0.0;
+            double corner = (chamfered ? skin.Chamfer : skin.CornerRadius) * heightUnits;
 
             if (corner < 1.0)
             {
@@ -21,7 +22,7 @@ namespace HR.UI
 
             corner = System.Math.Min(corner, heightUnits * 0.5);
 
-            image.sprite = UiBuilder.Rounded;
+            image.sprite = chamfered ? UiBuilder.Chamfer : UiBuilder.Rounded;
             image.type = Image.Type.Sliced;
             image.pixelsPerUnitMultiplier = (float)(UiBuilder.RoundedBorder / corner);
         }
@@ -41,6 +42,16 @@ namespace HR.UI
         public const float HaloReach = 9f;
 
         public const float HaloAlpha = 0.38f;
+
+        public static void Shadow(Graphic graphic, in UiSkin skin, Color ink)
+        {
+            if (graphic == null) return;
+
+            var chrome = graphic.GetComponent<UiChrome>();
+            if (chrome == null) chrome = graphic.gameObject.AddComponent<UiChrome>();
+
+            chrome.SetShadow(skin.HardShadow, ink);
+        }
 
         public static void ShapeKnob(Image image, in UiSkin skin)
         {

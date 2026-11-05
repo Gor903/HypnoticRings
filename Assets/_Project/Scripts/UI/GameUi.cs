@@ -36,6 +36,12 @@ namespace HR.UI
         readonly List<Image> _scrims = new List<Image>();
 
         readonly List<(Image Image, float Height)> _shaped = new List<(Image, float)>();
+
+        readonly List<Image> _shadowed = new List<Image>();
+
+        readonly List<VariantPicker> _variantPickers = new List<VariantPicker>();
+
+        public IReadOnlyList<VariantPicker> VariantPickers => _variantPickers;
         readonly List<ToggleVisual> _switches = new List<ToggleVisual>();
         readonly List<PressFeedback> _presses = new List<PressFeedback>();
         readonly List<Image> _knobs = new List<Image>();
@@ -200,6 +206,9 @@ namespace HR.UI
                 double glow = effects && _accents.Contains(image) ? palette.Glow : 0.0;
                 UiPainter.Edge(image, skin, edge, glow, halo, effects);
             }
+
+            foreach (var image in _shadowed)
+                UiPainter.Shadow(image, skin, ink);
 
             var trackOff = ThemeApplier.ToColor(palette.TrackOff);
             var trackOn = ThemeApplier.ToColor(palette.TrackOn);
@@ -412,9 +421,13 @@ namespace HR.UI
         {
             if (_carousel == null || _settings == null) return;
 
+            var wanted = _settings.Theme == Theme.MinimalDark
+                ? Theme.MinimalLight
+                : _settings.Theme;
+
             var all = ThemePalette.All;
             for (int i = 0; i < all.Length; i++)
-                if (all[i] == _settings.Theme) { _carousel.Focus(i, immediate: true); return; }
+                if (all[i] == wanted) { _carousel.Focus(i, immediate: true); return; }
         }
 
         void RefreshGameOver()
@@ -452,7 +465,12 @@ namespace HR.UI
                 bool unlocked = _score.IsUnlocked(theme);
                 button.interactable = unlocked;
 
-                bool chosen = _settings != null && _settings.Theme == theme;
+                bool minimal = theme == Theme.MinimalLight;
+                var picked = _settings != null ? _settings.Theme : theme;
+                bool chosen = _settings != null
+                              && (picked == theme
+                                  || (minimal && picked == Theme.MinimalDark));
+
                 if (button.targetGraphic != null)
                     button.targetGraphic.color = chosen ? accent : surface;
 
@@ -463,18 +481,20 @@ namespace HR.UI
                 label.color = colour;
 
                 var padlock = _themeLocks[theme];
-                padlock.text = unlocked
-                    ? string.Empty
-                    : Strings.Format("theme.locked", ScoreKeeper.RequiredBestFor(theme));
+                padlock.text = minimal
+                    ? Strings.Get(Strings.VariantKey(chosen ? picked : Theme.MinimalLight))
+                    : unlocked
+                        ? string.Empty
+                        : Strings.Format("theme.locked", ScoreKeeper.RequiredBestFor(theme));
                 var lockColour = chosen ? accentText : ink;
-                lockColour.a = unlocked ? 0f : 0.7f;
+                lockColour.a = minimal ? 1f : (unlocked ? 0f : 0.7f);
                 padlock.color = lockColour;
             }
         }
 
-        Text Label(Transform parent, string key, int size)
+        Text Label(Transform parent, string key, int size, FontRole role = FontRole.Text)
         {
-            var label = UiBuilder.CreateLabel(key, parent, Strings.Get(key), size);
+            var label = UiBuilder.CreateLabel(key, parent, Strings.Get(key), size, role: role);
             _stringRefreshers.Add(() => label.text = Strings.Get(key));
             return label;
         }
@@ -487,7 +507,7 @@ namespace HR.UI
             var label = button.GetComponentInChildren<Text>();
             _stringRefreshers.Add(() => label.text = Strings.Get(key));
 
-            TrackShape(button.targetGraphic as Image, Mathf.Max(height, UiBuilder.TouchTarget));
+            TrackShadow(button.targetGraphic as Image, Mathf.Max(height, UiBuilder.TouchTarget));
 
             _presses.Add(Press(button));
 
@@ -553,7 +573,7 @@ namespace HR.UI
                 () => { Clicked?.Invoke(); onClick?.Invoke(); });
             PinRight((RectTransform)chip.transform, ChipWidth, UiBuilder.TouchTarget);
 
-            TrackShape(chip.targetGraphic as Image, UiBuilder.TouchTarget);
+            TrackShadow(chip.targetGraphic as Image, UiBuilder.TouchTarget);
             TrackSurface(chip.targetGraphic);
             Track(chip.GetComponentInChildren<Text>());
             _presses.Add(Press(chip));
@@ -620,6 +640,12 @@ namespace HR.UI
         void TrackShape(Image image, float height)
         {
             if (image != null) _shaped.Add((image, height));
+        }
+
+        void TrackShadow(Image image, float height)
+        {
+            TrackShape(image, height);
+            if (image != null) _shadowed.Add(image);
         }
 
         void TrackAccent(Graphic fill, Graphic label)

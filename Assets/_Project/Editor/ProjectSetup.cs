@@ -106,14 +106,29 @@ namespace HR.Editor
             foreach (string directory in Directory.GetDirectories("Assets", "Resources",
                                                                   SearchOption.AllDirectories))
             {
-                var files = Directory.GetFiles(directory, "*", SearchOption.AllDirectories)
-                                     .Where(f => !f.EndsWith(".meta")).ToArray();
-                Expect(files.Length == 0,
-                       $"{directory} holds {files.Length} file(s); everything there ships");
+                foreach (string file in Directory.GetFiles(directory, "*", SearchOption.AllDirectories))
+                {
+                    if (file.EndsWith(".meta")) continue;
+
+                    string relative = file.Substring(directory.Length)
+                                          .TrimStart('/', '\\')
+                                          .Replace('\\', '/');
+
+                    Expect(ShippedFromResources.Contains(relative),
+                           $"{directory} holds {relative}; everything there ships");
+                }
             }
 
             return problems;
         }
+
+        static readonly HashSet<string> ShippedFromResources = new HashSet<string>
+        {
+            "Fonts/Unbounded-Bold.ttf",
+            "Fonts/Manrope-Medium.ttf",
+            "Fonts/OFL-Unbounded.txt",
+            "Fonts/OFL-Manrope.txt",
+        };
 
         [MenuItem("Hypnotic Rings/Setup/Verify project settings")]
         static void VerifyFromMenu()
