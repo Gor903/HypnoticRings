@@ -99,8 +99,10 @@ namespace HR.Tests.PlayMode
             EndTouch(1, point, screen: touchscreen);
             yield return null;
 
-            Assert.AreEqual(GameState.Playing, _boot.Game.State,
+            Assert.AreEqual(GameState.Countdown, _boot.Game.State,
                             "a real tap on Play did not reach the button");
+            Assert.IsTrue(GameStateMachine.IsInRun(_boot.Game.State),
+                          "the countdown is the opening of a run, not a screen beside it");
         }
 
         [UnityTest]

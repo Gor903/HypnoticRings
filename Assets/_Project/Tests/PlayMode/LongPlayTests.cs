@@ -159,8 +159,26 @@ namespace HR.Tests.PlayMode
             Assert.Fail($"the run did not end within {frameCap} frames");
         }
 
+        IEnumerator LeaveCountdown()
+        {
+            double waited = 0.0;
+            int frames = 0;
+
+            while (_boot.Game.State == GameState.Countdown
+                   && waited < CountdownClock.Total * 4.0
+                   && frames++ < 200000)
+            {
+                waited += Time.deltaTime;
+                yield return null;
+            }
+
+            Assert.AreNotEqual(GameState.Countdown, _boot.Game.State,
+                $"the countdown never ended: {waited:F2}s of game time over {frames} frames");
+        }
+
         IEnumerator Run()
         {
+            yield return LeaveCountdown();
             yield return PlayScoring(600);
             yield return DieNow(3000);
             for (int i = 0; i < SettleFrames; i++) yield return null;
@@ -297,6 +315,12 @@ namespace HR.Tests.PlayMode
 
             while (bucket < buckets.Length && guard++ < 200000)
             {
+                if (_boot.Game.State == GameState.Countdown)
+                {
+                    yield return null;
+                    continue;
+                }
+
                 if (_boot.Game.State != GameState.Playing)
                 {
                     Press(GameState.GameOver, "over.retry");
