@@ -28,6 +28,7 @@ namespace HR.Tests.PlayMode
         static readonly (string Name, GameState State)[] Screens =
         {
             ("menu", GameState.Menu),
+            ("countdown", GameState.Countdown),
             ("hud", GameState.Playing),
             ("pause", GameState.Paused),
             ("gameover", GameState.GameOver),
@@ -89,6 +90,7 @@ namespace HR.Tests.PlayMode
 
             _boot.Game.ScoreKeeper.RestoreBest(37);
             _boot.Ui.RefreshStrings();
+            _boot.Juice.Enabled = false;
 
             var palette = ThemePalette.For(_boot.Settings.Theme);
             var expected = new Color(palette.Background.R / 255f, palette.Background.G / 255f,
@@ -154,7 +156,7 @@ namespace HR.Tests.PlayMode
             _boot.Juice.Clear();
 
             int written = 0;
-            foreach (var theme in ThemePalette.All)
+            foreach (var theme in Choosable)
             {
                 _boot.ChooseTheme(theme);
                 yield return null;
@@ -173,9 +175,12 @@ namespace HR.Tests.PlayMode
                 }
             }
 
-            Assert.AreEqual(ThemePalette.All.Length * SkinScreens.Length, written);
+            Assert.AreEqual(Choosable.Length * SkinScreens.Length, written);
             Debug.Log($"[HR] skin screenshots: {written} frames in {SkinDir}");
         }
+
+        static Theme[] Choosable =>
+            System.Array.FindAll(ThemePalette.Every, theme => theme != Theme.Ember);
 
         static string SkinDir => ArtifactPaths.Ensure("screenshots", "skins");
 
@@ -190,27 +195,47 @@ namespace HR.Tests.PlayMode
 
         void PrepareFor(GameState state)
         {
+            _boot.Game.States.Fire(GameTrigger.Home);
+
             switch (state)
             {
                 case GameState.Playing:
                 case GameState.Paused:
                     _boot.Game.StartRun(20261027);
+                    _boot.Game.StartPlaying();
                     _boot.Ui.SetScore(12);
                     _boot.Ui.RefreshHud();
                     if (state == GameState.Paused) _boot.Game.Pause();
                     break;
 
+                case GameState.Countdown:
+                    _boot.Game.StartRun(20261027);
+                    _boot.Ui.SetCountdown(CountdownClock.FirstDigit);
+                    _boot.Ui.RefreshHud();
+                    break;
+
                 case GameState.GameOver:
                     _boot.Game.StartRun(20261027);
+                    _boot.Game.StartPlaying();
                     _boot.Game.States.Fire(GameTrigger.Crushed);
                     break;
 
-                default:
-                    _boot.Ui.Show(state);
+                case GameState.Settings:
+                    _boot.Game.States.Fire(GameTrigger.OpenSettings);
+                    break;
+
+                case GameState.ThemeSelect:
+                    _boot.Game.States.Fire(GameTrigger.OpenThemes);
                     break;
             }
 
-            _boot.Ui.Show(_boot.Game.State == state ? state : state);
+            Assert.AreEqual(state, _boot.Game.State,
+                            $"the capture would show {state} without the game ever reaching it");
+            _boot.Ui.Show(state);
+
+            _boot.Juice.Enabled = false;
+            _boot.Juice.Clear();
+            _boot.Effects.Clear();
         }
 
         const int RenderAttempts = 4;

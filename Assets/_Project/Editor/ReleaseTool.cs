@@ -161,6 +161,10 @@ namespace HR.Editor
                 if (!ReleaseSettings.RequiresInternet && !manifest.Contains("permission.INTERNET"))
                     problems.Add("Custom manifest no longer removes the INTERNET permission.");
 
+                if (!manifest.Contains("permission.AD_ID"))
+                    problems.Add("Custom manifest no longer removes the advertising id; "
+                                 + "it is optional for AdMob and costly in Data safety.");
+
                 if (!manifest.Contains("android.intent.category.LAUNCHER"))
                     problems.Add("Custom manifest declares no LAUNCHER activity; " +
                                  "the app would install with no icon and no way to start.");
@@ -171,6 +175,8 @@ namespace HR.Editor
             }
 
             problems.AddRange(VerifyDevOnlyPackages());
+
+            problems.AddRange(VerifyAdMobAppId());
 
             problems.AddRange(VerifyScenes());
 
@@ -184,6 +190,29 @@ namespace HR.Editor
                              $"expected '{ReleaseSettings.VersionName}'.");
 
             return problems;
+        }
+
+        static IEnumerable<string> VerifyAdMobAppId()
+        {
+            if (!ReleaseSettings.RequiresInternet) yield break;
+
+            const string path = "Assets/GoogleMobileAds/Resources/GoogleMobileAdsSettings.asset";
+            if (!File.Exists(path))
+            {
+                yield return $"Ads are on but {path} is missing; the SDK has no app id to start with.";
+                yield break;
+            }
+
+            string field = null;
+            foreach (string line in File.ReadAllLines(path))
+                if (line.TrimStart().StartsWith("adMobAndroidAppId:"))
+                    field = line.Substring(line.IndexOf(':') + 1).Trim();
+
+            if (string.IsNullOrEmpty(field))
+                yield return "AdMob Android app id is empty; the SDK aborts the app on start "
+                             + "before any of our code runs.";
+            else if (!field.StartsWith("ca-app-pub-") || !field.Contains("~"))
+                yield return $"AdMob Android app id '{field}' is not a 'ca-app-pub-…~…' id.";
         }
 
         static IEnumerable<string> VerifyOrientation()

@@ -96,6 +96,7 @@ namespace HR.Tests.PlayMode
                 Build();
                 _game.Mode = mode;
                 _game.StartRun(12345 + attempt * 877);
+                _game.StartPlaying();
 
                 var ring = SealFirstJudgedRing();
                 if (ring != null) return ring;
@@ -175,6 +176,7 @@ namespace HR.Tests.PlayMode
                 Build();
                 _game.Mode = GameMode.Hardcore;
                 _game.StartRun(seed);
+                _game.StartPlaying();
                 if (SealFirstJudgedRing() == null) { Object.DestroyImmediate(_root); _root = null; yield return null; continue; }
 
                 int contacts = 0;
@@ -210,6 +212,7 @@ namespace HR.Tests.PlayMode
             Build();
             _game.Mode = GameMode.Hardcore;
             _game.StartRun(12345);
+            _game.StartPlaying();
 
             var first = _tunnel.ResolveBallRing();
             Assert.AreEqual(GameManager.FreeRingIndex, first.SpawnIndex,
@@ -261,6 +264,8 @@ namespace HR.Tests.PlayMode
                 };
 
                 _game.StartRun(700 + run * 97);
+
+                _game.StartPlaying();
                 foreach (var r in _tunnel.Rings)
                     for (int i = 0; i < r.ActiveSegmentCount; i++)
                         r.SegmentAt(i).Collider.sharedMaterial = _ringPhysics;
@@ -293,10 +298,12 @@ namespace HR.Tests.PlayMode
 
             _game.Mode = GameMode.Normal;
             _game.StartRun(7);
+            _game.StartPlaying();
             var normal = _game.CurrentDifficulty;
 
             _game.Mode = GameMode.Hardcore;
             _game.StartRun(7);
+            _game.StartPlaying();
             var hardcore = _game.CurrentDifficulty;
 
             Assert.AreEqual(normal.GapArcWidth, hardcore.GapArcWidth, 1e-9, "openings differ by mode");
@@ -324,6 +331,7 @@ namespace HR.Tests.PlayMode
             for (int run = 0; run < 12; run++)
             {
                 _game.StartRun(1000 + run * 37);
+                _game.StartPlaying();
                 runs++;
 
                 for (int i = 0; i < 3000 && _game.State == GameState.Playing; i++)

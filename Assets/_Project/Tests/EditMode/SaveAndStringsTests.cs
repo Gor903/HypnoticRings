@@ -21,7 +21,7 @@ namespace HR.Tests.EditMode
             Assert.IsFalse(d.reduceEffects);
             Assert.AreEqual(LanguageSetting.Auto, d.Language);
             Assert.IsFalse(d.hintSeen);
-            Assert.AreEqual(Theme.Monochrome, d.Theme);
+            Assert.AreEqual(Theme.MinimalLight, d.Theme);
         }
 
         [Test]
@@ -68,7 +68,7 @@ namespace HR.Tests.EditMode
             Assert.AreEqual(1f, bad.soundVolume);
             Assert.AreEqual(1f, bad.musicVolume);
             Assert.AreEqual(1f, bad.sensitivity);
-            Assert.AreEqual(Theme.Monochrome, bad.Theme);
+            Assert.AreEqual(Theme.MinimalLight, bad.Theme);
             Assert.AreEqual(LanguageSetting.Auto, bad.Language);
             Assert.GreaterOrEqual(repairs.Count, 6, "every repair should be reported, not just made");
         }
@@ -77,12 +77,12 @@ namespace HR.Tests.EditMode
         public void A_theme_the_score_has_not_earned_is_given_back()
         {
             var data = SaveData.Defaults();
-            data.Theme = Theme.Earth;
+            data.Theme = Theme.Sumie;
             data.bestScore = 0;
 
             var repairs = data.Normalise();
 
-            Assert.AreEqual(Theme.Monochrome, data.Theme);
+            Assert.AreEqual(Theme.MinimalLight, data.Theme);
             Assert.IsNotEmpty(repairs);
         }
 
@@ -90,11 +90,11 @@ namespace HR.Tests.EditMode
         public void An_earned_theme_is_kept()
         {
             var data = SaveData.Defaults();
-            data.Theme = Theme.Earth;
+            data.Theme = Theme.Sumie;
             data.bestScore = 50;
 
             Assert.IsEmpty(data.Normalise());
-            Assert.AreEqual(Theme.Earth, data.Theme);
+            Assert.AreEqual(Theme.Sumie, data.Theme);
         }
 
         [Test]

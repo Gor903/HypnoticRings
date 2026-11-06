@@ -35,6 +35,8 @@ namespace HR.Core
 
         public Rgb TrackOn => Accent;
 
+        public bool IsDark => Contrast.Luminance(Background) < 0.5;
+
         Rgb MixUntilVisible(double from, double floor)
         {
             const double Ceiling = 0.5;
@@ -79,7 +81,7 @@ namespace HR.Core
             Ui = Rgb.Parse(ui);
             DepthFade = depthFade;
             Glow = glow;
-            TrailHot = trailHot != null ? Rgb.Parse(trailHot) : RingColours[0];
+            TrailHot = trailHot != null ? Rgb.Parse(trailHot) : Ball;
             TrailCool = trailCool != null ? Rgb.Parse(trailCool) : RingColours[0];
         }
 
@@ -118,38 +120,52 @@ namespace HR.Core
         {
             switch (theme)
             {
-                case Theme.Monochrome:
+                case Theme.MinimalLight:
 
-                    return new ThemePalette(theme, "#FAFAFA", new[] { "#111111" }, "#111111",
-                        "#FAFAFA", "#111111", 0.55, 0.0);
+                    return new ThemePalette(theme, "#F7F7F5", new[] { "#141414" }, "#141414",
+                        "#F7F7F5", "#141414", 0.55, 0.0);
 
-                case Theme.Midnight:
-                    return new ThemePalette(theme, "#0B1020", new[] { "#E8ECF4" }, "#FFB703",
-                        "#0B1020", "#E8ECF4", 0.6, 0.15);
+                case Theme.MinimalDark:
+
+                    return new ThemePalette(theme, "#0E0E10", new[] { "#F2F2F0" }, "#F2F2F0",
+                        "#0E0E10", "#F2F2F0", 0.55, 0.0);
 
                 case Theme.Neon:
-                    return new ThemePalette(theme, "#121A33",
-                        new[] { "#2D7FF0", "#FFEC6B", "#2D7FF0", "#8B3FF0" }, "#C77DF2",
-                        "#121A33", "#FFFFFF", 0.5, 0.6,
+                    return new ThemePalette(theme, "#05060F",
+                        new[] { "#19F0FF", "#FF2BD6", "#8B5CFF" }, "#FFFFFF",
+                        "#05060F", "#E8F0FF", 0.50, 0.80,
                         shimmerSeconds: 2.4, shimmerDepth: 0.10);
 
-                case Theme.Pastel:
+                case Theme.Deco:
 
-                    return new ThemePalette(theme, "#FDF6F0",
-                        new[] { "#B97E7E", "#6F91A3", "#76937C", "#9E8B65" }, "#5C5470",
-                        "#FDF6F0", "#5C5470", 0.5, 0.0);
+                    return new ThemePalette(theme, "#0C1412",
+                        new[] { "#D9B25F", "#F0E2B6", "#2E8B72" }, "#FFF6DC",
+                        "#0C1412", "#F0E2B6", 0.55, 0.25);
 
-                case Theme.Earth:
-                    return new ThemePalette(theme, "#EADDC8",
-                        new[] { "#3F5E3A", "#6B4F3A", "#8A7A52" }, "#C2562B",
-                        "#EADDC8", "#3B2F26", 0.5, 0.0);
+                case Theme.Sumie:
 
-                case Theme.Aurora:
+                    return new ThemePalette(theme, "#F1EAD9",
+                        new[] { "#1B1B1B", "#4A4A4A", "#6B6B6B" }, "#D7381F",
+                        "#F1EAD9", "#1B1B1B", 0.50, 0.0);
 
-                    return new ThemePalette(theme, "#06121A",
-                        new[] { "#3FE0A8", "#5BC8F5", "#9B6BF0" }, "#F2F7FF",
-                        "#06121A", "#DFF5EC", 0.55, 0.45,
-                        shimmerSeconds: 3.6, shimmerDepth: 0.14);
+                case Theme.Ocean:
+
+                    return new ThemePalette(theme, "#03161F",
+                        new[] { "#3DE8D0", "#5AB8FF", "#7A7CFF" }, "#FFD6A5",
+                        "#03161F", "#D6F5F2", 0.55, 0.45,
+                        shimmerSeconds: 3.6, shimmerDepth: 0.12);
+
+                case Theme.Bauhaus:
+
+                    return new ThemePalette(theme, "#F2E9DC",
+                        new[] { "#D62828", "#1E40AF", "#111111" }, "#111111",
+                        "#F2E9DC", "#111111", 0.50, 0.0);
+
+                case Theme.Crt:
+
+                    return new ThemePalette(theme, "#020A04",
+                        new[] { "#4DFF7A", "#2BBF55", "#8CFFA8" }, "#FFB000",
+                        "#020A04", "#B8FFC9", 0.50, 0.35);
 
                 case Theme.Ember:
 
@@ -165,13 +181,14 @@ namespace HR.Core
 
         public static Theme[] All => new[]
         {
-            Theme.Monochrome, Theme.Midnight, Theme.Neon, Theme.Pastel, Theme.Earth, Theme.Aurora,
+            Theme.MinimalLight, Theme.Neon, Theme.Deco, Theme.Sumie, Theme.Ocean, Theme.Bauhaus,
+            Theme.Crt,
         };
 
         public static Theme[] Every => new[]
         {
-            Theme.Monochrome, Theme.Midnight, Theme.Neon, Theme.Pastel, Theme.Earth, Theme.Aurora,
-            Theme.Ember,
+            Theme.MinimalLight, Theme.MinimalDark, Theme.Neon, Theme.Deco, Theme.Sumie,
+            Theme.Ocean, Theme.Bauhaus, Theme.Crt, Theme.Ember,
         };
     }
 }

@@ -4,14 +4,16 @@ namespace HR.Core
 {
     public enum Theme
     {
-        Monochrome = 0,
-        Midnight = 1,
-        Neon = 2,
-        Pastel = 3,
-        Earth = 4,
-        Aurora = 5,
+        MinimalLight = 10,
+        MinimalDark = 11,
+        Neon = 12,
+        Deco = 13,
+        Sumie = 14,
+        Ocean = 15,
+        Bauhaus = 16,
+        Crt = 17,
 
-        Ember = 6,
+        Ember = 18,
     }
 
     public sealed class ScoreKeeper
@@ -22,12 +24,14 @@ namespace HR.Core
         {
             switch (theme)
             {
-                case Theme.Monochrome:
-                case Theme.Midnight:
+                case Theme.MinimalLight:
+                case Theme.MinimalDark:
                 case Theme.Neon: return 0;
-                case Theme.Pastel: return 25;
-                case Theme.Earth: return 50;
-                case Theme.Aurora: return 100;
+                case Theme.Deco: return 25;
+                case Theme.Sumie: return 50;
+                case Theme.Ocean: return 75;
+                case Theme.Bauhaus: return 100;
+                case Theme.Crt: return 150;
                 case Theme.Ember: return NeverByScore;
                 default: throw new ArgumentOutOfRangeException(nameof(theme));
             }

@@ -77,6 +77,30 @@ namespace HR.Gameplay
             else if (_states.State == GameState.Menu) _states.Fire(GameTrigger.Play);
         }
 
+        public int Seed => _seed;
+
+        public bool StartPlaying() => _states.Fire(GameTrigger.Started);
+
+        public RunSnapshot Snapshot(int continuesUsed)
+        {
+            var difficulty = CurrentDifficulty;
+            return new RunSnapshot(Score, Mode, difficulty.Step, difficulty.MaxCompressionSpeed,
+                                   continuesUsed);
+        }
+
+        public bool Continue(in RunSnapshot snapshot)
+        {
+            if (_states.State != GameState.GameOver) return false;
+
+            Mode = snapshot.Mode;
+            StartRun(_seed);
+
+            _score.AddRings(snapshot.Score);
+            _appliedDifficultyForScore = -1;
+            ApplyDifficulty();
+            return true;
+        }
+
         public const double ResumeGraceSeconds = 0.3;
 
         double _grace;

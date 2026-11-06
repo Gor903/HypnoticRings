@@ -151,15 +151,15 @@ namespace HR.Tests.PlayMode
         public IEnumerator A_still_theme_never_breathes_even_with_effects_on()
         {
             _boot.Settings.reduceEffects = false;
-            _boot.Ui.ApplyTheme(ThemePalette.For(Theme.Monochrome));
+            _boot.Ui.ApplyTheme(ThemePalette.For(Theme.Sumie));
             yield return null;
 
-            Assert.IsFalse(_boot.Ui.Shimmer.Breathing, "Monochrome is animating something");
+            Assert.IsFalse(_boot.Ui.Shimmer.Breathing, "Sumi-e is animating something");
 
             var play = Play();
             var before = play.targetGraphic.color;
             for (int frame = 0; frame < 8; frame++) yield return null;
-            Assert.AreEqual(before, play.targetGraphic.color, "Monochrome moved a colour");
+            Assert.AreEqual(before, play.targetGraphic.color, "Sumi-e moved a colour");
         }
 
         [UnityTest]
@@ -169,10 +169,10 @@ namespace HR.Tests.PlayMode
             _boot.Ui.ApplyTheme(ThemePalette.For(Theme.Neon));
             for (int frame = 0; frame < 8; frame++) yield return null;
 
-            _boot.Ui.ApplyTheme(ThemePalette.For(Theme.Monochrome));
+            _boot.Ui.ApplyTheme(ThemePalette.For(Theme.Sumie));
             yield return null;
 
-            var expected = ThemeApplier.ToColor(ThemePalette.For(Theme.Monochrome).Accent);
+            var expected = ThemeApplier.ToColor(ThemePalette.For(Theme.Sumie).Accent);
             var actual = Play().targetGraphic.color;
 
             Assert.AreEqual(expected.r, actual.r, 1e-3f, "the accent kept the old theme's red");
@@ -183,16 +183,16 @@ namespace HR.Tests.PlayMode
         [UnityTest]
         public IEnumerator A_rippling_theme_answers_where_the_finger_landed()
         {
-            _boot.Ui.ApplyTheme(ThemePalette.For(Theme.Monochrome));
+            _boot.Ui.ApplyTheme(ThemePalette.For(Theme.Sumie));
             yield return null;
 
             var press = Play().GetComponent<PressFeedback>();
             Assert.IsNull(press.Ripple, "a sinking theme built a ripple it will never show");
 
-            _boot.Ui.ApplyTheme(ThemePalette.For(Theme.Aurora));
+            _boot.Ui.ApplyTheme(ThemePalette.For(Theme.Ocean));
             yield return null;
 
-            Assert.IsNotNull(press.Ripple, "Aurora ripples and has no ripple to show");
+            Assert.IsNotNull(press.Ripple, "Deep ocean ripples and has no ripple to show");
             Assert.AreEqual(0f, press.Ripple.color.a, 1e-3f, "the ripple is showing unprompted");
 
             press.OnPointerDown(new PointerEventData(EventSystem.current));

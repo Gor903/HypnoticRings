@@ -24,12 +24,19 @@ namespace HR.Core
         public readonly PressKind Press;
         public readonly KnobShape Knob;
 
-        public UiSkin(double cornerRadius, double outlineWidth, PressKind press, KnobShape knob)
+        public readonly double Chamfer;
+
+        public readonly double HardShadow;
+
+        public UiSkin(double cornerRadius, double outlineWidth, PressKind press, KnobShape knob,
+                      double chamfer = 0.0, double hardShadow = 0.0)
         {
             CornerRadius = cornerRadius;
             OutlineWidth = outlineWidth;
             Press = press;
             Knob = knob;
+            Chamfer = chamfer;
+            HardShadow = hardShadow;
         }
 
         public static UiSkin Default => new UiSkin(0.10, 3.0, PressKind.Sink, KnobShape.Square);
@@ -38,25 +45,32 @@ namespace HR.Core
         {
             switch (theme)
             {
-                case Theme.Monochrome:
-                    return Default;
+                case Theme.MinimalLight:
+                    return new UiSkin(0.20, 2.0, PressKind.Sink, KnobShape.Round);
 
-                case Theme.Midnight:
-                    return new UiSkin(0.25, 2.0, PressKind.Flash, KnobShape.Round);
+                case Theme.MinimalDark:
+                    return new UiSkin(0.20, 2.0, PressKind.Flash, KnobShape.Round);
 
                 case Theme.Neon:
                     return new UiSkin(0.30, 4.0, PressKind.Flash, KnobShape.Round);
 
-                case Theme.Pastel:
+                case Theme.Deco:
 
-                    return new UiSkin(0.50, 0.0, PressKind.Sink, KnobShape.Round);
+                    return new UiSkin(0.0, 3.0, PressKind.Flash, KnobShape.Square, chamfer: 0.18);
 
-                case Theme.Earth:
-                    return new UiSkin(0.20, 2.0, PressKind.Sink, KnobShape.Round);
+                case Theme.Sumie:
+                    return Default;
 
-                case Theme.Aurora:
+                case Theme.Ocean:
 
-                    return new UiSkin(0.35, 3.0, PressKind.Ripple, KnobShape.Round);
+                    return new UiSkin(0.37, 2.0, PressKind.Ripple, KnobShape.Round);
+
+                case Theme.Bauhaus:
+
+                    return new UiSkin(0.0, 3.0, PressKind.Sink, KnobShape.Square, hardShadow: 6.0);
+
+                case Theme.Crt:
+                    return new UiSkin(0.06, 3.0, PressKind.Flash, KnobShape.Square);
 
                 case Theme.Ember:
 

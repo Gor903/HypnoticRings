@@ -21,6 +21,8 @@ namespace HR.UI
         public event Action AboutPressed;
         public event Action BackPressed;
         public event Action ResetProgressConfirmed;
+        public event Action RewardPressed;
+        public event Action PrivacyPressed;
         public event Action<Theme> ThemeChosen;
         public event Action SettingsChanged;
 
@@ -36,6 +38,12 @@ namespace HR.UI
         readonly List<Image> _scrims = new List<Image>();
 
         readonly List<(Image Image, float Height)> _shaped = new List<(Image, float)>();
+
+        readonly List<Image> _shadowed = new List<Image>();
+
+        readonly List<VariantPicker> _variantPickers = new List<VariantPicker>();
+
+        public IReadOnlyList<VariantPicker> VariantPickers => _variantPickers;
         readonly List<ToggleVisual> _switches = new List<ToggleVisual>();
         readonly List<PressFeedback> _presses = new List<PressFeedback>();
         readonly List<Image> _knobs = new List<Image>();
@@ -54,6 +62,19 @@ namespace HR.UI
         Text _overBestLabel;
         Text _overUnlockLabel;
         Text _hintLabel;
+        Text _countdownLabel;
+        Text _pauseScoreLabel;
+        Text _pauseMrecLabel;
+        Text _pauseBannerLabel;
+        Text _overMrecLabel;
+        Text _overBannerLabel;
+        Text _overCardScoreLabel;
+        Text _overCardBestLabel;
+        Button _overRewardButton;
+        Button _overRetryButton;
+        Button _privacyLink;
+        UnityEngine.UI.VerticalLayoutGroup _pauseCard;
+        UnityEngine.UI.VerticalLayoutGroup _overCard;
         Button _pauseButton;
         Button _languageChip;
         CarouselSnapping _carousel;
@@ -142,9 +163,10 @@ namespace HR.UI
             foreach (var pair in _screens)
                 pair.Value.gameObject.SetActive(pair.Key == wanted);
 
-            if (state == GameState.Playing || state == GameState.Paused)
+            if (state == GameState.Playing || state == GameState.Countdown)
                 _screens[GameState.Playing].gameObject.SetActive(true);
             SetHudDetail(state == GameState.Playing);
+            SetCountdown(state == GameState.Countdown ? CountdownClock.FirstDigit : 0);
 
             if (state == GameState.Menu) RefreshMenu();
             if (state == GameState.GameOver) RefreshGameOver();
@@ -156,6 +178,135 @@ namespace HR.UI
         public void SetScore(int score)
         {
             if (_scoreLabel != null) _scoreLabel.text = score.ToString();
+            if (_pauseScoreLabel != null) _pauseScoreLabel.text = score.ToString();
+        }
+
+        public Button RewardButton => _overRewardButton;
+
+        public Button PrivacyLink => _privacyLink;
+
+        public void ShowPrivacyLink(bool visible)
+        {
+            if (_privacyLink != null) _privacyLink.gameObject.SetActive(visible);
+        }
+
+        public void ShowRewardButton(bool visible)
+        {
+            if (_overRewardButton != null) _overRewardButton.gameObject.SetActive(visible);
+        }
+
+        public double SafeHeightUnits => _safeArea != null
+            ? ((RectTransform)_safeArea.transform).rect.height
+            : UiBuilder.ReferenceHeight;
+
+        public AdLayoutPlan ApplyAdLayout(AdScreen screen, in AdInsets insets, bool rewardButton,
+                                          bool themeUnlocked, bool adsAllowed)
+        {
+            double safe = SafeHeightUnits;
+
+            var request = new AdLayoutRequest(screen, safe,
+                adsAllowed ? insets.BannerHeight : 0.0,
+                adsAllowed ? insets.MrecHeight : 0.0,
+                rewardButton, themeUnlocked);
+
+            var plan = AdLayout.For(request);
+            Place(screen, plan, request);
+            return plan;
+        }
+
+        void Place(AdScreen screen, in AdLayoutPlan plan, in AdLayoutRequest request)
+        {
+            bool over = screen == AdScreen.GameOver;
+            var card = over ? _overCard : _pauseCard;
+            var mrecLabel = over ? _overMrecLabel : _pauseMrecLabel;
+            var bannerLabel = over ? _overBannerLabel : _pauseBannerLabel;
+
+            bool old = plan.OldLayout;
+
+            if (card != null)
+            {
+                float lift = plan.ShowsBanner
+                    ? (float)(request.BannerHeight + plan.Gap)
+                    : CardInset;
+                ((RectTransform)card.transform).anchoredPosition = new Vector2(0f, lift);
+
+                int pad = old ? ShippedCardPad : (over ? OverCardPad : PauseCardPad);
+                card.padding = new RectOffset(40, 40, pad, pad);
+                if (over) card.spacing = old ? ShippedCardSpacing : OverCardSpacing;
+            }
+
+            if (mrecLabel != null)
+            {
+                mrecLabel.gameObject.SetActive(plan.ShowsMrec);
+                if (plan.ShowsMrec)
+                    ((RectTransform)mrecLabel.transform).anchoredPosition =
+                        new Vector2(0f, -(float)(plan.TopBlock + plan.Flex));
+            }
+
+            if (bannerLabel != null)
+            {
+                bannerLabel.gameObject.SetActive(plan.ShowsBanner);
+                if (plan.ShowsBanner)
+                {
+                    var rect = (RectTransform)bannerLabel.transform;
+                    rect.anchorMin = new Vector2(0f, 0f);
+                    rect.anchorMax = new Vector2(1f, 0f);
+                    rect.pivot = new Vector2(0.5f, 0f);
+                    rect.anchoredPosition =
+                        new Vector2(0f, (float)(request.BannerHeight));
+                }
+            }
+
+            var score = over ? _overScoreLabel : _pauseScoreLabel;
+            if (score != null) score.gameObject.SetActive(!(over && old));
+            if (over && _overBestLabel != null) _overBestLabel.gameObject.SetActive(!old);
+
+            if (!over) return;
+
+            if (_overCardScoreLabel != null) _overCardScoreLabel.gameObject.SetActive(old);
+            if (_overCardBestLabel != null) _overCardBestLabel.gameObject.SetActive(old);
+            SetRetryHeight(old ? RetryTall : UiBuilder.TouchTarget);
+        }
+
+        void SetRetryHeight(float height)
+        {
+            if (_overRetryButton == null) return;
+
+            var rect = (RectTransform)_overRetryButton.transform;
+            if (Mathf.Approximately(rect.sizeDelta.y, height)) return;
+            rect.sizeDelta = new Vector2(rect.sizeDelta.x, height);
+
+            var image = _overRetryButton.targetGraphic as Image;
+            if (image == null || _palette == null) return;
+
+            for (int i = 0; i < _shaped.Count; i++)
+                if (_shaped[i].Image == image) { _shaped[i] = (image, height); break; }
+
+            var skin = UiSkin.For(_palette.Theme);
+            bool effects = _settings == null || !_settings.reduceEffects;
+            UiPainter.Shape(image, height, skin);
+            UiPainter.Edge(image, skin, ThemeApplier.ToColor(_palette.Outline),
+                           effects ? _palette.Glow : 0.0,
+                           ThemeApplier.ToColor(_palette.Accent), effects);
+            UiPainter.Shadow(image, skin, ThemeApplier.ToColor(_palette.Ui));
+        }
+
+        public Text CountdownLabel => _countdownLabel;
+
+        public void SetCountdown(int digit)
+        {
+            if (_countdownLabel == null) return;
+
+            bool showing = digit > 0;
+            _countdownLabel.gameObject.SetActive(showing);
+            if (showing) _countdownLabel.text = digit.ToString();
+            if (!showing) SetCountdownScale(1f);
+        }
+
+        public void SetCountdownScale(float scale)
+        {
+            if (_countdownLabel == null) return;
+            _countdownLabel.transform.localScale = new Vector3(scale, scale, 1f);
         }
 
         public void ApplyTheme(ThemePalette palette)
@@ -200,6 +351,9 @@ namespace HR.UI
                 double glow = effects && _accents.Contains(image) ? palette.Glow : 0.0;
                 UiPainter.Edge(image, skin, edge, glow, halo, effects);
             }
+
+            foreach (var image in _shadowed)
+                UiPainter.Shadow(image, skin, ink);
 
             var trackOff = ThemeApplier.ToColor(palette.TrackOff);
             var trackOn = ThemeApplier.ToColor(palette.TrackOn);
@@ -323,6 +477,18 @@ namespace HR.UI
 
         const float CardOpacity = 0.96f;
 
+        public const float RetryTall = UiBuilder.TouchTarget * 1.4f;
+
+        const int ShippedCardPad = 48;
+
+        const int PauseCardPad = 24;
+
+        const int OverCardPad = 8;
+
+        const float ShippedCardSpacing = 24f;
+
+        const float OverCardSpacing = 16f;
+
         const float CardWidth = 600f;
 
         const float CardHeight = 700f;
@@ -412,9 +578,13 @@ namespace HR.UI
         {
             if (_carousel == null || _settings == null) return;
 
+            var wanted = _settings.Theme == Theme.MinimalDark
+                ? Theme.MinimalLight
+                : _settings.Theme;
+
             var all = ThemePalette.All;
             for (int i = 0; i < all.Length; i++)
-                if (all[i] == _settings.Theme) { _carousel.Focus(i, immediate: true); return; }
+                if (all[i] == wanted) { _carousel.Focus(i, immediate: true); return; }
         }
 
         void RefreshGameOver()
@@ -425,6 +595,9 @@ namespace HR.UI
             _overBestLabel.text = _score.IsNewBest
                 ? Strings.Get("over.newbest")
                 : Strings.Format("over.best", _score.Best);
+
+            if (_overCardScoreLabel != null) _overCardScoreLabel.text = _overScoreLabel.text;
+            if (_overCardBestLabel != null) _overCardBestLabel.text = _overBestLabel.text;
 
             Theme? unlocked = null;
             if (AwardsThemes)
@@ -452,7 +625,12 @@ namespace HR.UI
                 bool unlocked = _score.IsUnlocked(theme);
                 button.interactable = unlocked;
 
-                bool chosen = _settings != null && _settings.Theme == theme;
+                bool minimal = theme == Theme.MinimalLight;
+                var picked = _settings != null ? _settings.Theme : theme;
+                bool chosen = _settings != null
+                              && (picked == theme
+                                  || (minimal && picked == Theme.MinimalDark));
+
                 if (button.targetGraphic != null)
                     button.targetGraphic.color = chosen ? accent : surface;
 
@@ -463,18 +641,22 @@ namespace HR.UI
                 label.color = colour;
 
                 var padlock = _themeLocks[theme];
-                padlock.text = unlocked
-                    ? string.Empty
-                    : Strings.Format("theme.locked", ScoreKeeper.RequiredBestFor(theme));
+                padlock.text = minimal
+                    ? Strings.Get(Strings.VariantKey(chosen ? picked : Theme.MinimalLight))
+                    : unlocked
+                        ? string.Empty
+                        : Strings.Format("theme.locked", ScoreKeeper.RequiredBestFor(theme));
                 var lockColour = chosen ? accentText : ink;
-                lockColour.a = unlocked ? 0f : 0.7f;
+                lockColour.a = minimal ? 1f : (unlocked ? 0f : 0.7f);
                 padlock.color = lockColour;
             }
         }
 
-        Text Label(Transform parent, string key, int size)
+        Text Label(Transform parent, string key, int size, FontRole role = FontRole.Text,
+                   bool wrap = false)
         {
-            var label = UiBuilder.CreateLabel(key, parent, Strings.Get(key), size);
+            var label = UiBuilder.CreateLabel(key, parent, Strings.Get(key), size, role: role,
+                                              wrap: wrap);
             _stringRefreshers.Add(() => label.text = Strings.Get(key));
             return label;
         }
@@ -487,7 +669,7 @@ namespace HR.UI
             var label = button.GetComponentInChildren<Text>();
             _stringRefreshers.Add(() => label.text = Strings.Get(key));
 
-            TrackShape(button.targetGraphic as Image, Mathf.Max(height, UiBuilder.TouchTarget));
+            TrackShadow(button.targetGraphic as Image, Mathf.Max(height, UiBuilder.TouchTarget));
 
             _presses.Add(Press(button));
 
@@ -553,7 +735,7 @@ namespace HR.UI
                 () => { Clicked?.Invoke(); onClick?.Invoke(); });
             PinRight((RectTransform)chip.transform, ChipWidth, UiBuilder.TouchTarget);
 
-            TrackShape(chip.targetGraphic as Image, UiBuilder.TouchTarget);
+            TrackShadow(chip.targetGraphic as Image, UiBuilder.TouchTarget);
             TrackSurface(chip.targetGraphic);
             Track(chip.GetComponentInChildren<Text>());
             _presses.Add(Press(chip));
@@ -568,7 +750,7 @@ namespace HR.UI
             if (button.targetGraphic is Image fill) fill.color = new Color(1f, 1f, 1f, 0f);
 
             var label = button.GetComponentInChildren<Text>();
-            label.fontSize = UiBuilder.BodySize;
+            UiBuilder.Resize(label, UiBuilder.BodySize);
             _stringRefreshers.Add(() => label.text = Strings.Get(key));
             Track(label);
             _presses.Add(Press(button));
@@ -620,6 +802,12 @@ namespace HR.UI
         void TrackShape(Image image, float height)
         {
             if (image != null) _shaped.Add((image, height));
+        }
+
+        void TrackShadow(Image image, float height)
+        {
+            TrackShape(image, height);
+            if (image != null) _shadowed.Add(image);
         }
 
         void TrackAccent(Graphic fill, Graphic label)

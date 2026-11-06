@@ -50,11 +50,99 @@ namespace HR.Tests.PlayMode
             try { if (Directory.Exists(_directory)) Directory.Delete(_directory, true); } catch { }
         }
 
+        static GameObject Child(RectTransform screen, string name)
+        {
+            foreach (var found in screen.GetComponentsInChildren<Transform>(includeInactive: true))
+                if (found.name == name) return found.gameObject;
+
+            Assert.Fail($"no object named '{name}' under {screen.name}");
+            return null;
+        }
+
+        [UnityTest]
+        public IEnumerator Game_over_without_ads_keeps_the_score_inside_the_card()
+        {
+            _boot.Game.StartRun(7);
+            yield return WaitOutCountdown();
+            _boot.Game.States.Fire(GameTrigger.Crushed);
+            yield return null;
+
+            Assert.AreEqual(GameState.GameOver, _boot.Game.State);
+
+            var screen = _boot.Ui.ScreenFor(GameState.GameOver);
+            var card = Child(screen, "Card");
+
+            Assert.IsFalse(Child(screen, "Score").activeInHierarchy,
+                           "the top score band belongs to the ad layout");
+            Assert.IsFalse(Child(screen, "Best").activeInHierarchy,
+                           "the top record band belongs to the ad layout");
+            Assert.IsTrue(Child(screen, "CardScore").activeInHierarchy,
+                          "without a MREC the score lives inside the card");
+            Assert.IsTrue(Child(screen, "CardBest").activeInHierarchy,
+                          "without a MREC the record lives inside the card");
+
+            var retry = Child(screen, "over.retry");
+            Assert.AreEqual(GameUi.RetryTall,
+                            ((RectTransform)retry.transform).sizeDelta.y, 0.5f,
+                            "the old layout gives the accent button its shipped height");
+
+            float cardTop = ((RectTransform)card.transform).anchoredPosition.y
+                            + ((RectTransform)card.transform).rect.height;
+            float safe = ((RectTransform)_boot.Ui.ScreenFor(GameState.GameOver)).rect.height;
+            Assert.Greater(cardTop, safe * 0.45f,
+                           "the card must not leave the screen empty above it");
+        }
+
+        [UnityTest]
+        public IEnumerator Game_over_with_a_mrec_lifts_the_score_out_of_the_card()
+        {
+            _boot.Game.StartRun(7);
+            yield return WaitOutCountdown();
+            _boot.Game.States.Fire(GameTrigger.Crushed);
+            yield return null;
+
+            _boot.Ui.OverrideLayoutShape(Camera.main, 1080, 1920);
+            yield return null;
+
+            var plan = _boot.Ui.ApplyAdLayout(AdScreen.GameOver, new AdInsets(150.0, 750.0),
+                                              rewardButton: false, themeUnlocked: false,
+                                              adsAllowed: true);
+            yield return null;
+
+            Assert.IsTrue(plan.ShowsMrec,
+                          $"a 750-unit MREC must fit 1920 units; §15.4 asks for "
+                          + $"{AdLayout.MinimumHeight(AdScreen.GameOver, 150.0, 750.0, false, false)}");
+
+            var screen = _boot.Ui.ScreenFor(GameState.GameOver);
+            Assert.IsTrue(Child(screen, "Score").activeInHierarchy);
+            Assert.IsTrue(Child(screen, "Best").activeInHierarchy);
+            Assert.IsFalse(Child(screen, "CardScore").activeInHierarchy);
+            Assert.IsFalse(Child(screen, "CardBest").activeInHierarchy);
+
+            Assert.AreEqual(UiBuilder.TouchTarget,
+                            ((RectTransform)Child(screen, "over.retry").transform).sizeDelta.y, 0.5f,
+                            "the ad layout drops the accent button to 150");
+        }
+
         static void Press(GameObject screen, string name)
         {
             foreach (var button in screen.GetComponentsInChildren<Button>(includeInactive: true))
                 if (button.name == name) { button.onClick.Invoke(); return; }
             Assert.Fail($"no button named '{name}' on {screen.name}");
+        }
+
+        IEnumerator WaitOutCountdown()
+        {
+            double waited = 0.0;
+            while (_boot.Game.State == GameState.Countdown
+                   && waited < CountdownClock.Total * 2.0)
+            {
+                waited += Time.deltaTime;
+                yield return null;
+            }
+
+            Assert.AreNotEqual(GameState.Countdown, _boot.Game.State,
+                "the countdown never ended on its own");
         }
 
         [UnityTest]
@@ -64,13 +152,18 @@ namespace HR.Tests.PlayMode
             Assert.AreEqual(GameState.Menu, _boot.Game.State);
 
             Press(ui.ScreenFor(GameState.Menu).gameObject, "menu.play");
+            Assert.AreEqual(GameState.Countdown, _boot.Game.State,
+                "every run opens with the countdown");
+            yield return WaitOutCountdown();
             Assert.AreEqual(GameState.Playing, _boot.Game.State);
-            yield return null;
 
             _boot.Game.States.Fire(GameTrigger.Crushed);
             Assert.AreEqual(GameState.GameOver, _boot.Game.State);
 
             Press(ui.ScreenFor(GameState.GameOver).gameObject, "over.retry");
+            Assert.AreEqual(GameState.Countdown, _boot.Game.State,
+                "a retry opens with the countdown too");
+            yield return WaitOutCountdown();
             Assert.AreEqual(GameState.Playing, _boot.Game.State);
             Assert.AreEqual(0, _boot.Game.Score, "retry should start from nothing");
 
@@ -85,6 +178,7 @@ namespace HR.Tests.PlayMode
         {
             var ui = _boot.Ui;
             Press(ui.ScreenFor(GameState.Menu).gameObject, "menu.play");
+            _boot.Game.StartPlaying();
 
             Press(ui.ScreenFor(GameState.Playing).gameObject, "Pause");
             Assert.AreEqual(GameState.Paused, _boot.Game.State);

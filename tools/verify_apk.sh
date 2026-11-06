@@ -72,17 +72,37 @@ tgtsdk=$(grep -oP "^targetSdkVersion:'\K[^']+" <<<"$badging")
 
 echo
 echo "Permissions"
-# Proved absent by counting, not by reading the list and believing it is complete.
-for forbidden in INTERNET ACCESS_NETWORK_STATE AD_ID; do
-  n=$(grep -c "permission.$forbidden" <<<"$badging")
+# The list stays closed, it just changed: ads need the network, anything about the
+# advertising id stays out. AD_ID and ACCESS_ADSERVICES_AD_ID are two names for the same want.
+for forbidden in "permission.AD_ID" "ACCESS_ADSERVICES_AD_ID"; do
+  n=$(grep -c "$forbidden" <<<"$badging")
   [ "$n" -eq 0 ] && good "$forbidden absent" "0 occurrences" || bad "$forbidden present" "$n occurrence(s)"
 done
-n=$(grep -c "permission.VIBRATE" <<<"$badging")
-[ "$n" -ge 1 ] && good "VIBRATE present" "haptics need it (G-09)" || bad "VIBRATE missing" "spec 11.4 needs it"
+
+for wanted in INTERNET ACCESS_NETWORK_STATE VIBRATE; do
+  n=$(grep -c "permission.$wanted" <<<"$badging")
+  [ "$n" -ge 1 ] && good "$wanted present" "declared" || bad "$wanted missing" "the build needs it"
+done
+
+# Everything the ads SDK brings is named here, so a new one trips this and gets looked at.
+unexpected=$(grep -oP "^uses-permission: name='\K[^']+" <<<"$badging" \
+  | grep -vxE "android.permission.(INTERNET|ACCESS_NETWORK_STATE|VIBRATE|WAKE_LOCK|FOREGROUND_SERVICE|ACCESS_ADSERVICES_(ATTRIBUTION|TOPICS))|com\..*DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION" || true)
+[ -z "$unexpected" ] && good "nothing rode along" "every permission is one we named" \
+  || bad "unnamed permissions" "$(tr '\n' ' ' <<<"$unexpected")"
 
 echo
 echo "  every uses-permission line in the apk:"
 grep -oP "^uses-permission: name='\K[^']+" <<<"$badging" | sed 's/^/    /' || echo "    (none)"
+
+# An empty app id is not a missing feature, it is a crash: the SDK brings up its own
+# ContentProvider at app start and aborts before a line of our code runs.
+appid=$("$AAPT" dump xmltree --file AndroidManifest.xml "$apk" 2>/dev/null \
+  | grep -A1 "ads.APPLICATION_ID" | grep -oP 'value[^=]*="\K[^"]+' | head -1)
+case "$appid" in
+  ca-app-pub-*~*) good "AdMob app id" "$appid" ;;
+  "")             bad  "AdMob app id missing" "the SDK aborts the app on start" ;;
+  *)              bad  "AdMob app id malformed" "$appid" ;;
+esac
 
 echo
 echo "Packaging"

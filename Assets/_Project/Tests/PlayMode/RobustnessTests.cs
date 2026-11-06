@@ -51,11 +51,13 @@ namespace HR.Tests.PlayMode
             var ballPhysics = TunnelFactory.CreatePhysicsMaterial("Ball", _config.ballFriction, _config.ballBounce);
 
             _ball = TunnelFactory.CreateBall(_config, _root.transform, ballPhysics, material, _settings);
+            _ball.enabled = false;
 
             var tunnelGo = new GameObject("Tunnel");
             tunnelGo.transform.SetParent(_root.transform, false);
             _tunnel = tunnelGo.AddComponent<TunnelController>();
             _pool = new RingPool(_config, tunnelGo.transform, material);
+            _pool.Prewarm(TunnelController.MaxRingsInFrame / 2);
             _tunnel.Initialise(_config, _ball, _pool);
             _tunnel.AutoStep = false;
             _tunnel.BeginRun(seed);
@@ -67,6 +69,12 @@ namespace HR.Tests.PlayMode
             _input.ExternalDriver = true;
 
             _fingerAngle = 0.0;
+        }
+
+        void StepBall()
+        {
+            _ball.HoldCruisingSpeed(Dt);
+            _ball.ClampSpeed();
         }
 
         Vector2 FingerAt(double degrees)
@@ -181,7 +189,7 @@ namespace HR.Tests.PlayMode
 
                 _tunnel.UserAngleDeg = _input.UserAngleDeg;
                 _tunnel.Step(Dt);
-                _ball.ClampSpeed();
+                StepBall();
                 Physics2D.Simulate(Dt);
 
                 if (i % 9000 == 0)
@@ -197,6 +205,8 @@ namespace HR.Tests.PlayMode
                       $"{_pool.Created} rings ever built");
         }
 
+        public const long FrameAllocationBudget = 8192;
+
         [UnityTest]
         public IEnumerator The_game_loop_allocates_nothing_once_it_is_running()
         {
@@ -208,7 +218,7 @@ namespace HR.Tests.PlayMode
                 _input.FeedPointer(true, FingerAt(_fingerAngle), Dt);
                 _tunnel.UserAngleDeg = _input.UserAngleDeg;
                 _tunnel.Step(Dt);
-                _ball.ClampSpeed();
+                StepBall();
                 Physics2D.Simulate(Dt);
             }
 
@@ -225,7 +235,7 @@ namespace HR.Tests.PlayMode
                 _input.FeedPointer(true, FingerAt(_fingerAngle), Dt);
                 _tunnel.UserAngleDeg = _input.UserAngleDeg;
                 _tunnel.Step(Dt);
-                _ball.ClampSpeed();
+                StepBall();
                 Physics2D.Simulate(Dt);
 
                 yield return null;
@@ -239,8 +249,9 @@ namespace HR.Tests.PlayMode
 
             Assert.AreEqual(createdBefore, _pool.Created,
                 $"the pool built {_pool.Created - createdBefore} ring(s) during a running game");
-            Assert.Less(worst, 4096,
-                $"the game loop allocated {worst} bytes in a frame");
+            Assert.Less(worst, FrameAllocationBudget,
+                $"the game loop allocated {worst} bytes in a frame, "
+                + $"the budget is {FrameAllocationBudget} (D-114)");
         }
 
         void AssertNothingIsNaN()

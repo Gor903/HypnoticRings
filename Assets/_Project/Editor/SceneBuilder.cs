@@ -50,6 +50,7 @@ namespace HR.Editor
             serialized.FindProperty("config").objectReferenceValue = config;
             serialized.FindProperty("audioBank").objectReferenceValue =
                 AssetDatabase.LoadAssetAtPath<HR.Audio.AudioBank>(AudioBankBuilder.BankPath);
+            serialized.FindProperty("ads").objectReferenceValue = ConfigBuilder.EnsureAdsConfig();
             serialized.ApplyModifiedPropertiesWithoutUndo();
 
             EditorSceneManager.SaveScene(scene, MainScene);

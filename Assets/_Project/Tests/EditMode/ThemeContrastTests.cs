@@ -61,9 +61,9 @@ namespace HR.Tests.EditMode
         }
 
         [Test]
-        public void The_monochrome_ball_really_is_the_same_ink_as_its_rings()
+        public void The_minimal_ball_really_is_the_same_ink_as_its_rings()
         {
-            var palette = ThemePalette.For(Theme.Monochrome);
+            var palette = ThemePalette.For(Theme.MinimalLight);
             Assert.AreEqual(1.0, Contrast.Ratio(palette.Ball, palette.RingColourAt(0)), 1e-9);
             Assert.GreaterOrEqual(Contrast.Ratio(palette.BallOutline, palette.Ball), Contrast.Required);
         }
@@ -71,7 +71,7 @@ namespace HR.Tests.EditMode
         [Test]
         public void A_palette_that_hides_its_rings_is_rejected()
         {
-            var bad = new ThemePalette(Theme.Pastel, "#FDF6F0",
+            var bad = new ThemePalette(Theme.Deco, "#FDF6F0",
                 new[] { "#F4A6A6", "#A6D8F4", "#B8E6C1", "#FFE0A3" }, "#5C5470",
                 "#FDF6F0", "#5C5470", 0.5, 0.0);
 

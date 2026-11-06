@@ -1,3 +1,4 @@
+using HR.Ads;
 using HR.Audio;
 using HR.Core;
 using HR.Gameplay;
@@ -13,6 +14,7 @@ namespace HR.App
     public sealed class GameBootstrap : MonoBehaviour
     {
         [SerializeField] GameConfig config;
+        [SerializeField] AdsConfig ads;
         [SerializeField] AudioBank audioBank;
         [SerializeField] int seed;
 
@@ -37,6 +39,13 @@ namespace HR.App
         public GameManager Game => _game;
         public GameUi Ui => _ui;
         public TunnelController Tunnel => _tunnel;
+        public BallController Ball => _ball;
+
+        IAdService _ads = new NullAdService();
+
+        public IAdService Ads => _ads;
+
+        public void UseAdService(IAdService service) => _ads = service ?? new NullAdService();
         public InputController Input => _input;
         public ThemeApplier Themes => _themes;
         public SaveData Settings => _settings;
@@ -156,11 +165,13 @@ namespace HR.App
             _back.Pressed += SystemBack;
 
             Wire();
+            WireReward();
             _themes.Apply(_settings.Theme);
             _ui.ApplyTheme(_themes.Palette);
             ApplyThemeToEffects();
             _ui.Show(GameState.Menu);
             ShowWorld(GameState.Menu);
+            StartAds();
         }
 
         PhysicsMaterial2D _ringPhysics;
@@ -250,11 +261,17 @@ namespace HR.App
                     _haptics.Pass();
             };
 
-            _game.StateChanged += (_, to) =>
+            _game.StateChanged += (from, to) =>
             {
                 ApplyModeLook(to);
                 _ui.Show(to);
                 ShowWorld(to);
+                ShowAds(to);
+
+                if (to == GameState.Countdown) BeginCountdown();
+                if (to == GameState.GameOver) _unlockedThisRun = UnlockedThisRun();
+                if (from == GameState.Countdown) _tunnel.EndCountdown(dissolve: false);
+
                 if (to == GameState.Paused) _audio.ResetStreak();
                 if (to == GameState.GameOver)
                 {
@@ -267,26 +284,154 @@ namespace HR.App
                     Persist();
                 }
 
-                if (to == GameState.Playing || to == GameState.Menu) _juice.Fade(toClear: true);
+                if (to == GameState.Countdown || to == GameState.Menu) _juice.Fade(toClear: true);
             };
         }
 
+        void StartAds()
+        {
+            if (ads == null || !ads.Ready) return;
+            if (Application.platform != RuntimePlatform.Android) return;
+            if (!(_ads is NullAdService)) return;
+
+            var service = new GoogleAdService(ads);
+            _ads = service;
+            WireReward();
+            service.Initialise(() =>
+            {
+                _ui.ShowPrivacyLink(_ads.PrivacyOptionsRequired);
+                ShowAds(_game != null ? _game.State : GameState.Menu);
+            });
+        }
+
+        void ShowAds(GameState state)
+        {
+            bool resting = state == GameState.Paused || state == GameState.GameOver;
+            bool allowed = resting && ads != null;
+
+            bool banner = allowed && (state == GameState.Paused
+                                      ? ads.bannerOnPause : ads.bannerOnGameOver);
+            bool mrec = allowed && (state == GameState.Paused
+                                    ? ads.mrecOnPause : ads.mrecOnGameOver);
+
+            _ads.ShowBanner(banner);
+            _ads.ShowMrec(mrec);
+
+            if (!resting) return;
+
+            float factor = _ui.Canvas != null ? _ui.Canvas.scaleFactor : 1f;
+            var insets = _ads.GetInsetsInCanvasUnits(factor);
+            if (!banner) insets = new AdInsets(0.0, insets.MrecHeight);
+            if (!mrec) insets = new AdInsets(insets.BannerHeight, 0.0);
+
+            var screen = state == GameState.Paused ? AdScreen.Paused : AdScreen.GameOver;
+            bool reward = state == GameState.GameOver && RewardAllowed();
+
+            _ui.ShowRewardButton(reward);
+            var plan = _ui.ApplyAdLayout(screen, insets, reward, _unlockedThisRun, allowed);
+
+            if (plan.ShowsMrec || plan.ShowsBanner) PlaceSlots(plan, insets, factor);
+        }
+
+        RunSnapshot _snapshot;
+        bool _adOpen;
+        bool _rewardEarned;
+
+        public bool AdOpen => _adOpen;
+        float _timeBeforeAd;
+
+        void WireReward()
+        {
+            _ui.RewardPressed += () =>
+            {
+                if (!RewardAllowed()) return;
+
+                _rewardEarned = false;
+                _timeBeforeAd = Time.timeScale;
+
+                if (!_ads.TryShowRewarded()) { _ui.ShowRewardButton(false); return; }
+
+                _snapshot = _game.Snapshot(_continuesUsed);
+                _adOpen = true;
+                Time.timeScale = 0f;
+                AudioListener.pause = true;
+            };
+
+            _ui.PrivacyPressed += () => _ads.OpenPrivacyOptions();
+
+            _ads.RewardedEarned += () => _rewardEarned = true;
+
+            _ads.RewardedClosed += () =>
+            {
+                _adOpen = false;
+                Time.timeScale = _timeBeforeAd > 0f ? _timeBeforeAd : 1f;
+                AudioListener.pause = false;
+
+                if (!_rewardEarned) { _ui.ShowRewardButton(false); return; }
+
+                _rewardEarned = false;
+                _continuesUsed++;
+                _game.Continue(_snapshot);
+            };
+        }
+
+        bool UnlockedThisRun()
+        {
+            if (_game.Mode == GameMode.Hardcore) return false;
+
+            foreach (var theme in ThemePalette.All)
+                if (_game.ScoreKeeper.UnlockedThisRun(theme)) return true;
+
+            return false;
+        }
+
+        bool RewardAllowed() =>
+            ads != null && ads.rewardedContinue && _ads.RewardedReady
+            && _continuesUsed < ads.maxContinuesPerRun;
+
+        int _continuesUsed;
+        bool _unlockedThisRun;
+
+        void PlaceSlots(in AdLayoutPlan plan, in AdInsets insets, float factor)
+        {
+            if (!(_ads is GoogleAdService google)) return;
+
+            float scale = google.DeviceScale;
+
+            google.Place(AdSlot.Banner,
+                         CentreDp(GoogleAdService.BannerWidthDp, scale),
+                         Dp(_ui.SafeHeightUnits - insets.BannerHeight, factor, scale));
+
+            if (!plan.ShowsMrec) return;
+
+            google.Place(AdSlot.Mrec,
+                         CentreDp(GoogleAdService.MrecWidthDp, scale),
+                         Dp(plan.TopBlock + plan.Flex + AdLayout.AdLabelBand, factor, scale));
+        }
+
+        static int Dp(double units, float factor, float scale) =>
+            Mathf.RoundToInt((float)(units * factor) / scale);
+
+        static int CentreDp(int widthDp, float scale) =>
+            Mathf.Max(0, Mathf.RoundToInt((Screen.width / scale - widthDp) * 0.5f));
+
         void ShowWorld(GameState state)
         {
-            bool playing = state == GameState.Playing;
-            if (!playing)
+            bool flying = state == GameState.Playing || state == GameState.Countdown;
+            if (!flying)
             {
                 if (_ball != null) _ball.SetFrozen(true);
             }
 
-            bool inPlay = state == GameState.Playing || state == GameState.GameOver;
+            bool inPlay = state == GameState.Playing || state == GameState.GameOver
+                          || state == GameState.Countdown;
             if (_ball != null) _ball.gameObject.SetActive(inPlay);
             if (_centre != null) _centre.gameObject.SetActive(inPlay);
             if (_tunnel != null) _tunnel.gameObject.SetActive(state != GameState.Paused);
 
             if (state == GameState.Paused && _effects != null) _effects.Clear();
 
-            if (!playing) return;
+            if (!flying) return;
             if (_ball != null) _ball.SetFrozen(false);
         }
 
@@ -296,6 +441,7 @@ namespace HR.App
 
             _effects.Enabled = wanted;
             _juice.Enabled = wanted;
+            _themes.SetEffectsWanted(wanted);
             _haptics.Enabled = _settings.vibrationEnabled;
 
             if (_ui != null && _themes != null) _ui.ApplyTheme(_themes.Palette);
@@ -351,6 +497,8 @@ namespace HR.App
         void StartRun()
         {
             _game.ScoreKeeper.RestoreBest(RecordForMode());
+            _continuesUsed = 0;
+            _unlockedThisRun = false;
             _ui.AwardsThemes = _game.Mode != GameMode.Hardcore;
 
             _game.StartRun(seed == 0 ? UnityEngine.Random.Range(1, int.MaxValue) : seed);
@@ -375,9 +523,47 @@ namespace HR.App
 
         const float MenuSpinDegPerSecond = 6f;
 
+        readonly CountdownClock _countdown = new CountdownClock();
+
+        public CountdownClock Countdown => _countdown;
+
+        void BeginCountdown()
+        {
+            _countdown.Restart();
+            _tunnel.BeginCountdown(config.countdownRingRatio, _game.Seed);
+            _ui.SetCountdown(CountdownClock.FirstDigit);
+        }
+
+        void TickCountdown(float dt)
+        {
+            double before = _countdown.Elapsed;
+            _countdown.Advance(dt);
+
+            if (_countdown.JustCrossedDissolve(_countdown.Elapsed - before))
+            {
+                _tunnel.EndCountdown(dissolve: true);
+                _ui.SetCountdown(0);
+            }
+            else if (_countdown.Phase == CountdownPhase.Counting)
+            {
+                _ui.SetCountdown(_countdown.Digit);
+            }
+
+            bool effects = _settings == null || !_settings.reduceEffects;
+            _ui.SetCountdownScale(effects ? (float)_countdown.BeatScale : 1f);
+
+            if (_countdown.Finished) _game.StartPlaying();
+        }
+
         void Update()
         {
             if (_game == null) return;
+
+            if (_game.State == GameState.Countdown)
+            {
+                TickCountdown(Time.deltaTime);
+                return;
+            }
 
             if (_game.State == GameState.Playing)
             {
@@ -388,6 +574,8 @@ namespace HR.App
             {
                 _effects.Tick(Time.deltaTime);
             }
+
+            _ads.Tick(Time.unscaledDeltaTime);
 
             if (_effects.Enabled) _themes.Tick(Time.deltaTime);
 
@@ -405,7 +593,7 @@ namespace HR.App
 
         public void SystemBack()
         {
-            if (_game == null || Time.frameCount == _lastBackFrame) return;
+            if (_game == null || _adOpen || Time.frameCount == _lastBackFrame) return;
             _lastBackFrame = Time.frameCount;
 
             if (_game.State == GameState.Menu) Application.Quit();

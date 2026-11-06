@@ -35,12 +35,16 @@ namespace HR.Core
                 ["over.home"] = "В меню",
                 ["over.themes"] = "Темы",
                 ["over.unlocked"] = "Открыта тема «{0}»",
-                ["theme.monochrome"] = "Монохром",
-                ["theme.midnight"] = "Полночь",
-                ["theme.neon"] = "Неон",
-                ["theme.pastel"] = "Пастель",
-                ["theme.earth"] = "Земля",
-                ["theme.aurora"] = "Сияние",
+                ["theme.minimal"] = "Минимал",
+                ["theme.light"] = "Светлая",
+                ["theme.dark"] = "Тёмная",
+                ["theme.neon"] = "Неон-космос",
+                ["theme.deco"] = "Арт-деко",
+                ["theme.sumie"] = "Суми-э",
+                ["theme.ocean"] = "Глубина",
+                ["theme.bauhaus"] = "Баухаус",
+                ["theme.crt"] = "Ретро ЭЛТ",
+                ["theme.ember"] = "Жар",
                 ["menu.hardcore"] = "ХАРДКОР",
                 ["hardcore.locked"] = "Рекорд в обычной игре {0}",
                 ["hardcore.hint"] = "Каждого кольца можно коснуться только раз",
@@ -64,9 +68,13 @@ namespace HR.Core
                 ["common.yes"] = "Да",
                 ["common.no"] = "Нет",
                 ["common.back"] = "Назад",
-                ["about.body"] = "Игра не собирает данные, не содержит рекламы и покупок "
-                                 + "и работает без интернета.",
+                ["about.body"] = "Игра показывает рекламу и использует интернет для её "
+                                 + "загрузки. Без сети игра работает, но без рекламы.",
                 ["about.privacy"] = "Политика конфиденциальности",
+                ["about.fonts"] = "Шрифты: Unbounded и Manrope (SIL OFL 1.1)",
+                ["ad.label"] = "Реклама",
+                ["set.privacy"] = "Параметры конфиденциальности",
+                ["over.continue"] = "▶ Продолжить · реклама",
             };
 
             English = new Dictionary<string, string>(StringComparer.Ordinal)
@@ -88,12 +96,16 @@ namespace HR.Core
                 ["over.home"] = "Home",
                 ["over.themes"] = "Themes",
                 ["over.unlocked"] = "Theme “{0}” unlocked",
-                ["theme.monochrome"] = "Monochrome",
-                ["theme.midnight"] = "Midnight",
-                ["theme.neon"] = "Neon",
-                ["theme.pastel"] = "Pastel",
-                ["theme.earth"] = "Earth",
-                ["theme.aurora"] = "Aurora",
+                ["theme.minimal"] = "Minimal",
+                ["theme.light"] = "Light",
+                ["theme.dark"] = "Dark",
+                ["theme.neon"] = "Neon cosmos",
+                ["theme.deco"] = "Art deco",
+                ["theme.sumie"] = "Sumi-e",
+                ["theme.ocean"] = "Deep ocean",
+                ["theme.bauhaus"] = "Bauhaus",
+                ["theme.crt"] = "Retro CRT",
+                ["theme.ember"] = "Ember",
                 ["menu.hardcore"] = "HARDCORE",
                 ["hardcore.locked"] = "Best {0} in the normal game",
                 ["hardcore.hint"] = "Each ring may be touched only once",
@@ -116,9 +128,13 @@ namespace HR.Core
                 ["common.yes"] = "Yes",
                 ["common.no"] = "No",
                 ["common.back"] = "Back",
-                ["about.body"] = "This game collects no data, has no ads or purchases, "
-                                 + "and works offline.",
+                ["about.body"] = "This game shows ads and uses the internet to load them. "
+                                 + "Without a connection the game still works, just without ads.",
                 ["about.privacy"] = "Privacy policy",
+                ["about.fonts"] = "Fonts: Unbounded and Manrope (SIL OFL 1.1)",
+                ["ad.label"] = "Ad",
+                ["set.privacy"] = "Privacy settings",
+                ["over.continue"] = "▶ Continue · ad",
             };
 
             Current = Language.English;
@@ -192,6 +208,14 @@ namespace HR.Core
             return count;
         }
 
-        public static string ThemeName(Theme theme) => Get("theme." + theme.ToString().ToLowerInvariant());
+        public static string ThemeName(Theme theme) => Get(ThemeKey(theme));
+
+        public static string ThemeKey(Theme theme) =>
+            theme == Theme.MinimalLight || theme == Theme.MinimalDark
+                ? "theme.minimal"
+                : "theme." + theme.ToString().ToLowerInvariant();
+
+        public static string VariantKey(Theme theme) =>
+            theme == Theme.MinimalDark ? "theme.dark" : "theme.light";
     }
 }

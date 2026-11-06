@@ -264,16 +264,52 @@ namespace HR.Tests.PlayMode
         static Rect RenderedBox(RectTransform space, Text text)
         {
             var box = LocalBounds(space, (RectTransform)text.transform);
-            var settings = text.GetGenerationSettings(new Vector2(box.width, 0f));
+            var rect = ((RectTransform)text.transform).rect;
+            var settings = text.GetGenerationSettings(rect.size);
             var generator = text.cachedTextGenerator;
 
-            float width = generator.GetPreferredWidth(text.text, settings) / text.pixelsPerUnit;
-            float height = generator.GetPreferredHeight(text.text, settings) / text.pixelsPerUnit;
+            generator.PopulateWithErrors(text.text, settings, text.gameObject);
+
+            float width = DrawnWidth(generator) / text.pixelsPerUnit;
+            float height = DrawnHeight(generator) / text.pixelsPerUnit;
 
             if (box.width > 0f) width = Mathf.Min(width, box.width);
             height = Mathf.Max(height, box.height);
 
             return new Rect(box.center.x - width / 2f, box.center.y - height / 2f, width, height);
+        }
+
+        static float DrawnWidth(TextGenerator generator)
+        {
+            float widest = 0f;
+            var characters = generator.characters;
+            var lines = generator.lines;
+
+            for (int line = 0; line < lines.Count; line++)
+            {
+                int from = lines[line].startCharIdx;
+                int to = line + 1 < lines.Count ? lines[line + 1].startCharIdx : characters.Count;
+                if (to <= from) continue;
+
+                float left = characters[from].cursorPos.x;
+                float right = left;
+                for (int i = from; i < to; i++)
+                    right = Mathf.Max(right, characters[i].cursorPos.x + characters[i].charWidth);
+
+                widest = Mathf.Max(widest, right - left);
+            }
+
+            return widest;
+        }
+
+        static float DrawnHeight(TextGenerator generator)
+        {
+            var lines = generator.lines;
+            if (lines.Count == 0) return 0f;
+
+            float top = lines[0].topY;
+            float bottom = lines[lines.Count - 1].topY - lines[lines.Count - 1].height;
+            return top - bottom;
         }
     }
 }

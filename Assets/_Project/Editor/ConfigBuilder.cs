@@ -10,6 +10,7 @@ namespace HR.Editor
         public const string ConfigDir = "Assets/_Project/Config";
         public const string GameConfigPath = ConfigDir + "/GameConfig.asset";
         public const string DifficultyTablePath = ConfigDir + "/DifficultyTable.asset";
+        public const string AdsConfigPath = ConfigDir + "/AdsConfig.asset";
 
         [MenuItem("Hypnotic Rings/Setup/Create missing config assets")]
         public static void EnsureAll()
@@ -17,6 +18,17 @@ namespace HR.Editor
             Directory.CreateDirectory(ConfigDir);
             EnsureGameConfig();
             AssetDatabase.SaveAssets();
+        }
+
+        public static HR.Ads.AdsConfig EnsureAdsConfig()
+        {
+            var existing = AssetDatabase.LoadAssetAtPath<HR.Ads.AdsConfig>(AdsConfigPath);
+            if (existing != null) return existing;
+
+            existing = ScriptableObject.CreateInstance<HR.Ads.AdsConfig>();
+            AssetDatabase.CreateAsset(existing, AdsConfigPath);
+            Debug.Log($"[HR] Created {AdsConfigPath} on Google's test units");
+            return existing;
         }
 
         public static GameConfig EnsureGameConfig()

@@ -74,6 +74,7 @@ namespace HR.Tests.PlayMode
         void StartRun(int seed)
         {
             _game.StartRun(seed);
+            _game.StartPlaying();
             foreach (var ring in _tunnel.Rings)
                 for (int i = 0; i < ring.ActiveSegmentCount; i++)
                     ring.SegmentAt(i).Collider.sharedMaterial = _ringPhysics;

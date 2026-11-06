@@ -1,3 +1,4 @@
+using System;
 using HR.Core;
 using UnityEngine;
 using UnityEngine.EventSystems;
@@ -42,6 +43,13 @@ namespace HR.UI
         }
     }
 
+    public sealed class VariantPicker : MonoBehaviour, IPointerClickHandler
+    {
+        public event Action Picked;
+
+        public void OnPointerClick(PointerEventData eventData) => Picked?.Invoke();
+    }
+
     public sealed class UiChrome : MonoBehaviour
     {
         Outline _edge;
@@ -81,6 +89,28 @@ namespace HR.UI
             _halo.effectDistance = new Vector2(reach, reach);
         }
 
+        UnityEngine.UI.Shadow _drop;
+
+        public void SetShadow(double offset, Color colour)
+        {
+            if (offset <= 0.0)
+            {
+                if (_drop != null) _drop.enabled = false;
+                return;
+            }
+
+            if (_drop == null)
+            {
+                _drop = gameObject.AddComponent<UnityEngine.UI.Shadow>();
+                _drop.useGraphicAlpha = false;
+            }
+
+            _drop.enabled = true;
+            colour.a = 1f;
+            _drop.effectColor = colour;
+            _drop.effectDistance = new Vector2((float)offset, -(float)offset);
+        }
+
         Outline Add()
         {
             var outline = gameObject.AddComponent<Outline>();
@@ -114,10 +144,16 @@ namespace HR.UI
 
         public const float RippleAlpha = 0.30f;
 
+        Vector2 _sink = new Vector2(0f, -SinkDistance);
+
         public void Configure(in UiSkin skin, Graphic fill, Color ripple)
         {
             _kind = skin.Press;
             Fill = fill;
+
+            _sink = skin.HardShadow > 0.0
+                ? new Vector2((float)skin.HardShadow, -(float)skin.HardShadow)
+                : new Vector2(0f, -SinkDistance);
 
             if (_kind != PressKind.Ripple)
             {
@@ -205,7 +241,7 @@ namespace HR.UI
             if (_kind == PressKind.Sink)
             {
                 ((RectTransform)transform).anchoredPosition =
-                    _home + new Vector2(0f, -SinkDistance * amount);
+                    _home + new Vector2(_sink.x * amount, _sink.y * amount);
                 return;
             }
 

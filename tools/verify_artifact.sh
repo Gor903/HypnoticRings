@@ -65,12 +65,20 @@ tgtsdk=$(grep -oP 'targetSdkVersion="\K[^"]+' <<<"$manifest" | head -1)
 echo
 echo "Permissions"
 # Proved absent by counting, not by reading the list and believing it is complete.
-for forbidden in INTERNET ACCESS_NETWORK_STATE AD_ID; do
-  n=$(grep -c "permission.$forbidden" <<<"$manifest")
+for forbidden in "permission.AD_ID" "ACCESS_ADSERVICES_AD_ID"; do
+  n=$(grep -c "$forbidden" <<<"$manifest")
   [ "$n" -eq 0 ] && good "$forbidden absent" "0 occurrences" || bad "$forbidden present" "$n occurrence(s)"
 done
-n=$(grep -c "permission.VIBRATE" <<<"$manifest")
-[ "$n" -ge 1 ] && good "VIBRATE present" "haptics need it (G-09)" || bad "VIBRATE missing" "spec 11.4 needs it"
+
+for wanted in INTERNET ACCESS_NETWORK_STATE VIBRATE; do
+  n=$(grep -c "permission.$wanted" <<<"$manifest")
+  [ "$n" -ge 1 ] && good "$wanted present" "declared" || bad "$wanted missing" "the build needs it"
+done
+
+unexpected=$(grep -oP 'uses-permission[^>]*android:name="\K[^"]+' <<<"$manifest" \
+  | grep -vxE "android.permission.(INTERNET|ACCESS_NETWORK_STATE|VIBRATE|WAKE_LOCK|FOREGROUND_SERVICE|ACCESS_ADSERVICES_(ATTRIBUTION|TOPICS))|com\..*DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION" || true)
+[ -z "$unexpected" ] && good "nothing rode along" "every permission is one we named" \
+  || bad "unnamed permissions" "$(tr '\n' ' ' <<<"$unexpected")"
 
 echo
 echo "  every uses-permission line in the bundle:"

@@ -27,11 +27,11 @@ ROOT = os.path.join(ROOT, "screenshots")
 
 # Ordered as a player meets them; anything captured but not listed is appended, so a new
 # screen shows up on the sheet without anyone remembering to add it here.
-SCREENS = ["menu", "hud", "pause", "gameover", "themes", "settings", "about", "confirm-reset"]
+SCREENS = ["menu", "countdown", "hud", "pause", "gameover", "themes", "settings", "about", "confirm-reset"]
 SHAPES = ["9x16", "9x18", "9x20", "9x21", "3x4"]
 
 # Light, dark, light, dark — so the sheet does not read as two unrelated halves.
-THEMES = ["Monochrome", "Midnight", "Neon", "Pastel", "Earth", "Aurora"]
+THEMES = ["MinimalLight", "MinimalDark", "Neon", "Deco", "Sumie", "Ocean", "Bauhaus", "Crt"]
 SKIN_SCREENS = ["menu", "settings", "gameover"]
 
 CELL_H = 420
