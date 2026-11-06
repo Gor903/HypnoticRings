@@ -1,0 +1,26 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: e017fa14aae26d11b888476e6cceb4a0, type: 3}
+  m_Name: AdsConfig
+  m_EditorClassIdentifier: HR.Ads::HR.Ads.AdsConfig
+  useTestUnits: 1
+  bannerUnitId: 
+  mrecUnitId: 
+  rewardedUnitId: 
+  bannerInPlay: 0
+  bannerOnPause: 1
+  bannerOnGameOver: 1
+  mrecOnPause: 1
+  mrecOnGameOver: 1
+  rewardedContinue: 1
+  maxContinuesPerRun: 1
+  bannerRefreshSeconds: 60

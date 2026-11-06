@@ -1,3 +1,4 @@
+using HR.Ads;
 using HR.Audio;
 using HR.Core;
 using HR.Gameplay;
@@ -13,6 +14,7 @@ namespace HR.App
     public sealed class GameBootstrap : MonoBehaviour
     {
         [SerializeField] GameConfig config;
+        [SerializeField] AdsConfig ads;
         [SerializeField] AudioBank audioBank;
         [SerializeField] int seed;
 
@@ -38,6 +40,12 @@ namespace HR.App
         public GameUi Ui => _ui;
         public TunnelController Tunnel => _tunnel;
         public BallController Ball => _ball;
+
+        IAdService _ads = new NullAdService();
+
+        public IAdService Ads => _ads;
+
+        public void UseAdService(IAdService service) => _ads = service ?? new NullAdService();
         public InputController Input => _input;
         public ThemeApplier Themes => _themes;
         public SaveData Settings => _settings;
@@ -162,6 +170,7 @@ namespace HR.App
             ApplyThemeToEffects();
             _ui.Show(GameState.Menu);
             ShowWorld(GameState.Menu);
+            StartAds();
         }
 
         PhysicsMaterial2D _ringPhysics;
@@ -256,6 +265,7 @@ namespace HR.App
                 ApplyModeLook(to);
                 _ui.Show(to);
                 ShowWorld(to);
+                ShowAds(to);
 
                 if (to == GameState.Countdown) BeginCountdown();
                 if (from == GameState.Countdown) _tunnel.EndCountdown(dissolve: false);
@@ -274,6 +284,28 @@ namespace HR.App
 
                 if (to == GameState.Countdown || to == GameState.Menu) _juice.Fade(toClear: true);
             };
+        }
+
+        void StartAds()
+        {
+            if (ads == null || !ads.Ready) return;
+            if (Application.platform != RuntimePlatform.Android) return;
+            if (!(_ads is NullAdService)) return;
+
+            var service = new GoogleAdService(ads);
+            _ads = service;
+            service.Initialise(() => ShowAds(_game != null ? _game.State : GameState.Menu));
+        }
+
+        void ShowAds(GameState state)
+        {
+            bool resting = state == GameState.Paused || state == GameState.GameOver;
+            bool allowed = resting && ads != null;
+
+            _ads.ShowBanner(allowed && (state == GameState.Paused
+                                        ? ads.bannerOnPause : ads.bannerOnGameOver));
+            _ads.ShowMrec(allowed && (state == GameState.Paused
+                                      ? ads.mrecOnPause : ads.mrecOnGameOver));
         }
 
         void ShowWorld(GameState state)
@@ -433,6 +465,8 @@ namespace HR.App
             {
                 _effects.Tick(Time.deltaTime);
             }
+
+            _ads.Tick(Time.unscaledDeltaTime);
 
             if (_effects.Enabled) _themes.Tick(Time.deltaTime);
 

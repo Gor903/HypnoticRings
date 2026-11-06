@@ -9,6 +9,7 @@
         "HR.Save",
         "HR.Audio",
         "HR.UI",
+        "HR.Ads",
         "Unity.InputSystem",
         "UnityEngine.UI",
         "Unity.RenderPipelines.Core.Runtime",
