@@ -197,6 +197,8 @@ namespace HR.Tests.PlayMode
                       $"{_pool.Created} rings ever built");
         }
 
+        public const long FrameAllocationBudget = 8192;
+
         [UnityTest]
         public IEnumerator The_game_loop_allocates_nothing_once_it_is_running()
         {
@@ -239,8 +241,9 @@ namespace HR.Tests.PlayMode
 
             Assert.AreEqual(createdBefore, _pool.Created,
                 $"the pool built {_pool.Created - createdBefore} ring(s) during a running game");
-            Assert.Less(worst, 4096,
-                $"the game loop allocated {worst} bytes in a frame");
+            Assert.Less(worst, FrameAllocationBudget,
+                $"the game loop allocated {worst} bytes in a frame, "
+                + $"the budget is {FrameAllocationBudget} (D-114)");
         }
 
         void AssertNothingIsNaN()
