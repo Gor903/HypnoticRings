@@ -10,9 +10,9 @@ namespace HR.UI
     {
         void BuildMenu(Transform parent)
         {
-            var screen = UiBuilder.CreatePanel("Menu", parent, new Color(1f, 1f, 1f, 0.88f));
+            var screen = UiBuilder.CreatePanel("Menu", parent);
             _screens[GameState.Menu] = screen;
-            Scrim(screen);
+            Plate(GameState.Menu, new Color(1f, 1f, 1f, 0.88f));
 
             var column = UiBuilder.CreateColumn("Column", screen);
 
@@ -103,9 +103,9 @@ namespace HR.UI
 
         void BuildPause(Transform parent)
         {
-            var screen = UiBuilder.CreatePanel("Pause", parent, Color.white);
+            var screen = UiBuilder.CreatePanel("Pause", parent);
             _screens[GameState.Paused] = screen;
-            Scrim(screen.GetComponent<Image>());
+            Plate(GameState.Paused, Color.white);
 
             _pauseScoreLabel = UiBuilder.CreateLabel("Score", screen, "0", UiBuilder.ScoreSize,
                                                      role: FontRole.Display);
@@ -149,9 +149,9 @@ namespace HR.UI
 
         void BuildGameOver(Transform parent)
         {
-            var screen = UiBuilder.CreatePanel("GameOver", parent, Color.white);
+            var screen = UiBuilder.CreatePanel("GameOver", parent);
             _screens[GameState.GameOver] = screen;
-            Scrim(screen.GetComponent<Image>());
+            Plate(GameState.GameOver, Color.white);
 
             _overScoreLabel = UiBuilder.CreateLabel("Score", screen, "0", UiBuilder.ScoreSize,
                                                     role: FontRole.Display);
@@ -215,9 +215,9 @@ namespace HR.UI
 
         void BuildThemes(Transform parent)
         {
-            var screen = UiBuilder.CreatePanel("Themes", parent, new Color(1f, 1f, 1f, 0.92f));
+            var screen = UiBuilder.CreatePanel("Themes", parent);
             _screens[GameState.ThemeSelect] = screen;
-            Scrim(screen);
+            Plate(GameState.ThemeSelect, new Color(1f, 1f, 1f, 0.92f));
 
             var column = UiBuilder.CreateColumn("Column", screen, 24f);
 
@@ -343,9 +343,9 @@ namespace HR.UI
 
         void BuildSettings(Transform parent)
         {
-            var screen = UiBuilder.CreatePanel("Settings", parent, new Color(1f, 1f, 1f, 0.95f));
+            var screen = UiBuilder.CreatePanel("Settings", parent);
             _screens[GameState.Settings] = screen;
-            Scrim(screen);
+            Plate(GameState.Settings, new Color(1f, 1f, 1f, 0.95f));
 
             var column = UiBuilder.CreateScrollColumn("Column", screen, 16f);
 

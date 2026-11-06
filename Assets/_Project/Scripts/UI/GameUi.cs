@@ -29,6 +29,7 @@ namespace HR.UI
         public event Action Clicked;
 
         readonly Dictionary<GameState, RectTransform> _screens = new Dictionary<GameState, RectTransform>();
+        readonly Dictionary<GameState, RectTransform> _plates = new Dictionary<GameState, RectTransform>();
         readonly List<Action> _stringRefreshers = new List<Action>();
 
         readonly List<Graphic> _tinted = new List<Graphic>();
@@ -88,6 +89,7 @@ namespace HR.UI
 
         Canvas _canvas;
         SafeAreaFitter _safeArea;
+        RectTransform _plateLayer;
 
         public Canvas Canvas => _canvas;
 
@@ -138,6 +140,7 @@ namespace HR.UI
             _canvas = UiBuilder.CreateCanvas("UI", transform, camera);
             _shimmer = gameObject.AddComponent<UiShimmer>();
             var canvas = _canvas;
+            _plateLayer = UiBuilder.CreatePanel("Plates", canvas.transform);
             var safe = UiBuilder.CreateSafeArea(canvas.transform);
             _safeArea = safe.GetComponent<SafeAreaFitter>();
 
@@ -161,6 +164,9 @@ namespace HR.UI
             var wanted = state == GameState.Settings ? GameState.Settings : state;
 
             foreach (var pair in _screens)
+                pair.Value.gameObject.SetActive(pair.Key == wanted);
+
+            foreach (var pair in _plates)
                 pair.Value.gameObject.SetActive(pair.Key == wanted);
 
             if (state == GameState.Playing || state == GameState.Countdown)
@@ -824,6 +830,15 @@ namespace HR.UI
 
         void Scrim(Image image) { if (image != null) _scrims.Add(image); }
 
+        RectTransform Plate(GameState state, Color colour)
+        {
+            var plate = UiBuilder.CreatePanel($"{state}Plate", _plateLayer, colour);
+            Scrim(plate);
+            plate.gameObject.SetActive(false);
+            _plates[state] = plate;
+            return plate;
+        }
+
         public IEnumerable<RectTransform> InteractiveElements()
         {
             foreach (var selectable in GetComponentsInChildren<Selectable>(includeInactive: true))
@@ -832,5 +847,8 @@ namespace HR.UI
 
         public RectTransform ScreenFor(GameState state) =>
             _screens.TryGetValue(state, out var screen) ? screen : null;
+
+        public RectTransform PlateFor(GameState state) =>
+            _plates.TryGetValue(state, out var plate) ? plate : null;
     }
 }

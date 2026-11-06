@@ -245,6 +245,70 @@ namespace HR.Tests.PlayMode
             }
         }
 
+        [UnityTest]
+        public IEnumerator A_plate_reaches_the_edges_while_its_content_keeps_to_the_safe_area()
+        {
+            int measured = 0;
+
+            foreach (var shape in Shapes)
+            {
+                _camera.aspect = (float)shape.Width / shape.Height;
+
+                float factor = GameUi.ScaleFactorFor(shape.Width, shape.Height);
+                float w = shape.Width / factor;
+                float h = shape.Height / factor;
+
+                const float notch = 130f;
+                const float bar = 90f;
+                var safe = new Rect(0f, bar, w, h - notch - bar);
+
+                _boot.Ui.OverrideLayoutShape(_camera, shape.Width, shape.Height, safe);
+                yield return null;
+
+                var canvas = (RectTransform)_boot.Ui.Canvas.transform;
+
+                foreach (var state in Screens)
+                {
+                    _boot.Ui.Show(state);
+                    Canvas.ForceUpdateCanvases();
+                    yield return null;
+
+                    var plate = _boot.Ui.PlateFor(state);
+                    if (plate == null) continue;
+
+                    Assert.IsTrue(plate.gameObject.activeInHierarchy,
+                        $"{shape.Name} {state}: the plate is dark while its screen is up");
+
+                    var box = LocalBounds(canvas, plate);
+                    measured++;
+
+                    Assert.LessOrEqual(box.yMax, canvas.rect.yMax + 1f,
+                        $"{shape.Name} {state}: the plate overshoots the canvas");
+                    Assert.GreaterOrEqual(box.yMax, canvas.rect.yMax - 1f,
+                        $"{shape.Name} {state}: live game shows above the plate " +
+                        $"({box.yMax:F0} short of {canvas.rect.yMax:F0})");
+                    Assert.LessOrEqual(box.yMin, canvas.rect.yMin + 1f,
+                        $"{shape.Name} {state}: live game shows below the plate " +
+                        $"({box.yMin:F0} above {canvas.rect.yMin:F0})");
+                    Assert.LessOrEqual(box.xMin, canvas.rect.xMin + 1f,
+                        $"{shape.Name} {state}: the plate leaves a strip on the left");
+                    Assert.GreaterOrEqual(box.xMax, canvas.rect.xMax - 1f,
+                        $"{shape.Name} {state}: the plate leaves a strip on the right");
+
+                    var content = LocalBounds(canvas, _boot.Ui.ScreenFor(state));
+
+                    Assert.LessOrEqual(content.yMax, canvas.rect.yMax - notch + 1f,
+                        $"{shape.Name} {state}: content is no longer held inside the safe area");
+                    Assert.GreaterOrEqual(content.yMin, canvas.rect.yMin + bar - 1f,
+                        $"{shape.Name} {state}: content is no longer held inside the safe area");
+                }
+            }
+
+            Assert.Greater(measured, Shapes.Length,
+                $"only {measured} plates measured — the gate is passing vacuously");
+            Debug.Log($"[HR] plate gate: {measured} plates measured");
+        }
+
         static Rect LocalBounds(RectTransform space, RectTransform rect)
         {
             var corners = new Vector3[4];
