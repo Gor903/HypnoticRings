@@ -21,6 +21,37 @@ namespace HR.Tests.EditMode
         }
 
         [Test]
+        public void The_shipping_scene_carries_everything_the_bootstrap_needs()
+        {
+            var scene = UnityEditor.SceneManagement.EditorSceneManager.OpenScene(
+                SceneBuilder.MainScene,
+                UnityEditor.SceneManagement.OpenSceneMode.Additive);
+
+            try
+            {
+                HR.App.GameBootstrap bootstrap = null;
+                foreach (var root in scene.GetRootGameObjects())
+                {
+                    bootstrap = root.GetComponentInChildren<HR.App.GameBootstrap>(true);
+                    if (bootstrap != null) break;
+                }
+
+                Assert.IsNotNull(bootstrap, "the playing scene has no bootstrap");
+
+                var serialized = new SerializedObject(bootstrap);
+                Assert.IsNotNull(serialized.FindProperty("config").objectReferenceValue,
+                    "the bootstrap ships without a GameConfig");
+
+                Assert.IsNotNull(serialized.FindProperty("ads").objectReferenceValue,
+                    "the bootstrap ships without an AdsConfig, so the ad layer is dead code");
+            }
+            finally
+            {
+                UnityEditor.SceneManagement.EditorSceneManager.CloseScene(scene, true);
+            }
+        }
+
+        [Test]
         public void The_sandbox_never_ships()
         {
             Assert.IsFalse(EditorBuildSettings.scenes.Any(s => s.path == SceneBuilder.SandboxScene),
