@@ -94,6 +94,16 @@ echo
 echo "  every uses-permission line in the apk:"
 grep -oP "^uses-permission: name='\K[^']+" <<<"$badging" | sed 's/^/    /' || echo "    (none)"
 
+# An empty app id is not a missing feature, it is a crash: the SDK brings up its own
+# ContentProvider at app start and aborts before a line of our code runs.
+appid=$("$AAPT" dump xmltree --file AndroidManifest.xml "$apk" 2>/dev/null \
+  | grep -A1 "ads.APPLICATION_ID" | grep -oP 'value[^=]*="\K[^"]+' | head -1)
+case "$appid" in
+  ca-app-pub-*~*) good "AdMob app id" "$appid" ;;
+  "")             bad  "AdMob app id missing" "the SDK aborts the app on start" ;;
+  *)              bad  "AdMob app id malformed" "$appid" ;;
+esac
+
 echo
 echo "Packaging"
 if grep -q "application-debuggable" <<<"$badging"; then
