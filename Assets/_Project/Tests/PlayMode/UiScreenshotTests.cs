@@ -90,6 +90,7 @@ namespace HR.Tests.PlayMode
 
             _boot.Game.ScoreKeeper.RestoreBest(37);
             _boot.Ui.RefreshStrings();
+            _boot.Juice.Enabled = false;
 
             var palette = ThemePalette.For(_boot.Settings.Theme);
             var expected = new Color(palette.Background.R / 255f, palette.Background.G / 255f,
@@ -194,6 +195,8 @@ namespace HR.Tests.PlayMode
 
         void PrepareFor(GameState state)
         {
+            _boot.Game.States.Fire(GameTrigger.Home);
+
             switch (state)
             {
                 case GameState.Playing:
@@ -217,12 +220,22 @@ namespace HR.Tests.PlayMode
                     _boot.Game.States.Fire(GameTrigger.Crushed);
                     break;
 
-                default:
-                    _boot.Ui.Show(state);
+                case GameState.Settings:
+                    _boot.Game.States.Fire(GameTrigger.OpenSettings);
+                    break;
+
+                case GameState.ThemeSelect:
+                    _boot.Game.States.Fire(GameTrigger.OpenThemes);
                     break;
             }
 
-            _boot.Ui.Show(_boot.Game.State == state ? state : state);
+            Assert.AreEqual(state, _boot.Game.State,
+                            $"the capture would show {state} without the game ever reaching it");
+            _boot.Ui.Show(state);
+
+            _boot.Juice.Enabled = false;
+            _boot.Juice.Clear();
+            _boot.Effects.Clear();
         }
 
         const int RenderAttempts = 4;

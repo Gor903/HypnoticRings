@@ -170,20 +170,34 @@ namespace HR.UI
             _overCard.padding = new RectOffset(40, 40, 8, 8);
             _overCard.spacing = 16f;
 
-            _overRewardButton = Button(_overCard.transform, "over.continue",
-                                       () => RewardPressed?.Invoke());
-            _overRewardButton.gameObject.SetActive(false);
+            _overCardScoreLabel = UiBuilder.CreateLabel("CardScore", _overCard.transform, "0",
+                                                        UiBuilder.ScoreSize, role: FontRole.Display);
+            ((RectTransform)_overCardScoreLabel.transform).sizeDelta =
+                new Vector2(0f, (float)AdLayout.AdScoreBand);
+            Track(_overCardScoreLabel);
+            _overCardScoreLabel.gameObject.SetActive(false);
+
+            _overCardBestLabel = UiBuilder.CreateLabel("CardBest", _overCard.transform, string.Empty,
+                                                       UiBuilder.BodySize);
+            ((RectTransform)_overCardBestLabel.transform).sizeDelta =
+                new Vector2(0f, (float)AdLayout.RecordBand);
+            Track(_overCardBestLabel);
+            _overCardBestLabel.gameObject.SetActive(false);
 
             _overUnlockLabel = UiBuilder.CreateLabel("Unlocked", _overCard.transform, string.Empty,
                                                      UiBuilder.BodySize);
             Track(_overUnlockLabel);
 
+            _overRewardButton = Button(_overCard.transform, "over.continue",
+                                       () => RewardPressed?.Invoke());
+            _overRewardButton.gameObject.SetActive(false);
+
             var exits = UiBuilder.CreateRow("Exits", _overCard.transform, spacing: 16f);
             Button(exits.transform, "over.home", () => HomePressed?.Invoke());
             Button(exits.transform, "over.themes", () => ThemesPressed?.Invoke());
 
-            Button(_overCard.transform, "over.retry", () => RetryPressed?.Invoke(),
-                   UiBuilder.TouchTarget, primary: true);
+            _overRetryButton = Button(_overCard.transform, "over.retry", () => RetryPressed?.Invoke(),
+                                      RetryTall, primary: true);
 
             _overBannerLabel = AdLabel("BannerLabel", screen);
         }

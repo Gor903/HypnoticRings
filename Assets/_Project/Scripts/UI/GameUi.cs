@@ -68,7 +68,10 @@ namespace HR.UI
         Text _pauseBannerLabel;
         Text _overMrecLabel;
         Text _overBannerLabel;
+        Text _overCardScoreLabel;
+        Text _overCardBestLabel;
         Button _overRewardButton;
+        Button _overRetryButton;
         Button _privacyLink;
         UnityEngine.UI.VerticalLayoutGroup _pauseCard;
         UnityEngine.UI.VerticalLayoutGroup _overCard;
@@ -216,12 +219,18 @@ namespace HR.UI
             var mrecLabel = over ? _overMrecLabel : _pauseMrecLabel;
             var bannerLabel = over ? _overBannerLabel : _pauseBannerLabel;
 
+            bool old = plan.OldLayout;
+
             if (card != null)
             {
                 float lift = plan.ShowsBanner
                     ? (float)(request.BannerHeight + plan.Gap)
                     : CardInset;
                 ((RectTransform)card.transform).anchoredPosition = new Vector2(0f, lift);
+
+                int pad = old ? ShippedCardPad : (over ? OverCardPad : PauseCardPad);
+                card.padding = new RectOffset(40, 40, pad, pad);
+                if (over) card.spacing = old ? ShippedCardSpacing : OverCardSpacing;
             }
 
             if (mrecLabel != null)
@@ -247,8 +256,37 @@ namespace HR.UI
             }
 
             var score = over ? _overScoreLabel : _pauseScoreLabel;
-            if (score != null) score.gameObject.SetActive(true);
-            if (over && _overBestLabel != null) _overBestLabel.gameObject.SetActive(true);
+            if (score != null) score.gameObject.SetActive(!(over && old));
+            if (over && _overBestLabel != null) _overBestLabel.gameObject.SetActive(!old);
+
+            if (!over) return;
+
+            if (_overCardScoreLabel != null) _overCardScoreLabel.gameObject.SetActive(old);
+            if (_overCardBestLabel != null) _overCardBestLabel.gameObject.SetActive(old);
+            SetRetryHeight(old ? RetryTall : UiBuilder.TouchTarget);
+        }
+
+        void SetRetryHeight(float height)
+        {
+            if (_overRetryButton == null) return;
+
+            var rect = (RectTransform)_overRetryButton.transform;
+            if (Mathf.Approximately(rect.sizeDelta.y, height)) return;
+            rect.sizeDelta = new Vector2(rect.sizeDelta.x, height);
+
+            var image = _overRetryButton.targetGraphic as Image;
+            if (image == null || _palette == null) return;
+
+            for (int i = 0; i < _shaped.Count; i++)
+                if (_shaped[i].Image == image) { _shaped[i] = (image, height); break; }
+
+            var skin = UiSkin.For(_palette.Theme);
+            bool effects = _settings == null || !_settings.reduceEffects;
+            UiPainter.Shape(image, height, skin);
+            UiPainter.Edge(image, skin, ThemeApplier.ToColor(_palette.Outline),
+                           effects ? _palette.Glow : 0.0,
+                           ThemeApplier.ToColor(_palette.Accent), effects);
+            UiPainter.Shadow(image, skin, ThemeApplier.ToColor(_palette.Ui));
         }
 
         public Text CountdownLabel => _countdownLabel;
@@ -437,6 +475,18 @@ namespace HR.UI
 
         const float CardOpacity = 0.96f;
 
+        public const float RetryTall = UiBuilder.TouchTarget * 1.4f;
+
+        const int ShippedCardPad = 48;
+
+        const int PauseCardPad = 24;
+
+        const int OverCardPad = 8;
+
+        const float ShippedCardSpacing = 24f;
+
+        const float OverCardSpacing = 16f;
+
         const float CardWidth = 600f;
 
         const float CardHeight = 700f;
@@ -543,6 +593,9 @@ namespace HR.UI
             _overBestLabel.text = _score.IsNewBest
                 ? Strings.Get("over.newbest")
                 : Strings.Format("over.best", _score.Best);
+
+            if (_overCardScoreLabel != null) _overCardScoreLabel.text = _overScoreLabel.text;
+            if (_overCardBestLabel != null) _overCardBestLabel.text = _overBestLabel.text;
 
             Theme? unlocked = null;
             if (AwardsThemes)

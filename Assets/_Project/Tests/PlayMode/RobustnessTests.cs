@@ -51,11 +51,13 @@ namespace HR.Tests.PlayMode
             var ballPhysics = TunnelFactory.CreatePhysicsMaterial("Ball", _config.ballFriction, _config.ballBounce);
 
             _ball = TunnelFactory.CreateBall(_config, _root.transform, ballPhysics, material, _settings);
+            _ball.enabled = false;
 
             var tunnelGo = new GameObject("Tunnel");
             tunnelGo.transform.SetParent(_root.transform, false);
             _tunnel = tunnelGo.AddComponent<TunnelController>();
             _pool = new RingPool(_config, tunnelGo.transform, material);
+            _pool.Prewarm(TunnelController.MaxRingsInFrame / 2);
             _tunnel.Initialise(_config, _ball, _pool);
             _tunnel.AutoStep = false;
             _tunnel.BeginRun(seed);
@@ -67,6 +69,12 @@ namespace HR.Tests.PlayMode
             _input.ExternalDriver = true;
 
             _fingerAngle = 0.0;
+        }
+
+        void StepBall()
+        {
+            _ball.HoldCruisingSpeed(Dt);
+            _ball.ClampSpeed();
         }
 
         Vector2 FingerAt(double degrees)
@@ -181,7 +189,7 @@ namespace HR.Tests.PlayMode
 
                 _tunnel.UserAngleDeg = _input.UserAngleDeg;
                 _tunnel.Step(Dt);
-                _ball.ClampSpeed();
+                StepBall();
                 Physics2D.Simulate(Dt);
 
                 if (i % 9000 == 0)
@@ -210,7 +218,7 @@ namespace HR.Tests.PlayMode
                 _input.FeedPointer(true, FingerAt(_fingerAngle), Dt);
                 _tunnel.UserAngleDeg = _input.UserAngleDeg;
                 _tunnel.Step(Dt);
-                _ball.ClampSpeed();
+                StepBall();
                 Physics2D.Simulate(Dt);
             }
 
@@ -227,7 +235,7 @@ namespace HR.Tests.PlayMode
                 _input.FeedPointer(true, FingerAt(_fingerAngle), Dt);
                 _tunnel.UserAngleDeg = _input.UserAngleDeg;
                 _tunnel.Step(Dt);
-                _ball.ClampSpeed();
+                StepBall();
                 Physics2D.Simulate(Dt);
 
                 yield return null;
