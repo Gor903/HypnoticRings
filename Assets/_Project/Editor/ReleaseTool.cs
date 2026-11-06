@@ -161,6 +161,10 @@ namespace HR.Editor
                 if (!ReleaseSettings.RequiresInternet && !manifest.Contains("permission.INTERNET"))
                     problems.Add("Custom manifest no longer removes the INTERNET permission.");
 
+                if (!manifest.Contains("permission.AD_ID"))
+                    problems.Add("Custom manifest no longer removes the advertising id; "
+                                 + "it is optional for AdMob and costly in Data safety.");
+
                 if (!manifest.Contains("android.intent.category.LAUNCHER"))
                     problems.Add("Custom manifest declares no LAUNCHER activity; " +
                                  "the app would install with no icon and no way to start.");

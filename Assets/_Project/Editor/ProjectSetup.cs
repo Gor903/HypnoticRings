@@ -128,6 +128,7 @@ namespace HR.Editor
             "Fonts/Manrope-Medium.ttf",
             "Fonts/OFL-Unbounded.txt",
             "Fonts/OFL-Manrope.txt",
+            "GoogleMobileAdsSettings.asset",
         };
 
         [MenuItem("Hypnotic Rings/Setup/Verify project settings")]

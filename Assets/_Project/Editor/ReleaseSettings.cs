@@ -42,6 +42,6 @@ namespace HR.Editor
         public const string EnvKeyAlias = "HYPNOTICRINGS_KEY_ALIAS";
         public const string EnvKeyPass = "HYPNOTICRINGS_KEY_PASS";
 
-        public const bool RequiresInternet = false;
+        public const bool RequiresInternet = true;
     }
 }
