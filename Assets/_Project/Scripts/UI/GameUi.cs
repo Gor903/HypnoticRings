@@ -195,12 +195,14 @@ namespace HR.UI
             if (_overRewardButton != null) _overRewardButton.gameObject.SetActive(visible);
         }
 
+        public double SafeHeightUnits => _safeArea != null
+            ? ((RectTransform)_safeArea.transform).rect.height
+            : UiBuilder.ReferenceHeight;
+
         public AdLayoutPlan ApplyAdLayout(AdScreen screen, in AdInsets insets, bool rewardButton,
                                           bool themeUnlocked, bool adsAllowed)
         {
-            double safe = _safeArea != null
-                ? ((RectTransform)_safeArea.transform).rect.height
-                : UiBuilder.ReferenceHeight;
+            double safe = SafeHeightUnits;
 
             var request = new AdLayoutRequest(screen, safe,
                 adsAllowed ? insets.BannerHeight : 0.0,

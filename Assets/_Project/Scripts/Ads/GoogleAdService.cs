@@ -14,6 +14,8 @@ namespace HR.Ads
 
         public const int MrecHeightDp = 250;
 
+        public const int BannerWidthDp = 320;
+
         public const double RetrySeconds = 8.0;
 
         public const int RetryLimit = 4;
@@ -27,6 +29,9 @@ namespace HR.Ads
         bool _started;
         bool _bannerWanted;
         bool _mrecWanted;
+
+        Vector2Int? _bannerAt;
+        Vector2Int? _mrecAt;
 
         double _retryClock;
         int _bannerTries;
@@ -127,6 +132,7 @@ namespace HR.Ads
             view.OnBannerAdLoaded += () =>
             {
                 keep();
+                Reposition(slot);
                 if (!wanted()) view.Hide();
                 SlotLoadedChanged?.Invoke(slot, true);
             };
@@ -144,6 +150,8 @@ namespace HR.Ads
         void Drop(ref BannerView view, AdSlot slot)
         {
             if (view == null) return;
+
+            if (slot == AdSlot.Banner) _bannerAt = null; else _mrecAt = null;
 
             view.Destroy();
             view = null;
@@ -235,10 +243,29 @@ namespace HR.Ads
             });
         }
 
+        public float DeviceScale
+        {
+            get
+            {
+                float scale = MobileAds.Utils.GetDeviceScale();
+                return scale > 0f ? scale : 1f;
+            }
+        }
+
         public void Place(AdSlot slot, int x, int y)
         {
+            var at = new Vector2Int(x, y);
+            if (slot == AdSlot.Banner) _bannerAt = at; else _mrecAt = at;
+            Reposition(slot);
+        }
+
+        void Reposition(AdSlot slot)
+        {
             var view = slot == AdSlot.Banner ? _banner : _mrec;
-            view?.SetPosition(x, y);
+            var at = slot == AdSlot.Banner ? _bannerAt : _mrecAt;
+            if (view == null || !at.HasValue) return;
+
+            view.SetPosition(at.Value.x, at.Value.y);
         }
 
         public void Close()

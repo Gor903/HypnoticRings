@@ -396,15 +396,24 @@ namespace HR.App
         {
             if (!(_ads is GoogleAdService google)) return;
 
-            int banner = Mathf.RoundToInt((float)(insets.BannerHeight * factor));
-            google.Place(AdSlot.Banner, 0, Screen.height - banner);
+            float scale = google.DeviceScale;
+
+            google.Place(AdSlot.Banner,
+                         CentreDp(GoogleAdService.BannerWidthDp, scale),
+                         Dp(_ui.SafeHeightUnits - insets.BannerHeight, factor, scale));
 
             if (!plan.ShowsMrec) return;
 
-            int top = Mathf.RoundToInt((float)((plan.TopBlock + plan.Flex
-                                                + AdLayout.AdLabelBand) * factor));
-            google.Place(AdSlot.Mrec, 0, top);
+            google.Place(AdSlot.Mrec,
+                         CentreDp(GoogleAdService.MrecWidthDp, scale),
+                         Dp(plan.TopBlock + plan.Flex + AdLayout.AdLabelBand, factor, scale));
         }
+
+        static int Dp(double units, float factor, float scale) =>
+            Mathf.RoundToInt((float)(units * factor) / scale);
+
+        static int CentreDp(int widthDp, float scale) =>
+            Mathf.Max(0, Mathf.RoundToInt((Screen.width / scale - widthDp) * 0.5f));
 
         void ShowWorld(GameState state)
         {
