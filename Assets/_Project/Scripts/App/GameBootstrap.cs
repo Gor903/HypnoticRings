@@ -165,6 +165,7 @@ namespace HR.App
             _back.Pressed += SystemBack;
 
             Wire();
+            WireReward();
             _themes.Apply(_settings.Theme);
             _ui.ApplyTheme(_themes.Palette);
             ApplyThemeToEffects();
@@ -268,6 +269,7 @@ namespace HR.App
                 ShowAds(to);
 
                 if (to == GameState.Countdown) BeginCountdown();
+                if (to == GameState.GameOver) _unlockedThisRun = UnlockedThisRun();
                 if (from == GameState.Countdown) _tunnel.EndCountdown(dissolve: false);
 
                 if (to == GameState.Paused) _audio.ResetStreak();
@@ -324,6 +326,56 @@ namespace HR.App
             var plan = _ui.ApplyAdLayout(screen, insets, reward, _unlockedThisRun, allowed);
 
             if (plan.ShowsMrec || plan.ShowsBanner) PlaceSlots(plan, insets, factor);
+        }
+
+        RunSnapshot _snapshot;
+        bool _adOpen;
+        bool _rewardEarned;
+
+        public bool AdOpen => _adOpen;
+        float _timeBeforeAd;
+
+        void WireReward()
+        {
+            _ui.RewardPressed += () =>
+            {
+                if (!RewardAllowed()) return;
+
+                _rewardEarned = false;
+                _timeBeforeAd = Time.timeScale;
+
+                if (!_ads.TryShowRewarded()) { _ui.ShowRewardButton(false); return; }
+
+                _snapshot = _game.Snapshot(_continuesUsed);
+                _adOpen = true;
+                Time.timeScale = 0f;
+                AudioListener.pause = true;
+            };
+
+            _ads.RewardedEarned += () => _rewardEarned = true;
+
+            _ads.RewardedClosed += () =>
+            {
+                _adOpen = false;
+                Time.timeScale = _timeBeforeAd > 0f ? _timeBeforeAd : 1f;
+                AudioListener.pause = false;
+
+                if (!_rewardEarned) { _ui.ShowRewardButton(false); return; }
+
+                _rewardEarned = false;
+                _continuesUsed++;
+                _game.Continue(_snapshot);
+            };
+        }
+
+        bool UnlockedThisRun()
+        {
+            if (_game.Mode == GameMode.Hardcore) return false;
+
+            foreach (var theme in ThemePalette.All)
+                if (_game.ScoreKeeper.UnlockedThisRun(theme)) return true;
+
+            return false;
         }
 
         bool RewardAllowed() =>
@@ -429,6 +481,8 @@ namespace HR.App
         void StartRun()
         {
             _game.ScoreKeeper.RestoreBest(RecordForMode());
+            _continuesUsed = 0;
+            _unlockedThisRun = false;
             _ui.AwardsThemes = _game.Mode != GameMode.Hardcore;
 
             _game.StartRun(seed == 0 ? UnityEngine.Random.Range(1, int.MaxValue) : seed);
@@ -523,7 +577,7 @@ namespace HR.App
 
         public void SystemBack()
         {
-            if (_game == null || Time.frameCount == _lastBackFrame) return;
+            if (_game == null || _adOpen || Time.frameCount == _lastBackFrame) return;
             _lastBackFrame = Time.frameCount;
 
             if (_game.State == GameState.Menu) Application.Quit();
