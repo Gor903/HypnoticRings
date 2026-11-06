@@ -400,8 +400,7 @@ namespace HR.App
             var safe = Screen.safeArea;
             double safeTop = Screen.height - (safe.y + safe.height);
 
-            google.Place(AdSlot.Banner,
-                         AdPlacement.CentreDp(GoogleAdService.BannerWidthDp, Screen.width, scale),
+            google.Place(AdSlot.Banner, 0,
                          AdPlacement.BannerTopDp(Screen.height, safe.y,
                                                  insets.BannerHeight * factor, scale));
 

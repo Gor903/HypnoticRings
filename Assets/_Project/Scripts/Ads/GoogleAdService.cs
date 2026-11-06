@@ -8,13 +8,9 @@ namespace HR.Ads
 {
     public sealed class GoogleAdService : IAdService
     {
-        public const int BannerDp = 50;
-
         public const int MrecWidthDp = 300;
 
         public const int MrecHeightDp = 250;
-
-        public const int BannerWidthDp = 320;
 
         public const double RetrySeconds = 8.0;
 
@@ -109,9 +105,15 @@ namespace HR.Ads
             _bannerTries++;
             Drop(ref _banner, AdSlot.Banner);
 
-            var view = new BannerView(_config.Banner, AdSize.Banner, 0, 0);
+            var view = new BannerView(_config.Banner, FullWidthBanner(), 0, 0);
             Watch(view, AdSlot.Banner, () => _banner = view, () => _bannerWanted);
             view.LoadAd(new AdRequest());
+        }
+
+        AdSize FullWidthBanner()
+        {
+            int widthDp = Mathf.RoundToInt(MobileAds.Utils.GetDeviceSafeWidth() / DeviceScale);
+            return AdSize.GetCurrentOrientationAnchoredAdaptiveBannerAdSizeWithWidth(widthDp);
         }
 
         void LoadMrec()
