@@ -364,6 +364,9 @@ namespace HR.UI
 
             UiBuilder.CreateSpacer(column.transform, GroupGap);
 
+            _privacyLink = Link(column.transform, "set.privacy", () => PrivacyPressed?.Invoke());
+            _privacyLink.gameObject.SetActive(false);
+
             var links = UiBuilder.CreateRow("Links", column.transform);
             Link(links.transform, "set.about", () => { ShowAbout(); AboutPressed?.Invoke(); });
             Link(links.transform, "set.reset", ShowResetConfirm);

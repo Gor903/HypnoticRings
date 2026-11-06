@@ -22,6 +22,7 @@ namespace HR.UI
         public event Action BackPressed;
         public event Action ResetProgressConfirmed;
         public event Action RewardPressed;
+        public event Action PrivacyPressed;
         public event Action<Theme> ThemeChosen;
         public event Action SettingsChanged;
 
@@ -68,6 +69,7 @@ namespace HR.UI
         Text _overMrecLabel;
         Text _overBannerLabel;
         Button _overRewardButton;
+        Button _privacyLink;
         UnityEngine.UI.VerticalLayoutGroup _pauseCard;
         UnityEngine.UI.VerticalLayoutGroup _overCard;
         Button _pauseButton;
@@ -177,6 +179,13 @@ namespace HR.UI
         }
 
         public Button RewardButton => _overRewardButton;
+
+        public Button PrivacyLink => _privacyLink;
+
+        public void ShowPrivacyLink(bool visible)
+        {
+            if (_privacyLink != null) _privacyLink.gameObject.SetActive(visible);
+        }
 
         public void ShowRewardButton(bool visible)
         {

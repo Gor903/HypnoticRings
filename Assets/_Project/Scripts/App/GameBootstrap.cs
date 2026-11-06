@@ -296,7 +296,12 @@ namespace HR.App
 
             var service = new GoogleAdService(ads);
             _ads = service;
-            service.Initialise(() => ShowAds(_game != null ? _game.State : GameState.Menu));
+            WireReward();
+            service.Initialise(() =>
+            {
+                _ui.ShowPrivacyLink(_ads.PrivacyOptionsRequired);
+                ShowAds(_game != null ? _game.State : GameState.Menu);
+            });
         }
 
         void ShowAds(GameState state)
@@ -351,6 +356,8 @@ namespace HR.App
                 Time.timeScale = 0f;
                 AudioListener.pause = true;
             };
+
+            _ui.PrivacyPressed += () => _ads.OpenPrivacyOptions();
 
             _ads.RewardedEarned += () => _rewardEarned = true;
 
