@@ -309,6 +309,57 @@ namespace HR.Tests.PlayMode
             Debug.Log($"[HR] plate gate: {measured} plates measured");
         }
 
+        [UnityTest]
+        public IEnumerator An_ad_label_stands_over_its_slot_and_not_against_the_screen_edge()
+        {
+            _camera.aspect = 1080f / 1920f;
+            _boot.Ui.OverrideLayoutShape(_camera, 1080, 1920);
+            yield return null;
+
+            _boot.Ui.Show(GameState.GameOver);
+            var plan = _boot.Ui.ApplyAdLayout(AdScreen.GameOver, new AdInsets(150.0, 750.0),
+                                              rewardButton: false, themeUnlocked: false,
+                                              adsAllowed: true);
+            Canvas.ForceUpdateCanvases();
+            yield return null;
+
+            Assert.IsTrue(plan.ShowsMrec && plan.ShowsBanner,
+                "9x16 fits both slots; without them there are no labels to measure");
+
+            var screen = _boot.Ui.ScreenFor(GameState.GameOver);
+            int measured = 0;
+
+            foreach (var text in screen.GetComponentsInChildren<Text>(includeInactive: false))
+            {
+                if (text.name != "MrecLabel" && text.name != "BannerLabel") continue;
+
+                var run = DrawnRun(text);
+                float bandCentre = (0.5f - ((RectTransform)text.transform).pivot.x) * run.Band;
+                measured++;
+
+                Assert.AreEqual(bandCentre, run.Left + run.Width / 2f, 3f,
+                    $"'{text.name}' is drawn against the edge of its band " +
+                    $"instead of over the slot it names");
+            }
+
+            Assert.AreEqual(2, measured, "both ad labels should be up with a MREC and a banner");
+        }
+
+        static (float Left, float Width, float Band) DrawnRun(Text text)
+        {
+            var rect = ((RectTransform)text.transform).rect;
+            var settings = text.GetGenerationSettings(rect.size);
+            var generator = text.cachedTextGenerator;
+
+            generator.PopulateWithErrors(text.text, settings, text.gameObject);
+
+            float left = generator.characters.Count > 0
+                ? generator.characters[0].cursorPos.x / text.pixelsPerUnit
+                : 0f;
+
+            return (left, DrawnWidth(generator) / text.pixelsPerUnit, rect.width);
+        }
+
         static Rect LocalBounds(RectTransform space, RectTransform rect)
         {
             var corners = new Vector3[4];

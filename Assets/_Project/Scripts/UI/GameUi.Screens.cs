@@ -128,7 +128,7 @@ namespace HR.UI
         Text AdLabel(string name, Transform parent)
         {
             var label = UiBuilder.CreateLabel(name, parent, Strings.Get(AdLabelKey),
-                                              (int)AdLayout.AdLabelSize, TextAnchor.MiddleLeft);
+                                              (int)AdLayout.AdLabelSize, TextAnchor.MiddleCenter);
             var rect = (RectTransform)label.transform;
             rect.anchorMin = new Vector2(0f, 1f);
             rect.anchorMax = new Vector2(1f, 1f);
