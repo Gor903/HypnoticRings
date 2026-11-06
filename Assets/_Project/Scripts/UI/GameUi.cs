@@ -21,6 +21,7 @@ namespace HR.UI
         public event Action AboutPressed;
         public event Action BackPressed;
         public event Action ResetProgressConfirmed;
+        public event Action RewardPressed;
         public event Action<Theme> ThemeChosen;
         public event Action SettingsChanged;
 
@@ -61,6 +62,14 @@ namespace HR.UI
         Text _overUnlockLabel;
         Text _hintLabel;
         Text _countdownLabel;
+        Text _pauseScoreLabel;
+        Text _pauseMrecLabel;
+        Text _pauseBannerLabel;
+        Text _overMrecLabel;
+        Text _overBannerLabel;
+        Button _overRewardButton;
+        UnityEngine.UI.VerticalLayoutGroup _pauseCard;
+        UnityEngine.UI.VerticalLayoutGroup _overCard;
         Button _pauseButton;
         Button _languageChip;
         CarouselSnapping _carousel;
@@ -149,8 +158,7 @@ namespace HR.UI
             foreach (var pair in _screens)
                 pair.Value.gameObject.SetActive(pair.Key == wanted);
 
-            if (state == GameState.Playing || state == GameState.Paused
-                || state == GameState.Countdown)
+            if (state == GameState.Playing || state == GameState.Countdown)
                 _screens[GameState.Playing].gameObject.SetActive(true);
             SetHudDetail(state == GameState.Playing);
             SetCountdown(state == GameState.Countdown ? CountdownClock.FirstDigit : 0);
@@ -165,6 +173,73 @@ namespace HR.UI
         public void SetScore(int score)
         {
             if (_scoreLabel != null) _scoreLabel.text = score.ToString();
+            if (_pauseScoreLabel != null) _pauseScoreLabel.text = score.ToString();
+        }
+
+        public Button RewardButton => _overRewardButton;
+
+        public void ShowRewardButton(bool visible)
+        {
+            if (_overRewardButton != null) _overRewardButton.gameObject.SetActive(visible);
+        }
+
+        public AdLayoutPlan ApplyAdLayout(AdScreen screen, in AdInsets insets, bool rewardButton,
+                                          bool themeUnlocked, bool adsAllowed)
+        {
+            double safe = _safeArea != null
+                ? ((RectTransform)_safeArea.transform).rect.height
+                : UiBuilder.ReferenceHeight;
+
+            var request = new AdLayoutRequest(screen, safe,
+                adsAllowed ? insets.BannerHeight : 0.0,
+                adsAllowed ? insets.MrecHeight : 0.0,
+                rewardButton, themeUnlocked);
+
+            var plan = AdLayout.For(request);
+            Place(screen, plan, request);
+            return plan;
+        }
+
+        void Place(AdScreen screen, in AdLayoutPlan plan, in AdLayoutRequest request)
+        {
+            bool over = screen == AdScreen.GameOver;
+            var card = over ? _overCard : _pauseCard;
+            var mrecLabel = over ? _overMrecLabel : _pauseMrecLabel;
+            var bannerLabel = over ? _overBannerLabel : _pauseBannerLabel;
+
+            if (card != null)
+            {
+                float lift = plan.ShowsBanner
+                    ? (float)(request.BannerHeight + plan.Gap)
+                    : CardInset;
+                ((RectTransform)card.transform).anchoredPosition = new Vector2(0f, lift);
+            }
+
+            if (mrecLabel != null)
+            {
+                mrecLabel.gameObject.SetActive(plan.ShowsMrec);
+                if (plan.ShowsMrec)
+                    ((RectTransform)mrecLabel.transform).anchoredPosition =
+                        new Vector2(0f, -(float)(plan.TopBlock + plan.Flex));
+            }
+
+            if (bannerLabel != null)
+            {
+                bannerLabel.gameObject.SetActive(plan.ShowsBanner);
+                if (plan.ShowsBanner)
+                {
+                    var rect = (RectTransform)bannerLabel.transform;
+                    rect.anchorMin = new Vector2(0f, 0f);
+                    rect.anchorMax = new Vector2(1f, 0f);
+                    rect.pivot = new Vector2(0.5f, 0f);
+                    rect.anchoredPosition =
+                        new Vector2(0f, (float)(request.BannerHeight));
+                }
+            }
+
+            var score = over ? _overScoreLabel : _pauseScoreLabel;
+            if (score != null) score.gameObject.SetActive(true);
+            if (over && _overBestLabel != null) _overBestLabel.gameObject.SetActive(true);
         }
 
         public Text CountdownLabel => _countdownLabel;

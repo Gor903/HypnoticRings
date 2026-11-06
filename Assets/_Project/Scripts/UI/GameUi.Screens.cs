@@ -103,35 +103,89 @@ namespace HR.UI
 
         void BuildPause(Transform parent)
         {
-            var screen = UiBuilder.CreatePanel("Pause", parent, new Color(0f, 0f, 0f, 0.4f));
+            var screen = UiBuilder.CreatePanel("Pause", parent, Color.white);
             _screens[GameState.Paused] = screen;
+            Scrim(screen.GetComponent<Image>());
 
-            var card = Card("Card", screen, anchorY: 0f, inset: CardInset);
-            Track(Label(card.transform, "pause.title", UiBuilder.TitleSize, FontRole.Display));
-            Button(card.transform, "pause.home", () => HomePressed?.Invoke());
-            Button(card.transform, "pause.resume", () => ResumePressed?.Invoke(),
+            _pauseScoreLabel = UiBuilder.CreateLabel("Score", screen, "0", UiBuilder.ScoreSize,
+                                                     role: FontRole.Display);
+            UiBuilder.PinTop((RectTransform)_pauseScoreLabel.transform,
+                             (float)AdLayout.AdScoreBand, (float)AdLayout.TopInset);
+            Track(_pauseScoreLabel);
+
+            _pauseMrecLabel = AdLabel("MrecLabel", screen);
+
+            _pauseCard = Card("Card", screen, anchorY: 0f, inset: CardInset);
+            _pauseCard.padding = new RectOffset(40, 40, 24, 24);
+            Track(Label(_pauseCard.transform, "pause.title", UiBuilder.TitleSize, FontRole.Display));
+            Button(_pauseCard.transform, "pause.home", () => HomePressed?.Invoke());
+            Button(_pauseCard.transform, "pause.resume", () => ResumePressed?.Invoke(),
                    UiBuilder.TouchTarget * 1.4f, primary: true);
+
+            _pauseBannerLabel = AdLabel("BannerLabel", screen);
         }
+
+        Text AdLabel(string name, Transform parent)
+        {
+            var label = UiBuilder.CreateLabel(name, parent, Strings.Get(AdLabelKey),
+                                              (int)AdLayout.AdLabelSize, TextAnchor.MiddleLeft);
+            var rect = (RectTransform)label.transform;
+            rect.anchorMin = new Vector2(0f, 1f);
+            rect.anchorMax = new Vector2(1f, 1f);
+            rect.pivot = new Vector2(0.5f, 1f);
+            rect.sizeDelta = new Vector2(0f, (float)AdLayout.AdLabelBand);
+            rect.offsetMin = new Vector2(AdSideInset, rect.offsetMin.y);
+            rect.offsetMax = new Vector2(-AdSideInset, rect.offsetMax.y);
+
+            _stringRefreshers.Add(() => label.text = Strings.Get(AdLabelKey));
+            Track(label);
+            label.gameObject.SetActive(false);
+            return label;
+        }
+
+        public const string AdLabelKey = "ad.label";
+
+        public const float AdSideInset = 64f;
 
         void BuildGameOver(Transform parent)
         {
-            var screen = UiBuilder.CreatePanel("GameOver", parent, new Color(0f, 0f, 0f, 0.4f));
+            var screen = UiBuilder.CreatePanel("GameOver", parent, Color.white);
             _screens[GameState.GameOver] = screen;
+            Scrim(screen.GetComponent<Image>());
 
-            var card = Card("Card", screen, anchorY: 0f, inset: CardInset);
-
-            _overScoreLabel = UiBuilder.CreateLabel("Score", card.transform, "0", UiBuilder.ScoreSize,
+            _overScoreLabel = UiBuilder.CreateLabel("Score", screen, "0", UiBuilder.ScoreSize,
                                                     role: FontRole.Display);
-            _overBestLabel = UiBuilder.CreateLabel("Best", card.transform, string.Empty, UiBuilder.BodySize);
-            _overUnlockLabel = UiBuilder.CreateLabel("Unlocked", card.transform, string.Empty, UiBuilder.BodySize);
-            Track(_overScoreLabel); Track(_overBestLabel); Track(_overUnlockLabel);
+            UiBuilder.PinTop((RectTransform)_overScoreLabel.transform,
+                             (float)AdLayout.AdScoreBand, (float)AdLayout.TopInset);
+            Track(_overScoreLabel);
 
-            var exits = UiBuilder.CreateRow("Exits", card.transform);
+            _overBestLabel = UiBuilder.CreateLabel("Best", screen, string.Empty, UiBuilder.BodySize);
+            UiBuilder.PinTop((RectTransform)_overBestLabel.transform, (float)AdLayout.RecordBand,
+                             (float)(AdLayout.TopInset + AdLayout.AdScoreBand + AdLayout.RecordGap));
+            Track(_overBestLabel);
+
+            _overMrecLabel = AdLabel("MrecLabel", screen);
+
+            _overCard = Card("Card", screen, anchorY: 0f, inset: CardInset);
+            _overCard.padding = new RectOffset(40, 40, 8, 8);
+            _overCard.spacing = 16f;
+
+            _overRewardButton = Button(_overCard.transform, "over.continue",
+                                       () => RewardPressed?.Invoke());
+            _overRewardButton.gameObject.SetActive(false);
+
+            _overUnlockLabel = UiBuilder.CreateLabel("Unlocked", _overCard.transform, string.Empty,
+                                                     UiBuilder.BodySize);
+            Track(_overUnlockLabel);
+
+            var exits = UiBuilder.CreateRow("Exits", _overCard.transform, spacing: 16f);
             Button(exits.transform, "over.home", () => HomePressed?.Invoke());
             Button(exits.transform, "over.themes", () => ThemesPressed?.Invoke());
 
-            Button(card.transform, "over.retry", () => RetryPressed?.Invoke(),
-                   UiBuilder.TouchTarget * 1.4f, primary: true);
+            Button(_overCard.transform, "over.retry", () => RetryPressed?.Invoke(),
+                   UiBuilder.TouchTarget, primary: true);
+
+            _overBannerLabel = AdLabel("BannerLabel", screen);
         }
 
         VerticalLayoutGroup Card(string name, Transform parent, float anchorY, float inset)

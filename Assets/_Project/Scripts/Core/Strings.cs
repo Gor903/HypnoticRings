@@ -68,10 +68,13 @@ namespace HR.Core
                 ["common.yes"] = "Да",
                 ["common.no"] = "Нет",
                 ["common.back"] = "Назад",
-                ["about.body"] = "Игра не собирает данные, не содержит рекламы и покупок "
-                                 + "и работает без интернета.",
+                ["about.body"] = "Игра показывает рекламу и использует интернет для её "
+                                 + "загрузки. Без сети игра работает, но без рекламы.",
                 ["about.privacy"] = "Политика конфиденциальности",
                 ["about.fonts"] = "Шрифты: Unbounded и Manrope (SIL OFL 1.1)",
+                ["ad.label"] = "Реклама",
+                ["set.privacy"] = "Параметры конфиденциальности",
+                ["over.continue"] = "▶ Продолжить · реклама",
             };
 
             English = new Dictionary<string, string>(StringComparer.Ordinal)
@@ -125,10 +128,13 @@ namespace HR.Core
                 ["common.yes"] = "Yes",
                 ["common.no"] = "No",
                 ["common.back"] = "Back",
-                ["about.body"] = "This game collects no data, has no ads or purchases, "
-                                 + "and works offline.",
+                ["about.body"] = "This game shows ads and uses the internet to load them. "
+                                 + "Without a connection the game still works, just without ads.",
                 ["about.privacy"] = "Privacy policy",
                 ["about.fonts"] = "Fonts: Unbounded and Manrope (SIL OFL 1.1)",
+                ["ad.label"] = "Ad",
+                ["set.privacy"] = "Privacy settings",
+                ["over.continue"] = "▶ Continue · ad",
             };
 
             Current = Language.English;

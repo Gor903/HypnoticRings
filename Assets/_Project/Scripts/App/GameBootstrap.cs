@@ -302,10 +302,49 @@ namespace HR.App
             bool resting = state == GameState.Paused || state == GameState.GameOver;
             bool allowed = resting && ads != null;
 
-            _ads.ShowBanner(allowed && (state == GameState.Paused
-                                        ? ads.bannerOnPause : ads.bannerOnGameOver));
-            _ads.ShowMrec(allowed && (state == GameState.Paused
-                                      ? ads.mrecOnPause : ads.mrecOnGameOver));
+            bool banner = allowed && (state == GameState.Paused
+                                      ? ads.bannerOnPause : ads.bannerOnGameOver);
+            bool mrec = allowed && (state == GameState.Paused
+                                    ? ads.mrecOnPause : ads.mrecOnGameOver);
+
+            _ads.ShowBanner(banner);
+            _ads.ShowMrec(mrec);
+
+            if (!resting) return;
+
+            float factor = _ui.Canvas != null ? _ui.Canvas.scaleFactor : 1f;
+            var insets = _ads.GetInsetsInCanvasUnits(factor);
+            if (!banner) insets = new AdInsets(0.0, insets.MrecHeight);
+            if (!mrec) insets = new AdInsets(insets.BannerHeight, 0.0);
+
+            var screen = state == GameState.Paused ? AdScreen.Paused : AdScreen.GameOver;
+            bool reward = state == GameState.GameOver && RewardAllowed();
+
+            _ui.ShowRewardButton(reward);
+            var plan = _ui.ApplyAdLayout(screen, insets, reward, _unlockedThisRun, allowed);
+
+            if (plan.ShowsMrec || plan.ShowsBanner) PlaceSlots(plan, insets, factor);
+        }
+
+        bool RewardAllowed() =>
+            ads != null && ads.rewardedContinue && _ads.RewardedReady
+            && _continuesUsed < ads.maxContinuesPerRun;
+
+        int _continuesUsed;
+        bool _unlockedThisRun;
+
+        void PlaceSlots(in AdLayoutPlan plan, in AdInsets insets, float factor)
+        {
+            if (!(_ads is GoogleAdService google)) return;
+
+            int banner = Mathf.RoundToInt((float)(insets.BannerHeight * factor));
+            google.Place(AdSlot.Banner, 0, Screen.height - banner);
+
+            if (!plan.ShowsMrec) return;
+
+            int top = Mathf.RoundToInt((float)((plan.TopBlock + plan.Flex
+                                                + AdLayout.AdLabelBand) * factor));
+            google.Place(AdSlot.Mrec, 0, top);
         }
 
         void ShowWorld(GameState state)
