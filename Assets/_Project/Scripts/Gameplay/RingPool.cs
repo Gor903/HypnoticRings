@@ -10,13 +10,18 @@ namespace HR.Gameplay
         readonly GameConfig _config;
         readonly Transform _parent;
         readonly Material _material;
+        readonly PhysicsMaterial2D _physics;
 
         public RingPool(GameConfig config, Transform parent, Material material)
         {
             _config = config;
             _parent = parent;
             _material = material;
+            _physics = TunnelFactory.CreatePhysicsMaterial(
+                "Ring", config.ringFriction, config.ringBounce);
         }
+
+        public PhysicsMaterial2D Physics => _physics;
 
         public int Created => _all.Count;
         public int InUse => _all.Count - _free.Count;
@@ -31,7 +36,7 @@ namespace HR.Gameplay
                 return reused;
             }
 
-            var ring = TunnelFactory.CreateRing(_config, _parent, _material, _all.Count);
+            var ring = TunnelFactory.CreateRing(_config, _parent, _material, _all.Count, _physics);
             _all.Add(ring);
             return ring;
         }

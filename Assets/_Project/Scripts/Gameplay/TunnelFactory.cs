@@ -49,13 +49,15 @@ namespace HR.Gameplay
             return tunnel;
         }
 
-        public static RingController CreateRing(GameConfig config, Transform parent, Material material, int id)
+        public static RingController CreateRing(GameConfig config, Transform parent, Material material,
+                                                int id, PhysicsMaterial2D physics = null)
         {
             var go = new GameObject($"Ring{id}", typeof(Rigidbody2D), typeof(RingController));
             go.transform.SetParent(parent, false);
 
             var ring = go.GetComponent<RingController>();
-            ring.Initialise(config, material, id);
+            ring.Initialise(config, material, id,
+                            physics ?? CreatePhysicsMaterial("Ring", config.ringFriction, config.ringBounce));
             return ring;
         }
 

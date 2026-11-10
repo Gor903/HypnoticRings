@@ -130,7 +130,8 @@ namespace HR.Gameplay
                 _segments[i].Collider.enabled = enabled;
         }
 
-        public void Initialise(GameConfig config, Material material, int id)
+        public void Initialise(GameConfig config, Material material, int id,
+                               PhysicsMaterial2D physics = null)
         {
             Id = id;
             _settings = config.ToSettings();
@@ -153,6 +154,7 @@ namespace HR.Gameplay
                                         typeof(PolygonCollider2D), typeof(RingSegment));
                 go.transform.SetParent(transform, false);
                 go.GetComponent<MeshRenderer>().sharedMaterial = material;
+                go.GetComponent<PolygonCollider2D>().sharedMaterial = physics;
 
                 var segment = go.GetComponent<RingSegment>();
                 segment.Initialise(_settings);

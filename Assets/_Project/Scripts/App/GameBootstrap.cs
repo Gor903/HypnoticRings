@@ -104,7 +104,6 @@ namespace HR.App
 
             var settings = config.ToSettings();
             var material = TunnelFactory.CreateUnlitMaterial(Color.white);
-            var ringPhysics = TunnelFactory.CreatePhysicsMaterial("Ring", config.ringFriction, config.ringBounce);
             var ballPhysics = TunnelFactory.CreatePhysicsMaterial("Ball", config.ballFriction, config.ballBounce);
 
             _ball = TunnelFactory.CreateBall(config, transform, ballPhysics, material, settings);
@@ -120,7 +119,6 @@ namespace HR.App
             _tunnel.Initialise(config, _ball, pool);
 
             _tunnel.AutoStep = false;
-            _ringPhysics = ringPhysics;
 
             var gameGo = new GameObject("Game");
             gameGo.transform.SetParent(transform, false);
@@ -173,8 +171,6 @@ namespace HR.App
             ShowWorld(GameState.Menu);
             StartAds();
         }
-
-        PhysicsMaterial2D _ringPhysics;
 
         void ApplyFraming()
         {
@@ -533,10 +529,6 @@ namespace HR.App
 
             _tunnel.transform.localRotation = Quaternion.identity;
             _effects.Clear();
-
-            foreach (var ring in _tunnel.Rings)
-                for (int i = 0; i < ring.ActiveSegmentCount; i++)
-                    ring.SegmentAt(i).Collider.sharedMaterial = _ringPhysics;
         }
 
         const float MenuSpinDegPerSecond = 6f;

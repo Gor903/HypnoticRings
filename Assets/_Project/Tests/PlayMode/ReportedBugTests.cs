@@ -133,6 +133,39 @@ namespace HR.Tests.PlayMode
                 "every ring went soft for a ball that had left the tunnel, so it could never come back");
         }
 
+        [UnityTest]
+        public IEnumerator Every_ring_the_pool_grows_into_bounces_like_the_first()
+        {
+            int created = _pool.Created;
+
+            for (int i = 0; i < 600 && _pool.Created == created; i++)
+            {
+                _tunnel.Step(Dt);
+                yield return null;
+            }
+
+            Assert.Greater(_pool.Created, created,
+                "the pool never grew mid-run, so this gate proves nothing");
+
+            int checkedSegments = 0;
+            foreach (var ring in _tunnel.Rings)
+            {
+                for (int i = 0; i < ring.ActiveSegmentCount; i++)
+                {
+                    var material = ring.SegmentAt(i).Collider.sharedMaterial;
+                    Assert.IsNotNull(material,
+                        $"{ring.name} segment {i} carries no physics material, so the ball meets "
+                        + "Unity's default and does not bounce off it");
+
+                    Assert.AreEqual(_config.ringBounce, material.bounciness, 1e-4,
+                        $"{ring.name} segment {i} bounces by {material.bounciness}");
+                    checkedSegments++;
+                }
+            }
+
+            Assert.Greater(checkedSegments, 0, "no segments examined");
+        }
+
         RingController NextOut(RingController inner)
         {
             RingController next = null;
