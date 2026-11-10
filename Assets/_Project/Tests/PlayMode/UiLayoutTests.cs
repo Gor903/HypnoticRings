@@ -233,6 +233,11 @@ namespace HR.Tests.PlayMode
 
                 foreach (var text in Labels(screen)) yield return text;
             }
+
+            var centre = _boot.Ui.CentreLayer;
+            if (centre == null || !centre.gameObject.activeInHierarchy) yield break;
+
+            foreach (var text in Labels(centre)) yield return text;
         }
 
         static IEnumerable<Text> Labels(RectTransform screen)
@@ -243,6 +248,46 @@ namespace HR.Tests.PlayMode
                 if (scroll != null && (scroll.vertical || scroll.horizontal)) continue;
                 yield return text;
             }
+        }
+
+        [UnityTest]
+        public IEnumerator The_countdown_digit_sits_on_the_red_circle_under_any_notch()
+        {
+            int measured = 0;
+
+            foreach (var shape in Shapes)
+            {
+                _camera.aspect = (float)shape.Width / shape.Height;
+
+                float factor = GameUi.ScaleFactorFor(shape.Width, shape.Height);
+                float w = shape.Width / factor;
+                float h = shape.Height / factor;
+
+                const float notch = 130f;
+                const float bar = 90f;
+
+                _boot.Ui.OverrideLayoutShape(_camera, shape.Width, shape.Height,
+                                             new Rect(0f, bar, w, h - notch - bar));
+                yield return null;
+
+                var canvas = (RectTransform)_boot.Ui.Canvas.transform;
+                float centre = canvas.rect.yMin
+                               + canvas.rect.height * _config.centreHeightFraction;
+
+                _boot.Ui.Show(GameState.Countdown);
+                _boot.Ui.SetCountdown(CountdownClock.FirstDigit);
+                Canvas.ForceUpdateCanvases();
+                yield return null;
+
+                var digit = RenderedBox(canvas, _boot.Ui.CountdownLabel);
+                Assert.AreEqual(centre, digit.center.y, 1f,
+                    $"{shape.Name}: the digit is off the tunnel centre, the red circle is at "
+                    + $"{centre:F0} and the digit at {digit.center.y:F0}");
+
+                measured++;
+            }
+
+            Assert.AreEqual(Shapes.Length, measured);
         }
 
         [UnityTest]

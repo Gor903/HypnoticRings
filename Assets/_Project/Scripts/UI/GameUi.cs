@@ -90,8 +90,12 @@ namespace HR.UI
         Canvas _canvas;
         SafeAreaFitter _safeArea;
         RectTransform _plateLayer;
+        RectTransform _centreLayer;
+        float _centreFraction;
 
         public Canvas Canvas => _canvas;
+
+        public RectTransform CentreLayer => _centreLayer;
 
         public Text ScoreLabel => _scoreLabel;
 
@@ -130,16 +134,19 @@ namespace HR.UI
             Canvas.ForceUpdateCanvases();
         }
 
-        public void Initialise(SaveData settings, ScoreKeeper score, Camera camera = null)
+        public void Initialise(SaveData settings, ScoreKeeper score, float centreHeightFraction,
+                               Camera camera = null)
         {
             _settings = settings ?? throw new ArgumentNullException(nameof(settings));
             _score = score ?? throw new ArgumentNullException(nameof(score));
+            _centreFraction = Mathf.Clamp01(centreHeightFraction);
 
             UiBuilder.EnsureEventSystem(transform);
 
             _canvas = UiBuilder.CreateCanvas("UI", transform, camera);
             _shimmer = gameObject.AddComponent<UiShimmer>();
             var canvas = _canvas;
+            _centreLayer = UiBuilder.CreatePanel("Centre", canvas.transform);
             _plateLayer = UiBuilder.CreatePanel("Plates", canvas.transform);
             var safe = UiBuilder.CreateSafeArea(canvas.transform);
             _safeArea = safe.GetComponent<SafeAreaFitter>();
