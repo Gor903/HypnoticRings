@@ -105,6 +105,44 @@ namespace HR.Tests.PlayMode
         }
 
         [UnityTest]
+        public IEnumerator A_continue_puts_the_collapsed_tunnel_back_under_the_ball()
+        {
+            var tunnel = _boot.Tunnel.transform;
+            Vector3 home = tunnel.position;
+
+            yield return DieWith(12);
+            yield return new WaitForSeconds(_config.crushSeconds + 0.1f);
+
+            Assert.Less(tunnel.localScale.x, 0.99f,
+                "the death collapse never shrank the tunnel, so this test proves nothing");
+
+            Assert.IsTrue(_boot.ContinueRun(_boot.Game.Snapshot(0)), "the continue was refused");
+            yield return null;
+
+            Assert.AreEqual(1f, tunnel.localScale.x, 1e-4f,
+                "the rings stayed shrunk; a ball measured in world units never clears them again");
+            Assert.AreEqual(home.x, tunnel.position.x, 1e-4f);
+            Assert.AreEqual(home.y, tunnel.position.y, 1e-4f,
+                "the tunnel stayed pulled toward where the last run died");
+        }
+
+        [UnityTest]
+        public IEnumerator A_continue_leaves_the_rings_as_wide_as_the_game_believes_they_are()
+        {
+            yield return DieWith(12);
+            yield return new WaitForSeconds(_config.crushSeconds + 0.1f);
+
+            Assert.IsTrue(_boot.ContinueRun(_boot.Game.Snapshot(0)));
+            yield return null;
+
+            var ring = _boot.Tunnel.ResolveBallRing();
+            Assert.IsNotNull(ring, "the ball came back outside every ring");
+
+            Assert.AreEqual(_config.thickness, ring.MeasureWorldThickness(), 1e-3,
+                "the ring is drawn smaller than the radius the pass is measured against");
+        }
+
+        [UnityTest]
         public IEnumerator A_continue_is_refused_anywhere_but_game_over()
         {
             _boot.Game.StartRun(20261027);

@@ -1,5 +1,6 @@
 using System;
 using GoogleMobileAds.Api;
+using GoogleMobileAds.Common;
 using GoogleMobileAds.Ump.Api;
 using HR.Core;
 using UnityEngine;
@@ -8,13 +9,9 @@ namespace HR.Ads
 {
     public sealed class GoogleAdService : IAdService
     {
-        public const int BannerDp = 50;
-
         public const int MrecWidthDp = 300;
 
         public const int MrecHeightDp = 250;
-
-        public const int BannerWidthDp = 320;
 
         public const double RetrySeconds = 8.0;
 
@@ -60,18 +57,33 @@ namespace HR.Ads
 
         public void Initialise(Action done)
         {
+            MobileAdsEventExecutor.Initialize();
+
             var request = new ConsentRequestParameters();
 
-            ConsentInformation.Update(request, error =>
+            ConsentInformation.Update(request, error => OnMainThread(() =>
             {
                 if (error != null) Debug.LogWarning($"[HR] consent update: {error}");
 
-                ConsentForm.LoadAndShowConsentFormIfRequired(formError =>
+                ConsentForm.LoadAndShowConsentFormIfRequired(formError => OnMainThread(() =>
                 {
                     if (formError != null) Debug.LogWarning($"[HR] consent form: {formError}");
                     Start(done);
-                });
-            });
+                }));
+            }));
+        }
+
+        static void OnMainThread(Action action)
+        {
+            if (action == null) return;
+
+            if (MobileAdsEventExecutor.IsOnMainThread() || !MobileAdsEventExecutor.IsActive())
+            {
+                action();
+                return;
+            }
+
+            MobileAdsEventExecutor.ExecuteInUpdate(action);
         }
 
         void Start(Action done)
@@ -79,14 +91,14 @@ namespace HR.Ads
             CanRequestAds = ConsentInformation.CanRequestAds();
             if (!CanRequestAds) { done?.Invoke(); return; }
 
-            MobileAds.Initialize(_ =>
+            MobileAds.Initialize(_ => OnMainThread(() =>
             {
                 _started = true;
                 LoadBanner();
                 LoadMrec();
                 LoadRewarded();
                 done?.Invoke();
-            });
+            }));
         }
 
         public void Tick(double dt)
@@ -109,9 +121,17 @@ namespace HR.Ads
             _bannerTries++;
             Drop(ref _banner, AdSlot.Banner);
 
-            var view = new BannerView(_config.Banner, AdSize.Banner, 0, 0);
+            var view = new BannerView(_config.Banner, FullWidthBanner(), 0, 0);
             Watch(view, AdSlot.Banner, () => _banner = view, () => _bannerWanted);
             view.LoadAd(new AdRequest());
+        }
+
+        AdSize FullWidthBanner()
+        {
+            int widthDp = AdPlacement.WidthDp(Screen.width, DeviceScale);
+            if (widthDp <= 0) return AdSize.Banner;
+
+            return AdSize.GetCurrentOrientationAnchoredAdaptiveBannerAdSizeWithWidth(widthDp);
         }
 
         void LoadMrec()
@@ -129,20 +149,20 @@ namespace HR.Ads
 
         void Watch(BannerView view, AdSlot slot, Action keep, Func<bool> wanted)
         {
-            view.OnBannerAdLoaded += () =>
+            view.OnBannerAdLoaded += () => OnMainThread(() =>
             {
                 keep();
                 Reposition(slot);
                 if (!wanted()) view.Hide();
                 SlotLoadedChanged?.Invoke(slot, true);
-            };
+            });
 
-            view.OnBannerAdLoadFailed += error =>
+            view.OnBannerAdLoadFailed += error => OnMainThread(() =>
             {
                 Debug.LogWarning($"[HR] {slot} failed: {error}");
                 view.Destroy();
                 SlotLoadedChanged?.Invoke(slot, false);
-            };
+            });
 
             view.Hide();
         }
@@ -165,7 +185,7 @@ namespace HR.Ads
             _rewardedTries++;
             if (_rewarded != null) { _rewarded.Destroy(); _rewarded = null; }
 
-            RewardedAd.Load(_config.Rewarded, new AdRequest(), (ad, error) =>
+            RewardedAd.Load(_config.Rewarded, new AdRequest(), (ad, error) => OnMainThread(() =>
             {
                 if (error != null || ad == null)
                 {
@@ -176,27 +196,27 @@ namespace HR.Ads
                 _rewardedTries = 0;
                 _rewarded = ad;
                 Listen(ad);
-            });
+            }));
         }
 
         void Listen(RewardedAd ad)
         {
-            ad.OnAdFullScreenContentClosed += () =>
+            ad.OnAdFullScreenContentClosed += () => OnMainThread(() =>
             {
                 _rewarded = null;
                 ad.Destroy();
                 RewardedClosed?.Invoke();
                 LoadRewarded();
-            };
+            });
 
-            ad.OnAdFullScreenContentFailed += error =>
+            ad.OnAdFullScreenContentFailed += error => OnMainThread(() =>
             {
                 Debug.LogWarning($"[HR] rewarded could not open: {error}");
                 _rewarded = null;
                 ad.Destroy();
                 RewardedClosed?.Invoke();
                 LoadRewarded();
-            };
+            });
         }
 
         public void ShowBanner(bool visible)
@@ -221,7 +241,7 @@ namespace HR.Ads
         {
             if (!RewardedReady) return false;
 
-            _rewarded.Show(_ => RewardedEarned?.Invoke());
+            _rewarded.Show(_ => OnMainThread(() => RewardedEarned?.Invoke()));
             return true;
         }
 

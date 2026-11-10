@@ -10,9 +10,9 @@ namespace HR.UI
     {
         void BuildMenu(Transform parent)
         {
-            var screen = UiBuilder.CreatePanel("Menu", parent, new Color(1f, 1f, 1f, 0.88f));
+            var screen = UiBuilder.CreatePanel("Menu", parent);
             _screens[GameState.Menu] = screen;
-            Scrim(screen);
+            Plate(GameState.Menu, new Color(1f, 1f, 1f, 0.88f));
 
             var column = UiBuilder.CreateColumn("Column", screen);
 
@@ -83,29 +83,28 @@ namespace HR.UI
             _stringRefreshers.Add(() => _hintLabel.text = Strings.Get(_hintKey));
             Track(_hintLabel);
 
-            _countdownLabel = UiBuilder.CreateLabel("Countdown", screen, string.Empty,
+            _countdownLabel = UiBuilder.CreateLabel("Countdown", _centreLayer, string.Empty,
                                                     UiBuilder.CountdownSize, role: FontRole.Display);
-            var digitRect = (RectTransform)_countdownLabel.transform;
-            digitRect.anchorMin = new Vector2(0.5f, 1f);
-            digitRect.anchorMax = new Vector2(0.5f, 1f);
-            digitRect.pivot = new Vector2(0.5f, 0.5f);
-            digitRect.sizeDelta = new Vector2(UiBuilder.ReferenceWidth, CountdownBand);
-            digitRect.anchoredPosition = new Vector2(0f, -TunnelCentreY);
+            PinToTunnelCentre((RectTransform)_countdownLabel.transform);
             Track(_countdownLabel);
             Outline(_countdownLabel, 6f);
             _countdownLabel.gameObject.SetActive(false);
         }
 
-        public const float TunnelCentreY = 538f;
-
-        public static readonly float CountdownBand =
-            Mathf.Ceil(UiBuilder.CountdownSize * 1.45f);
+        void PinToTunnelCentre(RectTransform rect)
+        {
+            rect.anchorMin = new Vector2(0f, _centreFraction);
+            rect.anchorMax = new Vector2(1f, _centreFraction);
+            rect.pivot = new Vector2(0.5f, 0.5f);
+            rect.sizeDelta = new Vector2(0f, rect.sizeDelta.y);
+            rect.anchoredPosition = Vector2.zero;
+        }
 
         void BuildPause(Transform parent)
         {
-            var screen = UiBuilder.CreatePanel("Pause", parent, Color.white);
+            var screen = UiBuilder.CreatePanel("Pause", parent);
             _screens[GameState.Paused] = screen;
-            Scrim(screen.GetComponent<Image>());
+            Plate(GameState.Paused, Color.white);
 
             _pauseScoreLabel = UiBuilder.CreateLabel("Score", screen, "0", UiBuilder.ScoreSize,
                                                      role: FontRole.Display);
@@ -128,7 +127,7 @@ namespace HR.UI
         Text AdLabel(string name, Transform parent)
         {
             var label = UiBuilder.CreateLabel(name, parent, Strings.Get(AdLabelKey),
-                                              (int)AdLayout.AdLabelSize, TextAnchor.MiddleLeft);
+                                              (int)AdLayout.AdLabelSize, TextAnchor.MiddleCenter);
             var rect = (RectTransform)label.transform;
             rect.anchorMin = new Vector2(0f, 1f);
             rect.anchorMax = new Vector2(1f, 1f);
@@ -149,9 +148,9 @@ namespace HR.UI
 
         void BuildGameOver(Transform parent)
         {
-            var screen = UiBuilder.CreatePanel("GameOver", parent, Color.white);
+            var screen = UiBuilder.CreatePanel("GameOver", parent);
             _screens[GameState.GameOver] = screen;
-            Scrim(screen.GetComponent<Image>());
+            Plate(GameState.GameOver, Color.white);
 
             _overScoreLabel = UiBuilder.CreateLabel("Score", screen, "0", UiBuilder.ScoreSize,
                                                     role: FontRole.Display);
@@ -215,9 +214,9 @@ namespace HR.UI
 
         void BuildThemes(Transform parent)
         {
-            var screen = UiBuilder.CreatePanel("Themes", parent, new Color(1f, 1f, 1f, 0.92f));
+            var screen = UiBuilder.CreatePanel("Themes", parent);
             _screens[GameState.ThemeSelect] = screen;
-            Scrim(screen);
+            Plate(GameState.ThemeSelect, new Color(1f, 1f, 1f, 0.92f));
 
             var column = UiBuilder.CreateColumn("Column", screen, 24f);
 
@@ -343,9 +342,9 @@ namespace HR.UI
 
         void BuildSettings(Transform parent)
         {
-            var screen = UiBuilder.CreatePanel("Settings", parent, new Color(1f, 1f, 1f, 0.95f));
+            var screen = UiBuilder.CreatePanel("Settings", parent);
             _screens[GameState.Settings] = screen;
-            Scrim(screen);
+            Plate(GameState.Settings, new Color(1f, 1f, 1f, 0.95f));
 
             var column = UiBuilder.CreateScrollColumn("Column", screen, 16f);
 

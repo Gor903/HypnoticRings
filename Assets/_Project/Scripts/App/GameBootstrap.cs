@@ -153,7 +153,7 @@ namespace HR.App
             var uiGo = new GameObject("Interface");
             uiGo.transform.SetParent(transform, false);
             _ui = uiGo.AddComponent<GameUi>();
-            _ui.Initialise(_settings, _game.ScoreKeeper, _camera);
+            _ui.Initialise(_settings, _game.ScoreKeeper, config.centreHeightFraction, _camera);
 
             _juice = uiGo.AddComponent<ScreenJuice>();
             _juice.Initialise(_ui.ScoreLabel, (RectTransform)_ui.Canvas.transform,
@@ -296,7 +296,7 @@ namespace HR.App
 
             var service = new GoogleAdService(ads);
             _ads = service;
-            WireReward();
+            WireAdEvents();
             service.Initialise(() =>
             {
                 _ui.ShowPrivacyLink(_ads.PrivacyOptionsRequired);
@@ -359,6 +359,11 @@ namespace HR.App
 
             _ui.PrivacyPressed += () => _ads.OpenPrivacyOptions();
 
+            WireAdEvents();
+        }
+
+        void WireAdEvents()
+        {
             _ads.RewardedEarned += () => _rewardEarned = true;
 
             _ads.RewardedClosed += () =>
@@ -371,7 +376,7 @@ namespace HR.App
 
                 _rewardEarned = false;
                 _continuesUsed++;
-                _game.Continue(_snapshot);
+                ContinueRun(_snapshot);
             };
         }
 
@@ -396,24 +401,21 @@ namespace HR.App
         {
             if (!(_ads is GoogleAdService google)) return;
 
-            float scale = google.DeviceScale;
+            double scale = google.DeviceScale;
+            var safe = Screen.safeArea;
+            double safeTop = Screen.height - (safe.y + safe.height);
 
-            google.Place(AdSlot.Banner,
-                         CentreDp(GoogleAdService.BannerWidthDp, scale),
-                         Dp(_ui.SafeHeightUnits - insets.BannerHeight, factor, scale));
+            google.Place(AdSlot.Banner, 0,
+                         AdPlacement.BannerTopDp(Screen.height, safe.y,
+                                                 insets.BannerHeight * factor, scale));
 
             if (!plan.ShowsMrec) return;
 
             google.Place(AdSlot.Mrec,
-                         CentreDp(GoogleAdService.MrecWidthDp, scale),
-                         Dp(plan.TopBlock + plan.Flex + AdLayout.AdLabelBand, factor, scale));
+                         AdPlacement.CentreDp(GoogleAdService.MrecWidthDp, Screen.width, scale),
+                         AdPlacement.SlotTopDp(plan.TopBlock + plan.Flex + AdLayout.AdLabelBand,
+                                               factor, safeTop, scale));
         }
-
-        static int Dp(double units, float factor, float scale) =>
-            Mathf.RoundToInt((float)(units * factor) / scale);
-
-        static int CentreDp(int widthDp, float scale) =>
-            Mathf.Max(0, Mathf.RoundToInt((Screen.width / scale - widthDp) * 0.5f));
 
         void ShowWorld(GameState state)
         {
@@ -502,14 +504,7 @@ namespace HR.App
             _ui.AwardsThemes = _game.Mode != GameMode.Hardcore;
 
             _game.StartRun(seed == 0 ? UnityEngine.Random.Range(1, int.MaxValue) : seed);
-            _input.ResetAngle();
-
-            _tunnel.transform.localRotation = Quaternion.identity;
-            _effects.Clear();
-
-            foreach (var ring in _tunnel.Rings)
-                for (int i = 0; i < ring.ActiveSegmentCount; i++)
-                    ring.SegmentAt(i).Collider.sharedMaterial = _ringPhysics;
+            ResetWorld();
 
             _ui.SetScore(0);
             _ui.RefreshHud();
@@ -519,6 +514,29 @@ namespace HR.App
                          hardcore ? GameUi.HardcoreHintKey : GameUi.SwipeHintKey);
 
             _ui.Show(_game.State);
+        }
+
+        public bool ContinueRun(in RunSnapshot snapshot)
+        {
+            if (_game == null || !_game.Continue(snapshot)) return false;
+
+            ResetWorld();
+
+            _ui.SetScore(_game.Score);
+            _ui.RefreshHud();
+            return true;
+        }
+
+        void ResetWorld()
+        {
+            _input.ResetAngle();
+
+            _tunnel.transform.localRotation = Quaternion.identity;
+            _effects.Clear();
+
+            foreach (var ring in _tunnel.Rings)
+                for (int i = 0; i < ring.ActiveSegmentCount; i++)
+                    ring.SegmentAt(i).Collider.sharedMaterial = _ringPhysics;
         }
 
         const float MenuSpinDegPerSecond = 6f;

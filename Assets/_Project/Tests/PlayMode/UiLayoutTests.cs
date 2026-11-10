@@ -233,6 +233,11 @@ namespace HR.Tests.PlayMode
 
                 foreach (var text in Labels(screen)) yield return text;
             }
+
+            var centre = _boot.Ui.CentreLayer;
+            if (centre == null || !centre.gameObject.activeInHierarchy) yield break;
+
+            foreach (var text in Labels(centre)) yield return text;
         }
 
         static IEnumerable<Text> Labels(RectTransform screen)
@@ -243,6 +248,161 @@ namespace HR.Tests.PlayMode
                 if (scroll != null && (scroll.vertical || scroll.horizontal)) continue;
                 yield return text;
             }
+        }
+
+        [UnityTest]
+        public IEnumerator The_countdown_digit_sits_on_the_red_circle_under_any_notch()
+        {
+            int measured = 0;
+
+            foreach (var shape in Shapes)
+            {
+                _camera.aspect = (float)shape.Width / shape.Height;
+
+                float factor = GameUi.ScaleFactorFor(shape.Width, shape.Height);
+                float w = shape.Width / factor;
+                float h = shape.Height / factor;
+
+                const float notch = 130f;
+                const float bar = 90f;
+
+                _boot.Ui.OverrideLayoutShape(_camera, shape.Width, shape.Height,
+                                             new Rect(0f, bar, w, h - notch - bar));
+                yield return null;
+
+                var canvas = (RectTransform)_boot.Ui.Canvas.transform;
+                float centre = canvas.rect.yMin
+                               + canvas.rect.height * _config.centreHeightFraction;
+
+                _boot.Ui.Show(GameState.Countdown);
+                _boot.Ui.SetCountdown(CountdownClock.FirstDigit);
+                Canvas.ForceUpdateCanvases();
+                yield return null;
+
+                var digit = RenderedBox(canvas, _boot.Ui.CountdownLabel);
+                Assert.AreEqual(centre, digit.center.y, 1f,
+                    $"{shape.Name}: the digit is off the tunnel centre, the red circle is at "
+                    + $"{centre:F0} and the digit at {digit.center.y:F0}");
+
+                measured++;
+            }
+
+            Assert.AreEqual(Shapes.Length, measured);
+        }
+
+        [UnityTest]
+        public IEnumerator A_plate_reaches_the_edges_while_its_content_keeps_to_the_safe_area()
+        {
+            int measured = 0;
+
+            foreach (var shape in Shapes)
+            {
+                _camera.aspect = (float)shape.Width / shape.Height;
+
+                float factor = GameUi.ScaleFactorFor(shape.Width, shape.Height);
+                float w = shape.Width / factor;
+                float h = shape.Height / factor;
+
+                const float notch = 130f;
+                const float bar = 90f;
+                var safe = new Rect(0f, bar, w, h - notch - bar);
+
+                _boot.Ui.OverrideLayoutShape(_camera, shape.Width, shape.Height, safe);
+                yield return null;
+
+                var canvas = (RectTransform)_boot.Ui.Canvas.transform;
+
+                foreach (var state in Screens)
+                {
+                    _boot.Ui.Show(state);
+                    Canvas.ForceUpdateCanvases();
+                    yield return null;
+
+                    var plate = _boot.Ui.PlateFor(state);
+                    if (plate == null) continue;
+
+                    Assert.IsTrue(plate.gameObject.activeInHierarchy,
+                        $"{shape.Name} {state}: the plate is dark while its screen is up");
+
+                    var box = LocalBounds(canvas, plate);
+                    measured++;
+
+                    Assert.LessOrEqual(box.yMax, canvas.rect.yMax + 1f,
+                        $"{shape.Name} {state}: the plate overshoots the canvas");
+                    Assert.GreaterOrEqual(box.yMax, canvas.rect.yMax - 1f,
+                        $"{shape.Name} {state}: live game shows above the plate " +
+                        $"({box.yMax:F0} short of {canvas.rect.yMax:F0})");
+                    Assert.LessOrEqual(box.yMin, canvas.rect.yMin + 1f,
+                        $"{shape.Name} {state}: live game shows below the plate " +
+                        $"({box.yMin:F0} above {canvas.rect.yMin:F0})");
+                    Assert.LessOrEqual(box.xMin, canvas.rect.xMin + 1f,
+                        $"{shape.Name} {state}: the plate leaves a strip on the left");
+                    Assert.GreaterOrEqual(box.xMax, canvas.rect.xMax - 1f,
+                        $"{shape.Name} {state}: the plate leaves a strip on the right");
+
+                    var content = LocalBounds(canvas, _boot.Ui.ScreenFor(state));
+
+                    Assert.LessOrEqual(content.yMax, canvas.rect.yMax - notch + 1f,
+                        $"{shape.Name} {state}: content is no longer held inside the safe area");
+                    Assert.GreaterOrEqual(content.yMin, canvas.rect.yMin + bar - 1f,
+                        $"{shape.Name} {state}: content is no longer held inside the safe area");
+                }
+            }
+
+            Assert.Greater(measured, Shapes.Length,
+                $"only {measured} plates measured — the gate is passing vacuously");
+            Debug.Log($"[HR] plate gate: {measured} plates measured");
+        }
+
+        [UnityTest]
+        public IEnumerator An_ad_label_stands_over_its_slot_and_not_against_the_screen_edge()
+        {
+            _camera.aspect = 1080f / 1920f;
+            _boot.Ui.OverrideLayoutShape(_camera, 1080, 1920);
+            yield return null;
+
+            _boot.Ui.Show(GameState.GameOver);
+            var plan = _boot.Ui.ApplyAdLayout(AdScreen.GameOver, new AdInsets(150.0, 750.0),
+                                              rewardButton: false, themeUnlocked: false,
+                                              adsAllowed: true);
+            Canvas.ForceUpdateCanvases();
+            yield return null;
+
+            Assert.IsTrue(plan.ShowsMrec && plan.ShowsBanner,
+                "9x16 fits both slots; without them there are no labels to measure");
+
+            var screen = _boot.Ui.ScreenFor(GameState.GameOver);
+            int measured = 0;
+
+            foreach (var text in screen.GetComponentsInChildren<Text>(includeInactive: false))
+            {
+                if (text.name != "MrecLabel" && text.name != "BannerLabel") continue;
+
+                var run = DrawnRun(text);
+                float bandCentre = (0.5f - ((RectTransform)text.transform).pivot.x) * run.Band;
+                measured++;
+
+                Assert.AreEqual(bandCentre, run.Left + run.Width / 2f, 3f,
+                    $"'{text.name}' is drawn against the edge of its band " +
+                    $"instead of over the slot it names");
+            }
+
+            Assert.AreEqual(2, measured, "both ad labels should be up with a MREC and a banner");
+        }
+
+        static (float Left, float Width, float Band) DrawnRun(Text text)
+        {
+            var rect = ((RectTransform)text.transform).rect;
+            var settings = text.GetGenerationSettings(rect.size);
+            var generator = text.cachedTextGenerator;
+
+            generator.PopulateWithErrors(text.text, settings, text.gameObject);
+
+            float left = generator.characters.Count > 0
+                ? generator.characters[0].cursorPos.x / text.pixelsPerUnit
+                : 0f;
+
+            return (left, DrawnWidth(generator) / text.pixelsPerUnit, rect.width);
         }
 
         static Rect LocalBounds(RectTransform space, RectTransform rect)
