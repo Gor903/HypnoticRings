@@ -75,11 +75,33 @@ namespace HR.Tests.EditMode
         }
 
         [Test]
+        public void A_full_width_banner_asks_for_the_whole_screen_and_not_a_fraction_of_it()
+        {
+            int dp = AdPlacement.WidthDp(Width, Scale);
+
+            Assert.AreEqual(392, dp, "1080 px at 2.75 is 392 dp of screen");
+            Assert.LessOrEqual(dp * Scale, Width,
+                "a banner wider than the screen would be clamped by the SDK and misplaced by us");
+        }
+
+        [Test]
+        public void A_width_divided_by_the_density_twice_covers_barely_a_third_of_the_screen()
+        {
+            int once = AdPlacement.WidthDp(Width, Scale);
+            int twice = AdPlacement.WidthDp(once, Scale);
+
+            Assert.AreEqual(142, twice);
+            Assert.Less(twice / (double)once, 0.4,
+                "the SDK already hands back dp; dividing again is what left the banner a box in the corner");
+        }
+
+        [Test]
         public void A_missing_device_scale_places_nothing_rather_than_dividing_by_zero()
         {
             Assert.AreEqual(0, AdPlacement.SlotTopDp(600.0, Factor, Cutout, 0.0));
             Assert.AreEqual(0, AdPlacement.BannerTopDp(Screen, GestureBar, BannerPixels, 0.0));
             Assert.AreEqual(0, AdPlacement.CentreDp(300.0, Width, 0.0));
+            Assert.AreEqual(0, AdPlacement.WidthDp(Width, 0.0));
         }
 
         [Test]

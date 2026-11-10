@@ -12,6 +12,13 @@ namespace HR.Core
                                       double bannerPixels, double deviceScale) =>
             Dp(screenHeightPixels - safeBottomPixels - bannerPixels, deviceScale);
 
+        public static int WidthDp(double screenWidthPixels, double deviceScale)
+        {
+            if (deviceScale <= 0.0 || screenWidthPixels <= 0.0) return 0;
+
+            return (int)Math.Floor(screenWidthPixels / deviceScale);
+        }
+
         public static int CentreDp(double slotWidthDp, double screenWidthPixels, double deviceScale)
         {
             if (deviceScale <= 0.0) return 0;
