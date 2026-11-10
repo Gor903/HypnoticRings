@@ -24,10 +24,6 @@ namespace HR.Gameplay
 
         int _nextSpawnIndex;
 
-        readonly int[] _pendingIndex = { -1, -1 };
-        readonly double[] _pendingRadius = new double[MaxBalls];
-        readonly RingController[] _ballRings = new RingController[MaxBalls];
-
         int _lastPassedIndex = -1;
         Color[] _ringColours = { Color.white };
 
@@ -143,11 +139,6 @@ namespace HR.Gameplay
             _generator = new RingGenerator(seed);
             _nextSpawnIndex = 0;
             PassedCount = 0;
-            for (int i = 0; i < MaxBalls; i++)
-            {
-                _ballRings[i] = null;
-                _pendingIndex[i] = -1;
-            }
             _lastPassedIndex = -1;
             _ballCount = _balls[0] != null ? 1 : 0;
 
@@ -167,7 +158,6 @@ namespace HR.Gameplay
 
             var band = BallLaunch.BandFor(_settings);
             _ball.Launch(BallLaunch.For(seed, band.Inner, band.Outer, _config.cruiseSpeed));
-            for (int i = 0; i < _ballCount; i++) _ballRings[i] = ResolveRingFor(_balls[i]);
             ApplyShading(InnermostOccupiedRing());
         }
 
@@ -197,7 +187,6 @@ namespace HR.Gameplay
             double inner = outer - _settings.BallRadius * 0.5;
             _ball.Launch(BallLaunch.For(seed, inner, outer, _config.cruiseSpeed));
 
-            for (int i = 0; i < _ballCount; i++) _ballRings[i] = ResolveRingFor(_balls[i]);
             ApplyShading(InnermostOccupiedRing());
         }
 
@@ -481,56 +470,41 @@ namespace HR.Gameplay
             var ball = _balls[slot];
             if (ball == null) return;
 
-            var current = ResolveRingFor(ball);
-            if (current == null) return;
+            if (ResolveRingFor(ball) == null) return;
 
-            if (_ballRings[slot] == null)
+            double distance = ball.DistanceToCentre;
+
+            while (true)
             {
-                _ballRings[slot] = current;
-                return;
-            }
+                var passed = LowestClearedRing(distance, slot);
+                if (passed == null) return;
 
-            if (!ReferenceEquals(current, _ballRings[slot]))
-            {
-                var left = _ballRings[slot];
-                if (current.Radius > left.Radius + 1e-6)
-                {
-                    _pendingIndex[slot] = left.SpawnIndex;
-                    _pendingRadius[slot] = left.Radius;
-                }
-                _ballRings[slot] = current;
-            }
-
-            if (_pendingIndex[slot] < 0) return;
-
-            if (_pendingIndex[slot] <= _lastPassedIndex) { _pendingIndex[slot] = -1; return; }
-
-            if (TunnelMath.HasClearedRing(ball.DistanceToCentre, _pendingRadius[slot],
-                                          _settings.Thickness, _settings.PassMargin))
-            {
                 PassedCount++;
-                _lastPassedIndex = _pendingIndex[slot];
+                _lastPassedIndex = passed.SpawnIndex;
 
-                DissolvePassed(_pendingIndex[slot], slot);
-
-                RingPassed?.Invoke(_pendingIndex[slot]);
-                _pendingIndex[slot] = -1;
+                passed.BeginDissolve(_config.dissolveSeconds);
+                RingPassed?.Invoke(passed.SpawnIndex);
             }
         }
 
-        void DissolvePassed(int spawnIndex, int slot)
+        RingController LowestClearedRing(double distance, int slot)
         {
+            RingController lowest = null;
+
             for (int i = 0; i < _rings.Count; i++)
             {
                 var ring = _rings[i];
-                if (ring.SpawnIndex != spawnIndex) continue;
-                if (ring.IsDissolving) return;
+                if (ring.IsDissolving) continue;
+                if (ring.SpawnIndex <= _lastPassedIndex) continue;
+                if (!TunnelMath.HasClearedRing(distance, ring.Radius,
+                                               _settings.Thickness, _settings.PassMargin)) continue;
 
-                if (IsOwnedByAnother(ring, slot)) return;
-
-                ring.BeginDissolve(_config.dissolveSeconds);
-                return;
+                if (lowest == null || ring.SpawnIndex < lowest.SpawnIndex) lowest = ring;
             }
+
+            if (lowest == null || IsOwnedByAnother(lowest, slot)) return null;
+
+            return lowest;
         }
 
         bool IsOwnedByAnother(RingController ring, int exceptSlot)

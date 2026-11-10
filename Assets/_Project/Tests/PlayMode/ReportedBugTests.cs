@@ -132,5 +132,57 @@ namespace HR.Tests.PlayMode
             Assert.Greater(solid, 0,
                 "every ring went soft for a ball that had left the tunnel, so it could never come back");
         }
+
+        RingController NextOut(RingController inner)
+        {
+            RingController next = null;
+            foreach (var ring in _tunnel.Rings)
+            {
+                if (ring.Radius <= inner.Radius + 1e-6) continue;
+                if (next == null || ring.Radius < next.Radius) next = ring;
+            }
+            return next;
+        }
+
+        [UnityTest]
+        public IEnumerator A_ring_cleared_inside_one_long_step_still_dissolves()
+        {
+            var first = _tunnel.ResolveBallRing();
+            Assert.IsNotNull(first);
+
+            var second = NextOut(first);
+            Assert.IsNotNull(second);
+
+            double clear = second.Radius + _config.thickness * 0.5 + _config.passMargin + 0.05;
+            Assert.Greater(clear - _ball.DistanceToCentre, _config.maxBallSpeed * Dt,
+                "this jump is shorter than one ordinary step, so it proves nothing about a stutter");
+
+            _ball.Place(new Vector2((float)clear, 0f));
+            _tunnel.Step(Dt);
+            yield return null;
+
+            Assert.IsTrue(first.IsDissolving, "the ring the ball left behind survived");
+            Assert.IsTrue(second.IsDissolving,
+                "the ball cleared two rings in one step and the outer one was never noticed");
+        }
+
+        [UnityTest]
+        public IEnumerator Two_rings_cleared_in_one_step_are_both_scored()
+        {
+            int passes = 0;
+            _tunnel.RingPassed += _ => passes++;
+
+            var first = _tunnel.ResolveBallRing();
+            var second = NextOut(first);
+            Assert.IsNotNull(second);
+
+            double clear = second.Radius + _config.thickness * 0.5 + _config.passMargin + 0.05;
+            _ball.Place(new Vector2((float)clear, 0f));
+            _tunnel.Step(Dt);
+            yield return null;
+
+            Assert.AreEqual(2, passes,
+                $"two rings were left behind and {passes} were counted; the score drifts from the screen");
+        }
     }
 }
